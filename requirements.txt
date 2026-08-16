@@ -3,3 +3,5 @@ flask-cors
 requests
 websocket-client
 gunicorn
+eventlet
+flask-socketio
