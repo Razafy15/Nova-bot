@@ -700,7 +700,7 @@ def main():
     today = get_today()
     if data and data[0] == today:
         print(f"Already ran today.")
-        return
+      
     ws_url = get_websocket_url()
     if not ws_url:
         return
