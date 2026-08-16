@@ -277,7 +277,6 @@ def select_chart(symbol):
     global ui_symbol
     if symbol in ["1HZ25V", "1HZ50V", "BOOM150"]:
         ui_symbol = symbol
-        web_stats['ui_candles'] = all_ui_candles.get(ui_symbol, [])
     return jsonify({'status': 'ok'})
 
 @app.route('/api/state/<state>')
@@ -525,30 +524,34 @@ def on_message(ws, message):
             if not bot_active:
                 return
             sym = data['candles']['symbol']
+            
+            # Ataovy azo antoka fa misy ny lisitra ho an'ity symbol ity
+            if sym not in all_ui_candles:
+                all_ui_candles[sym] = []
+                
             for c in data['candles']['data']:
                 ts = int(c['epoch'] / 1000)
-                tf_data["1m"].append({
+                candle_obj = {
                     'time': ts,
                     'open': c['open'],
                     'high': c['high'],
                     'low': c['low'],
                     'close': c['close']
-                })
-                if sym not in all_ui_candles:
-                    all_ui_candles[sym] = []
-                all_ui_candles[sym].append({
-                    'time': ts,
-                    'open': c['open'],
-                    'high': c['high'],
-                    'low': c['low'],
-                    'close': c['close']
-                })
+                }
+                tf_data["1m"].append(candle_obj)
+                all_ui_candles[sym].append(candle_obj)
+                
             if len(tf_data["1m"]) > 200:
                 tf_data["1m"] = tf_data["1m"][-200:]
-            if len(all_ui_candles.get(sym, [])) > 200:
+            if len(all_ui_candles[sym]) > 200:
                 all_ui_candles[sym] = all_ui_candles[sym][-200:]
-            if ui_symbol == sym:
-                web_stats['ui_candles'] = all_ui_candles[sym][-50:]
+                
+            # ✅ NY FANAMBOARANA LEHIBE ETO! 
+            # Na inona na inona ui_symbol tafiditra, dia asehoy foana ny chart an'ny bot miasa ankehitriny
+            if current_symbol in all_ui_candles and len(all_ui_candles[current_symbol]) > 0:
+                web_stats['ui_candles'] = all_ui_candles[current_symbol][-50:]
+                web_stats['current_price'] = all_ui_candles[current_symbol][-1]['close']
+            
             resample_candles()
 
             if not trade_active and active_trades < MAX_TRADES:
