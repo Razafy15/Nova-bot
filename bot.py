@@ -25,7 +25,7 @@ else:
     ACCOUNT_ID = REAL_ACCOUNT_ID
 
 # ==========================================
-# WEB INTERFACE (NovaBot Design)
+# WEB INTERFACE (Professional Dashboard)
 # ==========================================
 app = Flask(__name__)
 CORS(app)
@@ -50,169 +50,170 @@ HTML_INTERFACE = """
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>NovaBot</title>
+<title>NovaBot Dashboard</title>
 <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
 <style>
-*{box-sizing:border-box;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
-body{background:#0b0d15;color:#e0e0e0;padding:15px;margin:0}
-.header{text-align:center;background:linear-gradient(135deg, #00d1ff 0%, #6a11cb 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-weight:800;font-size:22px;letter-spacing:1px;margin-bottom:15px}
-.toggle-mode-box{background:#1c1f2b;border-radius:20px;padding:3px;display:flex;justify-content:space-between;align-items:center;margin-bottom:15px;border:1px solid #2c3145}
-.toggle-btn{flex:1;text-align:center;padding:8px 0;font-size:13px;font-weight:bold;border-radius:15px;cursor:pointer;color:#666;transition:0.3s}
-.toggle-btn.active{background:#00d1ff;color:#0b0d15;box-shadow:0 0 10px rgba(0,209,255,0.3)}
-.market-selector{width:100%;padding:10px;background:#1c1f2b;border:1px solid #2c3145;border-radius:12px;color:#00d1ff;font-weight:bold;margin-bottom:15px;text-align:center;outline:none}
-.card{background:#131720;border-radius:16px;padding:15px;margin-bottom:15px;border:1px solid #242b3d}
-.balance-card{display:flex;justify-content:space-between;align-items:center;background:#0b0e16;border-radius:12px;padding:15px}
-.bal-text{font-size:26px;font-weight:bold;color:#00d1ff}
-.bal-text span{font-size:13px;color:#777;font-weight:normal}
-.status-bar{display:flex;justify-content:space-between;align-items:center;background:#0f1219;border-radius:10px;padding:10px 15px;border:1px solid #242b3d;margin-bottom:15px}
-.dot{width:10px;height:10px;border-radius:50%;display:inline-block;margin-right:5px}
-.dot-green{background:#28a745;box-shadow:0 0 8px #28a745}
-.dot-grey{background:#444}
-.stats-grid{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;margin-bottom:15px}
-.stat-box{background:#0f1219;padding:10px 5px;text-align:center;border-radius:10px;border:1px solid #242b3d}
-.stat-box h4{font-size:11px;color:#777;margin:0 0 5px}
-.stat-box .val{font-size:16px;font-weight:bold}
-.win-c{color:#00d1ff}.loss-c{color:#ff4976}.rate-c{color:#28a745}.total-c{color:#d3d3d3}
-.profit-box{background:#0b0e16;border-radius:10px;padding:15px;margin-bottom:15px;border:1px solid #242b3d}
-.profit-box h4{font-size:12px;color:#777;margin:0}
-.profit-box .val{font-size:22px;font-weight:bold;color:#00d1ff}
-#chart-container{height:210px;width:100%;position:relative;background:#0b0d15;border-radius:0 0 12px 12px}
-.chart-header{display:flex;justify-content:space-between;padding:10px 15px;font-size:12px;color:#777}
-.position-box{background:#0f1219;border-radius:10px;padding:12px;border:1px solid #242b3d;display:flex;align-items:center;gap:12px;margin-top:10px}
-.controls-bot{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;margin-top:15px}
-.btn-ctrl{background:#1c1f2b;border:1px solid #2c3145;padding:12px 0;border-radius:10px;color:#888;font-weight:bold;cursor:pointer;text-align:center;font-size:12px;transition:0.2s}
-.btn-start{background:#00d1ff;color:#0b0d15;border:none}
-.btn-stop{background:#ff4976;color:#fff;border:none}
-.btn-ctrl:active{transform:scale(0.95)}
+*{box-sizing:border-box;margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Oxygen,Ubuntu,Cantarell,sans-serif}
+body{background:#0f1117;color:#e2e8f0;display:flex;justify-content:center;min-height:100vh}
+.dashboard{width:100%;max-width:600px;padding:16px}
+.header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}
+.logo{font-weight:700;font-size:22px;letter-spacing:-0.5px;color:#f8fafc}
+.logo span{color:#4f8cf7}
+.top-controls{display:flex;gap:10px;background:#1c1f29;padding:6px;border-radius:30px;border:1px solid #282c38}
+.pill-btn{flex:1;padding:6px 16px;text-align:center;font-size:13px;font-weight:600;border-radius:24px;cursor:pointer;transition:0.3s;color:#718096;background:transparent}
+.pill-btn.active{background:#4f8cf7;color:#ffffff;box-shadow:0 2px 8px rgba(79,140,247,0.2)}
+.market-select{width:100%;padding:12px;background:#1c1f29;border:1px solid #282c38;border-radius:12px;color:#e2e8f0;font-weight:500;font-size:14px;margin-bottom:20px;outline:none;appearance:none}
+.card{background:#151820;border:1px solid #1f2330;border-radius:16px;padding:18px;margin-bottom:16px;box-shadow:0 4px 15px rgba(0,0,0,0.3)}
+.balance-row{display:flex;justify-content:space-between;align-items:center}
+.balance-amount{font-size:32px;font-weight:700;color:#f8fafc}
+.balance-amount small{font-size:14px;color:#64748b;font-weight:400}
+.account-badge{font-size:12px;color:#64748b;margin-top:4px}
+.balance-icon{width:40px;height:40px;background:#1c1f29;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:20px}
+.status-pill{display:inline-flex;align-items:center;gap:8px;background:#1c1f29;padding:6px 14px;border-radius:20px;font-size:13px;font-weight:600}
+.status-dot{width:10px;height:10px;border-radius:50%;background:#64748b}
+.status-dot.live{background:#22c55e;box-shadow:0 0 10px rgba(34,197,94,0.3)}
+.stats-grid{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px}
+.stat-card{background:#0d0f15;border-radius:12px;padding:12px 6px;text-align:center}
+.stat-label{font-size:11px;color:#64748b;font-weight:500;text-transform:uppercase;letter-spacing:0.5px}
+.stat-value{font-size:18px;font-weight:700;margin-top:4px}
+.text-green{color:#22c55e}.text-red{color:#ef4444}.text-blue{color:#4f8cf7}.text-white{color:#f8fafc}
+.profit-large{font-size:20px;font-weight:600;color:#22c55e;margin-top:6px;display:block}
+.chart-card{padding:0;overflow:hidden;border-radius:16px}
+.chart-container{height:220px;width:100%;padding:10px 0;background:#0d0f15}
+.chart-info{padding:14px 18px;border-bottom:1px solid #1f2330;display:flex;justify-content:space-between;font-size:13px;color:#94a3b8}
+.active-pos-box{display:flex;align-items:center;justify-content:space-between;background:#0d0f15;padding:14px;border-radius:12px;margin-top:12px;border:1px solid #1f2330}
+.pos-type{background:#1c1f29;padding:6px 14px;border-radius:20px;font-size:12px;font-weight:700}
+.pos-type.call{color:#22c55e}.pos-type.put{color:#ef4444}
+.pos-details{flex:1;margin-left:12px;font-size:13px}
+.pos-details span{color:#94a3b8}
+.pos-timer{font-size:18px;font-weight:600}
+.controls-grid{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px;margin-top:8px}
+.ctrl-btn{background:#1c1f29;border:1px solid #1f2330;padding:14px 0;border-radius:12px;font-weight:600;font-size:13px;cursor:pointer;transition:0.2s;color:#94a3b8;text-align:center}
+.ctrl-btn:active{transform:scale(0.95);background:#2a2f3d}
+.ctrl-btn.start{background:#4f8cf7;color:#ffffff;border:none;box-shadow:0 2px 8px rgba(79,140,247,0.2)}
+.ctrl-btn.stop{background:#ef4444;color:#ffffff;border:none;box-shadow:0 2px 8px rgba(239,68,68,0.2)}
+.ctrl-btn.settings{background:#2a2f3d;color:#e2e8f0}
+.ctrl-btn.logs{background:#2a2f3d;color:#e2e8f0}
 </style>
 </head>
 <body>
-<div class="header">TRADING NOVABOT</div>
-
-<!-- Mode Toggle & Market Select -->
-<div class="toggle-mode-box">
-    <div class="toggle-btn" id="btn-reel" onclick="switchMode('REEL')">REEL</div>
-    <div class="toggle-btn active" id="btn-demo" onclick="switchMode('DEMO')">DEMO</div>
-</div>
-<select class="market-selector" id="symbol-selector" onchange="changeChart()">
-    <option value="1HZ25V">📊 Volatility 25</option>
-    <option value="1HZ50V">📊 Volatility 50</option>
-    <option value="BOOM150">💥 Boom 150</option>
-</select>
-
-<!-- Balance -->
-<div class="card">
-    <div class="balance-card">
-        <div>
-            <div style="font-size:11px;color:#777">BALANCE</div>
-            <div class="bal-text" id="balance">0.00<span> USD</span></div>
-            <div style="font-size:10px;color:#aaa;margin-top:4px">Account: <span id="account-mode">DEMO</span></div>
+<div class="dashboard">
+    <div class="header">
+        <div class="logo">Nova<span>Bot</span></div>
+        <div class="top-controls">
+            <div class="pill-btn" onclick="switchMode('REEL')">REEL</div>
+            <div class="pill-btn active" onclick="switchMode('DEMO')">DEMO</div>
         </div>
-        <div style="font-size:35px;opacity:0.6">💳</div>
     </div>
-</div>
 
-<!-- Active / Desactive Status -->
-<div class="status-bar">
-    <div style="font-size:13px;font-weight:bold">
-        <span class="dot dot-green" id="status-dot"></span> <span id="status-label">ACTIVE</span>
-    </div>
-</div>
+    <select class="market-select" id="symbol-selector" onchange="changeChart()">
+        <option value="1HZ25V">Volatility 25 (1HZ25V)</option>
+        <option value="1HZ50V">Volatility 50 (1HZ50V)</option>
+        <option value="BOOM150">BOOM 150</option>
+    </select>
 
-<!-- Stats Grid -->
-<div class="stats-grid">
-    <div class="stat-box"><h4>🏆 WIN</h4><div class="val win-c" id="win">0</div></div>
-    <div class="stat-box"><h4>📉 LOS</h4><div class="val loss-c" id="los">0</div></div>
-    <div class="stat-box"><h4>🎯 WIN RATE</h4><div class="val rate-c" id="win-rate">0%</div></div>
-    <div class="stat-box"><h4>📊 TOTAL</h4><div class="val total-c" id="total">0</div></div>
-</div>
-
-<!-- Profit -->
-<div class="profit-box">
-    <h4>PROFIT</h4>
-    <div class="val" id="profit">+0.00 USD</div>
-</div>
-
-<!-- CHART -->
-<div class="card" style="padding:0;overflow:hidden;border-radius:16px">
-    <div class="chart-header">
-        <span>POSITION ATTENTE (1/2) <span id="pos-wait" style="background:#1c1f2b;padding:2px 8px;border-radius:10px;font-size:10px">0 / 2</span></span>
-    </div>
-    <div id="chart-container"></div>
-</div>
-
-<!-- Position Active -->
-<div class="card">
-    <div style="font-size:12px;color:#777;display:flex;justify-content:space-between;margin-bottom:10px">
-        <span>POSITION ACTIVE <span id="pos-active-badge" style="background:#1c1f2b;padding:2px 8px;border-radius:10px;font-size:10px;color:#aaa">0 / 2</span></span>
-    </div>
-    <div class="position-box">
-        <div style="background:#1a1f2a;padding:8px;border-radius:8px;text-align:center;font-size:10px;font-weight:bold;color:#00d1ff" id="pos-type">CALL</div>
-        <div style="flex:1;font-size:12px">
-            <div style="font-weight:bold" id="pos-symbol">Volatility 25</div>
-            <div style="color:#777;font-size:11px">Entry: <b id="pos-entry">0.00</b> | Profit: <b id="pos-profit" style="color:#00d1ff">0.00 USD</b></div>
+    <div class="card">
+        <div class="balance-row">
+            <div>
+                <div class="balance-amount" id="balance">0.00 <small>USD</small></div>
+                <div class="account-badge">Account: <span id="account-mode">DEMO</span></div>
+            </div>
+            <div class="balance-icon">💳</div>
         </div>
-        <div style="font-size:16px;color:#00d1ff;font-weight:bold" id="pos-timer">00:00</div>
     </div>
-</div>
 
-<!-- Bottom Controls -->
-<div class="controls-bot">
-    <button class="btn-ctrl btn-start" id="btn-start" onclick="controlBot('start')">▶ START BOT</button>
-    <button class="btn-ctrl btn-stop" id="btn-stop" onclick="controlBot('stop')">⏹ STOP BOT</button>
-    <button class="btn-ctrl">⚙️ SETTINGS</button>
-    <button class="btn-ctrl">📄 LOGS</button>
+    <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+            <div class="status-pill"><span class="status-dot live" id="status-dot"></span> <span id="status-label">Active</span></div>
+            <div style="color:#64748b;font-size:13px">Profit: <b id="profit" class="text-green">+0.00 USD</b></div>
+        </div>
+        <div class="stats-grid">
+            <div class="stat-card"><div class="stat-label">Wins</div><div class="stat-value text-green" id="win">0</div></div>
+            <div class="stat-card"><div class="stat-label">Losses</div><div class="stat-value text-red" id="los">0</div></div>
+            <div class="stat-card"><div class="stat-label">Win Rate</div><div class="stat-value text-blue" id="win-rate">0%</div></div>
+            <div class="stat-card"><div class="stat-label">Total</div><div class="stat-value text-white" id="total">0</div></div>
+        </div>
+    </div>
+
+    <div class="card chart-card">
+        <div class="chart-info">
+            <span>Positions Waiting <span id="pos-wait" style="color:#64748b">(0 / 2)</span></span>
+            <span>Active <span id="pos-active-badge" style="color:#64748b">(0 / 2)</span></span>
+        </div>
+        <div class="chart-container" id="chart-container"></div>
+    </div>
+
+    <div class="card">
+        <div style="font-size:13px;color:#64748b;display:flex;justify-content:space-between;margin-bottom:6px">
+            <span>Current Active Position</span>
+            <span id="pos-timer" class="text-white">00:00</span>
+        </div>
+        <div class="active-pos-box">
+            <div class="pos-type call" id="pos-type">CALL</div>
+            <div class="pos-details">
+                <div id="pos-symbol" style="font-weight:600">Volatility 25</div>
+                <div>Entry: <span id="pos-entry">0.00</span> &nbsp;|&nbsp; SL: <span id="pos-sl" style="color:#ef4444">0.00</span> &nbsp;|&nbsp; TP: <span id="pos-tp" style="color:#22c55e">0.00</span></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="controls-grid">
+        <button class="ctrl-btn start" onclick="controlBot('start')">▶ START</button>
+        <button class="ctrl-btn stop" onclick="controlBot('stop')">⏹ STOP</button>
+        <button class="ctrl-btn settings">⚙️ SETTINGS</button>
+        <button class="ctrl-btn logs">📄 LOGS</button>
+    </div>
 </div>
 
 <script>
-// Chart Setup
 const container = document.getElementById('chart-container');
 const chart = LightweightCharts.createChart(container, {
-    width: container.clientWidth, height: 210,
-    layout: { background: {color: 'transparent'}, textColor: '#a0a0a0' },
-    grid: { vertLines: {color: 'rgba(255,255,255,0.03)'}, horzLines: {color: 'rgba(255,255,255,0.03)'} },
-    timeScale: { timeVisible: true, secondsVisible: false, borderColor: 'rgba(255,255,255,0.1)' }
+    width: container.clientWidth, height: 220,
+    layout: { background: {color: 'transparent'}, textColor: '#8b95a6' },
+    grid: { vertLines: {color: 'rgba(255,255,255,0.04)'}, horzLines: {color: 'rgba(255,255,255,0.04)'} },
+    timeScale: { timeVisible: true, secondsVisible: false, borderColor: 'rgba(255,255,255,0.05)' }
 });
-// Candlestick Series (Bougie)
 const candleSeries = chart.addCandlestickSeries({
-    upColor: '#00d1ff', downColor: '#ff4976',
-    borderUpColor: '#00d1ff', borderDownColor: '#ff4976',
-    wickUpColor: '#00d1ff', wickDownColor: '#ff4976'
+    upColor: '#22c55e', downColor: '#ef4444',
+    borderUpColor: '#22c55e', borderDownColor: '#ef4444',
+    wickUpColor: '#22c55e', wickDownColor: '#ef4444'
 });
-// Price Line
 const priceLine = chart.addLineSeries({ color: '#ffffff', lineWidth: 1, lineStyle: 3 });
-// SMC Levels (SL, TP, Entry)
-const entryLine = chart.addLineSeries({ color: '#ffffff', lineWidth: 1, lineStyle: 2 });
-const slLine = chart.addLineSeries({ color: '#ff4976', lineWidth: 1, lineStyle: 2 });
-const tp1Line = chart.addLineSeries({ color: '#00d1ff', lineWidth: 1, lineStyle: 2 });
-const tp2Line = chart.addLineSeries({ color: '#9d4edd', lineWidth: 1, lineStyle: 2 });
+const entryLine = chart.addLineSeries({ color: '#4f8cf7', lineWidth: 1, lineStyle: 2 });
+const slLine = chart.addLineSeries({ color: '#ef4444', lineWidth: 1, lineStyle: 2 });
+const tp1Line = chart.addLineSeries({ color: '#22c55e', lineWidth: 1, lineStyle: 2 });
+const tp2Line = chart.addLineSeries({ color: '#8b5cf6', lineWidth: 1, lineStyle: 2 });
 
 async function updateUI() {
     try {
         const res = await fetch('/api/stats'); const data = await res.json();
-        document.getElementById('balance').innerHTML = data.balance.toFixed(2) + '<span> USD</span>';
+        document.getElementById('balance').innerHTML = data.balance.toFixed(2) + ' <small>USD</small>';
         document.getElementById('account-mode').innerText = data.mode;
         document.getElementById('profit').innerText = (data.profit >= 0 ? '+' : '') + data.profit.toFixed(2) + ' USD';
         document.getElementById('win').innerText = data.wins; document.getElementById('los').innerText = data.losses;
         document.getElementById('total').innerText = data.total_trades;
         document.getElementById('win-rate').innerText = data.win_rate + '%';
-        document.getElementById('pos-wait').innerText = data.waiting_pos + ' / 2';
-        document.getElementById('pos-active-badge').innerText = data.active_pos + ' / 2';
-        document.getElementById('pos-profit').innerText = data.profit.toFixed(2) + ' USD';
+        document.getElementById('pos-wait').innerHTML = '(' + data.waiting_pos + ' / 2)';
+        document.getElementById('pos-active-badge').innerHTML = '(' + data.active_pos + ' / 2)';
+        document.getElementById('pos-timer').innerText = '00:00';
 
         if (data.ui_candles && data.ui_candles.length > 0) {
             candleSeries.setData(data.ui_candles);
-            if (data.signal_markers && data.signal_markers.length > 0) {
-                candleSeries.setMarkers(data.signal_markers);
-            }
+            if (data.signal_markers && data.signal_markers.length > 0) candleSeries.setMarkers(data.signal_markers);
             if (data.entry_level > 0) {
                 const t = Math.floor(Date.now()/1000);
                 entryLine.setData([{time: t-100, value: data.entry_level}, {time: t, value: data.entry_level}]);
                 slLine.setData([{time: t-100, value: data.sl_level}, {time: t, value: data.sl_level}]);
                 tp1Line.setData([{time: t-100, value: data.tp1_level}, {time: t, value: data.tp1_level}]);
                 tp2Line.setData([{time: t-100, value: data.tp2_level}, {time: t, value: data.tp2_level}]);
+                document.getElementById('pos-entry').innerText = data.entry_level.toFixed(4);
+                document.getElementById('pos-sl').innerText = data.sl_level.toFixed(4);
+                document.getElementById('pos-tp').innerText = data.tp1_level.toFixed(4);
             } else {
                 entryLine.setData([]); slLine.setData([]); tp1Line.setData([]); tp2Line.setData([]);
+                document.getElementById('pos-entry').innerText = '0.00';
+                document.getElementById('pos-sl').innerText = '0.00';
+                document.getElementById('pos-tp').innerText = '0.00';
             }
             const lastCandle = data.ui_candles[data.ui_candles.length - 1];
             const t = Math.floor(Date.now()/1000);
@@ -223,10 +224,8 @@ async function updateUI() {
 setInterval(updateUI, 1000); updateUI();
 
 async function switchMode(mode) {
-    document.getElementById('btn-reel').classList.remove('active');
-    document.getElementById('btn-demo').classList.remove('active');
-    if(mode === 'REEL') document.getElementById('btn-reel').classList.add('active');
-    else document.getElementById('btn-demo').classList.add('active');
+    document.querySelectorAll('.pill-btn').forEach(el => el.classList.remove('active'));
+    document.querySelector(`.pill-btn[onclick*="'${mode}'"]`).classList.add('active');
     await fetch('/api/toggle');
     updateUI();
 }
@@ -240,18 +239,16 @@ async function changeChart() {
 async function controlBot(action) {
     const res = await fetch('/api/state/'+action);
     const data = await res.json();
-    if(data.status === 'active'){
-        document.getElementById('status-label').innerText = 'ACTIVE';
-        document.getElementById('status-dot').className = 'dot dot-green';
-    } else {
-        document.getElementById('status-label').innerText = 'DESACTIVE';
-        document.getElementById('status-dot').className = 'dot dot-grey';
-    }
+    const dot = document.getElementById('status-dot');
+    const label = document.getElementById('status-label');
+    if(data.status === 'active'){ label.innerText = 'Active'; dot.className = 'status-dot live'; } 
+    else { label.innerText = 'Inactive'; dot.className = 'status-dot'; }
 }
 </script>
 </body>
 </html>
 """
+
 @app.route('/')
 def index():
     return render_template_string(HTML_INTERFACE)
@@ -289,9 +286,6 @@ def bot_state(state):
     bot_active = (state == 'start')
     web_stats['active'] = bot_active
     return jsonify({'status': 'active' if bot_active else 'desactive'})
-
-def start_web():
-    app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False)
 
 # ==========================================
 # BOT CORE & STRATEGY (SMC & BOOM)
@@ -590,7 +584,7 @@ def on_message(ws, message):
                     web_stats['signal_markers'] = [{
                         'time': tf_data["1m"][-1]['time'],
                         'position': 'belowBar' if decision == 'CALL' else 'aboveBar',
-                        'color': '#00d1ff' if decision == 'CALL' else '#ff4976',
+                        'color': '#22c55e' if decision == 'CALL' else '#ef4444',
                         'shape': 'arrowUp' if decision == 'CALL' else 'arrowDown',
                         'text': decision
                     }]
@@ -713,11 +707,19 @@ def main():
     except:
         pass
 
-if __name__ == "__main__":
-    import os
-    port = int(os.environ.get('PORT', 5000))
-    threading.Thread(target=start_web, daemon=True).start()
+# ==========================================
+# RUNNING THE APP (FIXED FOR RENDER & GUNICORN)
+# ==========================================
+def start_bot_loop():
     while True:
         main()
         print("Bot paused. Restarting in 60s...")
         time.sleep(60)
+
+if __name__ == "__main__":
+    import os
+    port = int(os.environ.get('PORT', 5000))
+    threading.Thread(target=lambda: app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False), daemon=True).start()
+    threading.Thread(target=start_bot_loop, daemon=True).start()
+else:
+    threading.Thread(target=start_bot_loop, daemon=True).start()
