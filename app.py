@@ -10,11 +10,11 @@ app = Flask(__name__)
 bot_config = {
     "app_id": "",
     "api_token": "",
-    "symbol": "R_100", # Ohatra amin'ny symbol
+    "symbol": "R_100",
     "is_running": False
 }
 
-current_symbol_index = 0  # Voitsabo eto ilay bug global variable
+current_symbol_index = 0
 ws_app = None
 
 def on_message(ws, message):
@@ -37,7 +37,7 @@ def on_message(ws, message):
             ask_price = proposal.get("ask_price")
             print(f"Proposal voaray. Vola vidiny (ask_price): {ask_price}")
             
-            # Fanitsiana: Jereo tsara ny vidiny alohan'ny hividianana fa tsy 1 hatrany
+            # Jereo ny vidiny alohan'ny hividianana
             if ask_price and float(ask_price) <= 1.0:
                 buy_contract(ws, proposal_id, ask_price)
             else:
@@ -46,14 +46,12 @@ def on_message(ws, message):
     # Rehefa vita ny fividianana contract
     elif msg_type == "buy":
         print("Vita soa aman-tsara ny fividianana contract!")
-        # Eto no ametrahana ny fanohizana na fiverenana amin'ny loop
 
 def on_error(ws, error):
-    print(droita_error := f"Diso ny fifandraisana WebSocket: {error}")
+    print(f"Diso ny fifandraisana WebSocket: {error}")
 
 def on_close(ws, close_status_code, close_msg):
-nisasaka = "Tapaka ny fifandraisana tamin'ny Deriv WebSocket."
-    print(nisasaka)
+    print("Tapaka ny fifandraisana tamin'ny Deriv WebSocket.")
     bot_config["is_running"] = False
 
 def on_open(ws):
@@ -77,7 +75,7 @@ def request_proposal(ws):
 def buy_contract(ws, proposal_id, price):
     buy_request = {
         "buy": proposal_id,
-        "price": price  # Ampiasaina ny tena vidiny marina avy amin'ny proposal fa tsy hard-code
+        "price": price
     }
     ws.send(json.dumps(buy_request))
 
@@ -108,17 +106,16 @@ def configure_bot():
     bot_config["symbol"] = data.get("symbol", "R_100")
     
     if not bot_config["app_id"] or not bot_config["api_token"]:
-        return jsonify({"status": "error", "message": "Fenoina daholo nyangona ilaina!"}), 400
+        return jsonify({"status": "error", "message": "Fenoina daholo ny angona ilaina!"}), 400
 
-    # Raha efa nandeha ny bot dia tapaho aloha
     if bot_config["is_running"] and ws_app:
         ws_app.close()
 
-    # Alefaso ao anaty background thread ny bot mba tsy hanakana ny tranonkala
     bot_config["is_running"] = True
     threading.Thread(target=run_websocket_bot, daemon=True).start()
 
     return jsonify({"status": "success", "message": "Voarindra sy nanomboka nandeha tsara ny bot!"})
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host='0.0.0.0', port=port)
