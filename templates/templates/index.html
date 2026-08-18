@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="mg">
+<head>
+    <meta charset="UTF-8">
+    <title>Deriv Bot Dashboard</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #f4f4f9; margin: 0; padding: 50px; }
+        .container { max-width: 400px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        h2 { text-align: center; color: #333; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input, select { width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; }
+        button { width: 100%; background: #28a745; color: white; border: none; padding: 10px; font-size: 16px; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #218838; }
+        #status { margin-top: 15px; text-align: center; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>Deriv Bot Control</h2>
+    <form id="botForm">
+        <div class="form-group">
+            <label for="app_id">App ID:</label>
+            <input type="text" id="app_id" required placeholder="Ohatra: 1089">
+        </div>
+        <div class="form-group">
+            <label for="api_token">API Token:</label>
+            <input type="password" id="api_token" required placeholder="Tombanana ho toy ny pat_...">
+        </div>
+        <div class="form-group">
+            <label for="symbol">Market Symbol:</label>
+            <select id="symbol">
+                <option value="R_100">Volatility 100 Index</option>
+                <option value="R_50">Volatility 50 Index</option>
+            </select>
+        </div>
+        <button type="submit">Alefa ny bot</button>
+    </form>
+    <div id="status"></div>
+</div>
+
+<script>
+    document.getElementById('botForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const app_id = document.getElementById('app_id').value;
+        const api_token = document.getElementById('api_token').value;
+        const symbol = document.getElementById('symbol').value;
+        const statusDiv = document.getElementById('status');
+        
+        statusDiv.style.color = "blue";
+        statusDiv.innerText = "Andraso kely... Mampifandray ny bot...";
+
+        try {
+            const response = await fetch('/api/configure', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ app_id, api_token, symbol })
+            });
+            
+            const result = await response.json();
+            if (response.ok) {
+                statusDiv.style.color = "green";
+                statusDiv.innerText = result.message;
+            } else {
+                statusDiv.style.color = "red";
+                statusDiv.innerText = result.message || "Nisy olana nitranga.";
+            }
+        } catch (error) {
+            statusDiv.style.color = "red";
+            statusDiv.innerText = "Tsy tafita ny fangatahana tamin'ny serveur.";
+        }
+    });
+</script>
+
+</body>
+</html>
