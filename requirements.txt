@@ -1,7 +1,2 @@
 flask
-flask-cors
-requests
 websocket-client
-gunicorn
-gevent
-flask-socketio
