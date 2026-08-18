@@ -104,6 +104,17 @@ HTML_INTERFACE = """
   .stepbtn{width:38px;height:38px;flex:none;border-radius:8px;border:1px solid var(--border);background:#101319;color:var(--text);font-size:18px;cursor:pointer;}
   .quick-row{display:flex;gap:6px;margin-top:8px;}
   .qbtn{flex:1;text-align:center;padding:6px 2px;border-radius:6px;border:1px solid var(--border);font-size:11.5px;color:var(--muted);cursor:pointer;background:#101319;}
+  .sig-item{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);}
+  .sig-item:last-child{border-bottom:none;}
+  .sig-badge{width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;flex:none;}
+  .sig-badge.call{background:rgba(70,227,155,.12);color:var(--up);}
+  .sig-badge.put{background:rgba(240,84,107,.12);color:var(--down);}
+  .sig-info{flex:1;}
+  .sig-info .m{font-size:13px;font-weight:600;}
+  .sig-info .d{font-size:11.5px;color:var(--muted);}
+  .sig-status{font-size:10.5px;padding:3px 8px;border-radius:100px;white-space:nowrap;}
+  .sig-status.pend{color:var(--pending);background:rgba(232,178,58,.12);}
+  .sig-status.conf{color:var(--up);background:rgba(70,227,155,.12);}
 </style>
 </head>
 <body>
@@ -127,6 +138,11 @@ HTML_INTERFACE = """
       <div class="chart-wrap">
         <canvas id="chart" width="440" height="230"></canvas>
       </div>
+    </div>
+
+    <div class="card">
+      <h3>Signaly farany</h3>
+      <div id="sigList"><div class="note">Mbola tsy misy signal.</div></div>
     </div>
 
     <div class="card">
@@ -169,11 +185,11 @@ function go(v){
   document.getElementById('v-'+v).classList.add('active');
   document.querySelectorAll('.nav a').forEach(a=>a.classList.toggle('active', a.dataset.v===v));
 }
-const MARKETS = ['v25','v50','boom150']; 
-const TIMEFRAMES = ['1m','5m','15m'];
+
+const MARKETS = ['v25','v50','boom150','boom300','boom500','boom1000','crash150','crash300','crash500','crash1000']; 
+const TIMEFRAMES = ['1m','5m','15m','30m','1h'];
 let activeMarket = 'v25', activeTf = '5m';
 let stakeVal = 1, running = false;
-let candleStore = [];
 
 function renderTabs(){
   const wrap = document.getElementById('mtabs'); wrap.innerHTML = '';
@@ -204,17 +220,24 @@ function setStake(v){ stakeVal=v; document.getElementById('stakeInput').value=v;
 async function toggleRun(){
   running = !running;
   document.getElementById('runT').classList.toggle('on', running);
-  document.getElementById('logBox').innerHTML = running ? '<div>🚀 Bot nalefa.</div>' : '<div>⏹ Bot najanona.</div>';
+  document.getElementById('logBox').innerHTML = running ? '<div>🚀 Bot nalefa. Mikaroka signal...</div>' : '<div>⏹ Bot najanona.</div>';
 }
 
 const container = document.getElementById('chart');
+const initialWidth = container.clientWidth > 0 ? container.clientWidth : 380;
 const chart = LightweightCharts.createChart(container, {
-    width: container.clientWidth, height: 230,
+    width: initialWidth, height: 230,
     layout: { background: {color: 'transparent'}, textColor: '#8b95a6' },
     grid: { vertLines: {color: 'rgba(255,255,255,0.04)'}, horzLines: {color: 'rgba(255,255,255,0.04)'} }
 });
 const candleSeries = chart.addCandlestickSeries({
     upColor: '#46E39B', downColor: '#F0546B', borderUpColor: '#46E39B', borderDownColor: '#F0546B'
+});
+
+window.addEventListener('resize', () => {
+    if(container.clientWidth > 0) {
+        chart.resize(container.clientWidth, 230);
+    }
 });
 
 async function updateUI() {
@@ -224,10 +247,14 @@ async function updateUI() {
     document.getElementById('stBal').innerText = data.balance.toFixed(2);
     document.getElementById('stTr').innerText = data.total_trades;
     document.getElementById('stPl').innerText = data.profit.toFixed(2);
+    
     if (data.ui_candles && data.ui_candles.length > 0) {
       candleSeries.setData(data.ui_candles);
+      setTimeout(() => {
+          if(container.clientWidth > 0) chart.resize(container.clientWidth, 230);
+      }, 100);
     }
-  } catch(e) {}
+  } catch(e) { console.log("UI Error:", e); }
 }
 setInterval(updateUI, 1000); updateUI();
 </script>
@@ -261,7 +288,7 @@ def bot_state(state):
     return jsonify({'status': 'active' if bot_active else 'desactive'})
 
 # ==========================================
-# BOT CORE & STRATEGY (Deriv WebSocket)
+# BOT CORE & STRATEGY
 # ==========================================
 def get_websocket_url():
     url = f"https://api.derivws.com/trading/v1/options/accounts/{ACCOUNT_ID}/otp"
@@ -273,15 +300,215 @@ def get_websocket_url():
         print(f"⚠️ Error WS URL: {e}")
         return None
 
-SYMBOLS = ["1HZ25V"]
-tf_data = {"1m": []}
+MAX_PROFIT_PERCENT = 20
+MAX_LOSS_PERCENT = 20
+MAX_TRADES = 2
+CONTRACT_DURATION = 2
+SYMBOLS = ["1HZ25V", "1HZ50V", "BOOM150"]
+
+current_symbol_index = 0
 balance = 10000
 start_balance = 10000
+tf_data = {"1m": [], "5m": [], "15m": [], "30m": [], "1h": []}
+last_resample_time = {"5m": 0, "15m": 0, "30m": 0, "1h": 0}
+trade_active = False
+decision = None
+active_trades = 0
+trades_today = 0
+profit_win = 0
+profit_loss = 0
 bot_active = True
+entry_found = False
 current_symbol = SYMBOLS[0]
+reconnect_attempts = 0
+MAX_RECONNECT_ATTEMPTS = 10
+DATA_FILE = "bot_data.txt"
+stake_amount = 0.35
+boom_tp_hit = False
+boom_stake = 0.35
+
+def get_today():
+    return datetime.datetime.now().strftime("%Y-%m-%d")
+
+def load_data():
+    if not os.path.exists(DATA_FILE):
+        return None
+    with open(DATA_FILE, "r") as f:
+        lines = f.readlines()
+        if len(lines) >= 2:
+            return lines[0].strip(), float(lines[1].strip())
+    return None
+
+def save_data(balance):
+    with open(DATA_FILE, "w") as f:
+        f.write(f"{get_today()}\n{balance}\n")
+
+def check_daily_limit(start_bal, current_bal):
+    profit_pct = ((current_bal - start_bal) / start_bal) * 100
+    return profit_pct >= MAX_PROFIT_PERCENT or profit_pct <= -MAX_LOSS_PERCENT
+
+def ema(data, period):
+    if len(data) < period:
+        return None
+    multiplier = 2 / (period + 1)
+    ema_value = data[0]
+    for price in data[1:]:
+        ema_value = (price * multiplier) + (ema_value * (1 - multiplier))
+    return ema_value
+
+def find_swing(closes, period=10):
+    if len(closes) < period:
+        return None, None
+    return max(closes[-period:]), min(closes[-period:])
+
+def detect_bos_choch(closes):
+    if len(closes) < 5:
+        return None
+    recent_high, recent_low = find_swing(closes)
+    if recent_high is None:
+        return None
+    last_high = max(closes[-5:-1]) if len(closes) > 5 else closes[-1]
+    last_low = min(closes[-5:-1]) if len(closes) > 5 else closes[-1]
+    current = closes[-1]
+    if current > recent_high:
+        return "BOS_UPTREND"
+    elif current < recent_low:
+        return "BOS_DOWNTREND"
+    elif current < last_low and current < recent_low:
+        return "CHoCH_DOWN"
+    elif current > last_high and current > recent_high:
+        return "CHoCH_UP"
+    return None
+
+def detect_fvg(closes):
+    if len(closes) < 3:
+        return None
+    if closes[-1] > closes[-3] and closes[-2] < closes[-3]:
+        return "FVG_UP"
+    elif closes[-1] < closes[-3] and closes[-2] > closes[-3]:
+        return "FVG_DOWN"
+    return None
+
+def detect_liquidity_sweep(closes_5, highs_list, lows_list):
+    if len(closes_5) < 5:
+        return None
+    recent_high = max(highs_list[-5:]) if len(highs_list) >= 5 else max(highs_list)
+    recent_low = min(lows_list[-5:]) if len(lows_list) >= 5 else min(lows_list)
+    current = closes_5[-1]
+    if current > recent_high:
+        return "SWEEP_HIGH"
+    elif current < recent_low:
+        return "SWEEP_LOW"
+    return None
+
+def resample_candles():
+    if len(tf_data["1m"]) < 2:
+        return
+    cur = time.time()
+    tfs = {"5m": 5, "15m": 15, "30m": 30, "1h": 60}
+    for k, mins in tfs.items():
+        if cur - last_resample_time[k] > (mins * 60):
+            last_resample_time[k] = cur
+            if len(tf_data["1m"]) >= mins:
+                g = tf_data["1m"][-mins:]
+                tf_data[k].append({
+                    'time': g[-1]['time'],
+                    'open': g[0]['open'],
+                    'high': max([x['high'] for x in g]),
+                    'low': min([x['low'] for x in g]),
+                    'close': g[-1]['close']
+                })
+
+def rsi(data, period=14):
+    if len(data) < period + 1:
+        return 50
+    gains = 0
+    losses = 0
+    for i in range(-period, 0):
+        diff = data[i] - data[i-1]
+        if diff > 0:
+            gains += diff
+        else:
+            losses += abs(diff)
+    if losses == 0:
+        return 100
+    rs = gains / losses
+    return 100 - (100 / (1 + rs))
+
+def smc_strategy_mtf():
+    global entry_found, web_stats
+    if not (8 <= datetime.datetime.now().hour <= 16):
+        return None
+    if len(tf_data["5m"]) < 5 or len(tf_data["15m"]) < 10 or len(tf_data["1h"]) < 15:
+        return None
+
+    e1h = ema([c['close'] for c in tf_data["1h"]], 20)
+    if e1h is None:
+        return None
+
+    c15 = [c['close'] for c in tf_data["15m"]]
+    h15 = [c['high'] for c in tf_data["15m"]]
+    l15 = [c['low'] for c in tf_data["15m"]]
+    str15 = detect_bos_choch(c15)
+    fvg15 = detect_fvg(c15)
+
+    c5 = [c['close'] for c in tf_data["5m"]]
+    h5 = [c['high'] for c in tf_data["5m"]]
+    l5 = [c['low'] for c in tf_data["5m"]]
+    sweep = detect_liquidity_sweep(c5, h5, l5)
+
+    buy = False
+    sell = False
+    score = 0
+    if c15[-1] > e1h:
+        if sweep == "SWEEP_HIGH":
+            score += 1
+        if str15 in ["BOS_UPTREND", "CHoCH_UP"]:
+            score += 1
+        if fvg15 == "FVG_UP":
+            score += 1
+        if score >= 3:
+            buy = True
+            swing_high, swing_low = find_swing(c15)
+            web_stats['sl_level'] = swing_low or c15[-1] * 0.95
+            web_stats['tp1_level'] = swing_high or c15[-1] * 1.05
+    elif c15[-1] < e1h:
+        if sweep == "SWEEP_LOW":
+            score += 1
+        if str15 in ["BOS_DOWNTREND", "CHoCH_DOWN"]:
+            score += 1
+        if fvg15 == "FVG_DOWN":
+            score += 1
+        if score >= 3:
+            sell = True
+            swing_high, swing_low = find_swing(c15)
+            web_stats['sl_level'] = swing_high or c15[-1] * 1.05
+            web_stats['tp1_level'] = swing_low or c15[-1] * 0.95
+
+    if buy or sell:
+        entry_found = True
+        return "CALL" if buy else "PUT"
+    return None
+
+def boom_strategy():
+    global entry_found, boom_tp_hit
+    if len(tf_data["1m"]) < 15:
+        return None
+    c = [x['close'] for x in tf_data["1m"]]
+    r = rsi(c)
+    if boom_tp_hit:
+        if r > 85 and c[-1] > c[-2] and c[-2] > c[-3] and c[-3] > c[-4]:
+            boom_tp_hit = False
+            entry_found = True
+            return "PUT"
+        return None
+    if r > 80 and c[-1] > c[-2] and c[-2] > c[-3]:
+        entry_found = True
+        return "PUT"
+    return None
 
 def on_message(ws, message):
-    global balance, start_balance, tf_data, web_stats, all_ui_candles, current_symbol
+    global balance, start_balance, tf_data, trade_active, active_trades, trades_today, profit_win, profit_loss, bot_active, entry_found, current_symbol, web_stats, decision, boom_tp_hit, ui_symbol, all_ui_candles
     try:
         data = json.loads(message)
         msg_type = data.get('msg_type')
@@ -289,45 +516,208 @@ def on_message(ws, message):
             balance = float(data['balance']['balance'])
             web_stats['balance'] = balance
             web_stats['profit'] = balance - start_balance
+            if check_daily_limit(start_balance, balance):
+                save_data(balance)
+                print("Daily limit reached.")
+                ws.close()
+                return
 
         elif msg_type == 'candles':
+            if not bot_active:
+                return
             sym = data['candles']['symbol']
+            
+            if sym not in all_ui_candles:
+                all_ui_candles[sym] = []
+                
             for c in data['candles']['data']:
                 ts = int(c['epoch'] / 1000)
-                candle_obj = {'time': ts, 'open': c['open'], 'high': c['high'], 'low': c['low'], 'close': c['close']}
+                candle_obj = {
+                    'time': ts,
+                    'open': c['open'],
+                    'high': c['high'],
+                    'low': c['low'],
+                    'close': c['close']
+                }
                 tf_data["1m"].append(candle_obj)
-                if sym not in all_ui_candles: all_ui_candles[sym] = []
                 all_ui_candles[sym].append(candle_obj)
+                
+            if len(tf_data["1m"]) > 200:
+                tf_data["1m"] = tf_data["1m"][-200:]
+            if len(all_ui_candles[sym]) > 200:
+                all_ui_candles[sym] = all_ui_candles[sym][-200:]
+                
+            if current_symbol in all_ui_candles and len(all_ui_candles[current_symbol]) > 0:
+                web_stats['ui_candles'] = all_ui_candles[current_symbol][-50:]
+                web_stats['current_price'] = all_ui_candles[current_symbol][-1]['close']
             
-            if len(tf_data["1m"]) > 150: tf_data["1m"] = tf_data["1m"][-150:]
-            if len(all_ui_candles.get(sym, [])) > 150: all_ui_candles[sym] = all_ui_candles[sym][-150:]
-            # Rehefa tonga ny tena angona, dia hosoloany ilay Mock data
-            web_stats['ui_candles'] = all_ui_candles.get(sym, [])[-50:]
+            resample_candles()
 
-    except Exception as e: 
-        print(f"WS Error: {e}")
+            if not trade_active and active_trades < MAX_TRADES:
+                if current_symbol == "BOOM150":
+                    decision = boom_strategy()
+                    sl_val = 0.15
+                    stake = boom_stake
+                    tp_is_amount = True
+                    tp_val = 0.05
+                else:
+                    decision = smc_strategy_mtf()
+                    rm = {
+                        "1HZ25V": {"sl": 0.28, "tp": 0.45},
+                        "1HZ50V": {"sl": 0.28, "tp": 0.50}
+                    }
+                    p = rm.get(current_symbol, {"sl": 0.28, "tp": 0.45})
+                    sl_val = p["sl"]
+                    stake = stake_amount
+                    tp_is_amount = False
+                    tp_val = p["tp"]
 
-def on_error(ws, error): print(f"WS Error: {error}")
+                if decision and entry_found:
+                    current_price = tf_data["1m"][-1]['close']
+                    if decision == "CALL":
+                        sl_price = current_price * (1 - sl_val)
+                        tp_price = current_price + tp_val if tp_is_amount else current_price * (1 + tp_val)
+                    else:
+                        sl_price = current_price * (1 + sl_val)
+                        tp_price = current_price - tp_val if tp_is_amount else current_price * (1 - tp_val)
+                    web_stats['entry_level'] = current_price
+                    web_stats['sl_level'] = sl_price
+                    web_stats['tp1_level'] = tp_price
+                    web_stats['signal_markers'] = [{
+                        'time': tf_data["1m"][-1]['time'],
+                        'position': 'belowBar' if decision == 'CALL' else 'aboveBar',
+                        'color': '#22c55e' if decision == 'CALL' else '#ef4444',
+                        'shape': 'arrowUp' if decision == 'CALL' else 'arrowDown',
+                        'text': decision
+                    }]
+                    print(f"✅ {current_symbol} - {decision} | SL: {sl_val*100}%, TP: {tp_val}{'$' if tp_is_amount else '%'}")
+                    ws.send(json.dumps({
+                        "proposal": 1,
+                        "amount": stake,
+                        "basis": "stake",
+                        "contract_type": decision,
+                        "currency": "USD",
+                        "duration": CONTRACT_DURATION,
+                        "duration_unit": "m",
+                        "underlying_symbol": current_symbol,
+                        "req_id": 3
+                    }))
+                    trade_active = True
+                    entry_found = False
+
+        elif msg_type == 'proposal':
+            proposal_id = data.get('proposal', {}).get('id')
+            if proposal_id:
+                ws.send(json.dumps({"buy": proposal_id, "price": 1, "req_id": 4}))
+
+        elif msg_type == 'buy' and data.get('buy', {}).get('status') == 'pending':
+            contract_id = data.get('buy', {}).get('contract_id')
+            active_trades += 1
+            trades_today += 1
+            web_stats['active_pos'] = active_trades
+            if contract_id and web_stats['entry_level'] > 0:
+                if current_symbol == "BOOM150":
+                    ws.send(json.dumps({
+                        "contract_update": 1,
+                        "contract_id": contract_id,
+                        "stop_loss": round(web_stats['sl_level'], 2),
+                        "take_profit": round(web_stats['tp1_level'], 2)
+                    }))
+                    print(f"🛡️ BOOM - SL: {round(web_stats['sl_level'], 2)}, TP: {round(web_stats['tp1_level'], 2)}")
+                else:
+                    ws.send(json.dumps({
+                        "contract_update": 1,
+                        "contract_id": contract_id,
+                        "stop_loss": round(web_stats['sl_level'], 2),
+                        "take_profit": round(web_stats['tp1_level'], 2),
+                        "trailing_stop": 1.5,
+                        "trailing_stop_unit": "percent"
+                    }))
+                    print(f"🛡️ Volatility - SL: {round(web_stats['sl_level'], 2)}, TP: {round(web_stats['tp1_level'], 2)}, Trailing 1.5%")
+            current_symbol_index = (current_symbol_index + 1) % len(SYMBOLS)
+            current_symbol = SYMBOLS[current_symbol_index]
+            trade_active = False
+            ws.send(json.dumps({"forget_all": 1}))
+            ws.send(json.dumps({
+                "ticks_history": current_symbol, 
+                "style": "candles", 
+                "granularity": 60, 
+                "count": 200, 
+                "end": "latest", 
+                "subscribe": 1, 
+                "req_id": 2
+            }))
+
+        elif msg_type == 'proposal_open_contract' and data.get('proposal_open_contract', {}).get('status') == 'sold':
+            profit = data['proposal_open_contract']['profit']
+            if profit > 0:
+                profit_win += 1
+                web_stats['wins'] = profit_win
+            else:
+                profit_loss += 1
+                web_stats['losses'] = profit_loss
+            web_stats['total_trades'] = profit_win + profit_loss
+            web_stats['win_rate'] = int((profit_win / web_stats['total_trades']) * 100) if web_stats['total_trades'] > 0 else 0
+            if current_symbol == "BOOM150" and profit >= 0.05:
+                boom_tp_hit = True
+                print(f"🎯 BOOM 150 - TP 0.05$ VOATRATRA! ({profit:.2f}$)")
+            web_stats['signal_markers'] = []
+            web_stats['entry_level'] = 0
+            web_stats['sl_level'] = 0
+            web_stats['tp1_level'] = 0
+            active_trades -= 1
+            trade_active = False
+
+    except Exception as e:
+        print(f"Error: {e}")
+def on_error(ws, error):
+    print(f"WS Error: {error}")
+    ws.close()
+
+def on_close(ws, close_status_code, close_msg):
+    global reconnect_attempts
+    if bot_active and reconnect_attempts < MAX_RECONNECT_ATTEMPTS:
+        reconnect_attempts += 1
+        print(f"Reconnecting in 10s... ({reconnect_attempts}/{MAX_RECONNECT_ATTEMPTS})")
+        time.sleep(10)
+
 def on_open(ws):
-    print("✅ WebSocket mifandray! Maka angona...")
+    global reconnect_attempts, current_symbol
+    reconnect_attempts = 0
+    def send_ping():
+        try:
+            if bot_active:
+                ws.send(json.dumps({"ping": 1, "req_id": 999}))
+                threading.Timer(30, send_ping).start()
+        except:
+            pass
+    send_ping()
+    
+    # Authorize (OAuth 2.0)
     ws.send(json.dumps({"authorize": AUTH_TOKEN, "req_id": 0}))
     ws.send(json.dumps({"balance": 1, "subscribe": 1, "req_id": 1}))
-    # Namboarina ho 'ticks_history' (ny marina an'i Deriv)
-    ws.send(json.dumps({"ticks_history": current_symbol, "style": "candles", "granularity": 60, "count": 100, "end": "latest", "subscribe": 1, "req_id": 2}))
+    # Ticks_history ho an'ny tena chart
+    ws.send(json.dumps({"ticks_history": current_symbol, "style": "candles", "granularity": 60, "count": 200, "end": "latest", "subscribe": 1, "req_id": 2}))
 
 def main():
+    global start_balance, balance
+    data = load_data()
+    today = get_today()
+    if data and data[0] == today:
+        print("⚠️ Efa nisy varotra androany. Mampifandray fotsiny ny WebSocket mba hahazoana ny Chart.")
     ws_url = get_websocket_url()
     if not ws_url:
-        print("❌ TSY NAHAZO NY WEB SOCKET URL. Mety malemy na lany ny AUTH_TOKEN.")
         return
-    ws = websocket.WebSocketApp(ws_url, on_open=on_open, on_message=on_message, on_error=on_error)
-    try: ws.run_forever()
-    except: pass
+    ws = websocket.WebSocketApp(ws_url, on_open=on_open, on_message=on_message, on_error=on_error, on_close=on_close)
+    try:
+        ws.run_forever()
+    except:
+        pass
 
 def start_bot_loop():
     while True:
         main()
-        print("Bot reboot ao anatin'ny 60 segondra...")
+        print("Bot paused. Restarting in 60s...")
         time.sleep(60)
 
 if __name__ == "__main__":
