@@ -1,251 +1,148 @@
 <!DOCTYPE html>
 <html lang="mg">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Nova — Bot Trading Deriv</title>
-<script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
-<style>
-  :root{
-    --bg:#0F1115; --panel:#171A20; --border:#262B34; --text:#E8EAED; --muted:#8A93A3;
-    --accent:#6E56CF; --up:#46E39B; --down:#F0546B; --pending:#E8B23A;
-  }
-  *{box-sizing:border-box;}
-  body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,Segoe UI,Inter,sans-serif;}
-  main{max-width:480px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column;}
-  header{padding:20px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border);}
-  header .dot{width:8px;height:8px;background:var(--accent);border-radius:2px;transform:rotate(45deg);}
-  header b{font-size:15px;}
-  .view{display:none;padding:24px 20px 60px;flex:1;}
-  .view.active{display:block;}
-  h1{font-size:24px;margin:0 0 10px;line-height:1.2;}
-  h2{font-size:19px;margin:0 0 4px;}
-  h3{font-size:14.5px;margin:0 0 2px;}
-  p.sub{color:var(--muted);font-size:13.5px;line-height:1.55;margin:0 0 24px;}
-  .btn{display:block;width:100%;text-align:center;padding:13px;border-radius:9px;border:1px solid transparent;font-size:14.5px;font-weight:600;text-decoration:none;color:#fff;background:var(--accent);margin-top:10px;cursor:pointer;}
-  label{display:block;font-size:12.5px;color:var(--muted);margin:16px 0 6px;}
-  input,select{width:100%;background:#101319;border:1px solid var(--border);color:var(--text);padding:11px 12px;border-radius:8px;font-size:14px;}
-  .card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:14px;}
-  .pill{display:inline-block;font-size:11px;padding:3px 9px;border-radius:100px;border:1px solid var(--border);color:var(--muted);}
-  .pill.on{color:var(--up);border-color:rgba(70,227,155,.3);}
-  .stats{display:flex;gap:10px;margin-bottom:14px;}
-  .stat{flex:1;background:#101319;border:1px solid var(--border);border-radius:8px;padding:10px 12px;}
-  .stat .l{font-size:10.5px;color:var(--muted);}
-  .stat .v{font-size:16px;font-weight:600;}
-  .v.up{color:var(--up);} .v.down{color:var(--down);}
-  .log{background:#000;border:1px solid var(--border);border-radius:8px;height:150px;overflow-y:auto;padding:10px;font-family:monospace;font-size:11.5px;color:var(--muted);}
-  .nav{display:flex;justify-content:space-around;border-top:1px solid var(--border);padding:10px 0;position:sticky;bottom:0;background:var(--bg);}
-  .nav a{color:var(--muted);font-size:11.5px;text-decoration:none;display:flex;flex-direction:column;align-items:center;gap:3px;}
-  .nav a.active{color:var(--accent);}
-  .toggle{width:42px;height:24px;border-radius:100px;background:#101319;border:1px solid var(--border);position:relative;cursor:pointer;}
-  .toggle.on{background:var(--accent);}
-  .toggle .k{position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:#fff;transition:.2s;}
-  .toggle.on .k{left:20px;}
-  .row{display:flex;align-items:center;justify-content:space-between;margin-top:14px;}
-  .mtabs{display:flex;gap:5px;margin-bottom:8px;flex-wrap:wrap;}
-  .mtab{flex:1 1 30%;min-width:0;text-align:center;padding:8px 3px;border-radius:8px;border:1px solid var(--border);font-size:10.5px;color:var(--muted);cursor:pointer;background:#101319;}
-  .mtab.active{border-color:var(--accent);color:var(--text);background:rgba(110,86,207,.12);}
-  .tf-row{display:flex;gap:6px;margin-bottom:12px;}
-  .tf{flex:1;text-align:center;padding:7px 2px;border-radius:7px;border:1px solid var(--border);font-size:11.5px;color:var(--muted);cursor:pointer;background:#101319;}
-  .tf.active{border-color:var(--accent);color:#fff;background:var(--accent);}
-  .chart-wrap{position:relative;background:#131722;border:1px solid var(--border);border-radius:10px;padding:6px 0 4px;margin-bottom:6px;}
-  #chart{width:100%;height:230px;}
-  .stake-row{display:flex;align-items:center;gap:8px;}
-  .stake-row input{text-align:center;font-size:16px;font-weight:600;}
-  .stepbtn{width:38px;height:38px;flex:none;border-radius:8px;border:1px solid var(--border);background:#101319;color:var(--text);font-size:18px;cursor:pointer;}
-  .quick-row{display:flex;gap:6px;margin-top:8px;}
-  .qbtn{flex:1;text-align:center;padding:6px 2px;border-radius:6px;border:1px solid var(--border);font-size:11.5px;color:var(--muted);cursor:pointer;background:#101319;}
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deriv Bot - SMC & Spike Strategy</title>
+    <!-- Lightweight Charts Library -->
+    <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; background: #121212; color: #e0e0e0; margin: 0; padding: 20px; }
+        .container { max-width: 900px; margin: auto; background: #1e1e1e; padding: 20px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
+        h1 { text-align: center; color: #4CAF50; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input, select { width: 100%; padding: 8px; box-sizing: border-box; background: #2d2d2d; border: 1px solid #444; color: #fff; border-radius: 4px; }
+        button { padding: 10px 15px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; margin-right: 5px; }
+        .btn-start { background: #4CAF50; color: white; }
+        .btn-stop { background: #f44336; color: white; }
+        .btn-config { background: #ff9800; color: white; }
+        #chart { width: 100%; height: 400px; margin-top: 20px; background: #181818; border-radius: 4px; }
+        .stats { display: flex; justify-content: space-between; margin-top: 20px; background: #252525; padding: 15px; border-radius: 4px; }
+        .stat-box { text-align: center; }
+        .stat-box span { display: block; font-size: 18px; font-weight: bold; color: #4CAF50; }
+        .signal-box { margin-top: 15px; background: #2d2d2d; padding: 10px; border-left: 4px solid #4CAF50; font-family: monospace; }
+    </style>
 </head>
 <body>
-<main>
-  <header><span class="dot"></span><b>Nova</b></header>
-  
-  <section class="view active" id="v-landing">
-    <span class="pill">Deriv synthetic indices</span>
-    <h1 style="margin-top:12px;">Bot trading ho an'ny Volatility sy Boom.</h1>
-    <p class="sub">Ampidiro eto ambany ny mombamomba ny kaontinao Deriv vao hiditra amin'ny Dashboard.</p>
-    
-    <div class="card" style="background:var(--bg); border:none; padding:0;">
-      <label>App ID</label>
-      <input type="text" id="app_id" placeholder="Ohatra: 1089">
-      
-      <label>API Token</label>
-      <input type="password" id="api_token" placeholder="Ampidiro eto ny API Token-nao">
-      
-      <button class="btn" onclick="saveConfigAndGo()">Ampifandraiso & Hiditra</button>
-    </div>
-  </section>
+    <div class="container">
+        <h1>Deriv Trading Bot</h1>
+        
+        <!-- Fidirana Paramètre -->
+        <div class="form-group">
+            <label>App ID:</label>
+            <input type="text" id="appId" value="1089">
+        </div>
+        <div class="form-group">
+            <label>API Token:</label>
+            <input type="password" id="apiToken" placeholder="Ampidiro eto ny Token-nao">
+        </div>
+        <div class="form-group">
+            <label>Tsena (Symbol):</label>
+            <select id="symbol">
+                <option value="1HZ25V">Volatility 25 (1HZ25V)</option>
+                <option value="1HZ50V">Volatility 50 (1HZ50V)</option>
+                <option value="BOOM150">Boom 150</option>
+                <option value="CRASH150">Crash 150</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Stake (USD):</label>
+            <input type="number" id="stake" value="1.0" step="0.1">
+        </div>
+        
+        <button class="btn-config" onclick="configureBot()">Rindra (Configure)</button>
+        <button class="btn-start" onclick="startBot()">Alefa (Start)</button>
+        <button class="btn-stop" onclick="stopBot()">Ajanona (Stop)</button>
 
-  <section class="view" id="v-dash">
-    <div class="row" style="margin-top:0;">
-      <h2 style="margin:0;">Dashboard</h2>
-      <span class="pill on" id="connPill">Mandeha</span>
-    </div>
-    
-    <div class="card">
-      <div class="mtabs" id="mtabs"></div>
-      <div class="tf-row" id="tfRow"></div>
-      <div class="chart-wrap">
+        <!-- Sary / Chart -->
         <div id="chart"></div>
-      </div>
+
+        <!-- Estatistika -->
+        <div class="stats">
+            <div class="stat-box">Balance: <span id="stBal">0.00</span> USD</div>
+            <div class="stat-box">Trades Vita: <span id="stTr">0</span></div>
+            <div class="stat-box">Profit: <span id="stPl">0.00</span> USD</div>
+        </div>
+
+        <div class="signal-box">
+            <strong>Siny farany:</strong> <span id="stSignal">Miandry fepetra...</span>
+        </div>
     </div>
 
-    <div class="card">
-      <h3>Signaly farany</h3>
-      <div id="sigList"><div class="note">Mbola tsy misy signal.</div></div>
-    </div>
+    <script>
+        // Famoronana ny Tabilao (Chart)
+        const chartElement = document.getElementById('chart');
+        const chart = LightweightCharts.createChart(chartElement, {
+            layout: { background: { color: '#181818' }, textColor: '#d1d4dc' },
+            grid: { vertLines: { color: '#2b2b2b' }, horzLines: { color: '#2b2b2b' } },
+        });
+        const candleSeries = chart.addCandlestickSeries();
 
-    <div class="card">
-      <label style="margin-top:0;">Stake (USD)</label>
-      <div class="stake-row">
-        <button class="stepbtn" onclick="stepStake(-1)">−</button>
-        <input type="number" id="stakeInput" value="1" step="0.1" min="0.35" oninput="onStakeInput()">
-        <button class="stepbtn" onclick="stepStake(1)">+</button>
-      </div>
-      <div class="quick-row">
-        <div class="qbtn" onclick="setStake(0.35)">0.35</div>
-        <div class="qbtn" onclick="setStake(1)">1</div>
-        <div class="qbtn" onclick="setStake(2)">2</div>
-        <div class="qbtn" onclick="setStake(5)">5</div>
-        <div class="qbtn" onclick="setStake(10)">10</div>
-      </div>
-      <div class="row">
-        <div style="font-size:13.5px;">Alefaso ny bot</div>
-        <div class="toggle" id="runT" onclick="toggleRun()"><div class="k"></div></div>
-      </div>
-    </div>
+        async function configureBot() {
+            const appId = document.getElementById('appId').value;
+            const apiToken = document.getElementById('apiToken').value;
+            const symbol = document.getElementById('symbol').value;
+            const stake = document.getElementById('stake').value;
 
-    <div class="stats">
-      <div class="stat"><div class="l">VOLA</div><div class="v up" id="stBal">—</div></div>
-      <div class="stat"><div class="l">TRADE</div><div class="v" id="stTr">0</div></div>
-      <div class="stat"><div class="l">P/L</div><div class="v" id="stPl">0.00</div></div>
-    </div>
+            const res = await fetch('/api/configure', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ app_id: appId, api_token: apiToken, symbol: symbol, stake: stake })
+            });
+            const data = await res.json();
+            alert(data.message);
+        }
 
-    <div class="log" id="logBox"><div>Miandry ny fanombohan'ny Bot...</div></div>
-  </section>
+        async function startBot() {
+            const symbol = document.getElementById('symbol').value;
+            const stake = document.getElementById('stake').value;
+            const res = await fetch('/api/start', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ symbol: symbol, stake: stake })
+            });
+            const data = await res.json();
+            alert(data.message);
+        }
 
-  <nav class="nav">
-    <a href="#" class="active" data-v="landing" onclick="go('landing');return false;">Fitaovana</a>
-    <a href="#" data-v="dash" onclick="go('dash');return false;">Dashboard</a>
-  </nav>
-</main>
-<script>
-function go(v){
-  document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));
-  document.getElementById('v-'+v).classList.add('active');
-  document.querySelectorAll('.nav a').forEach(a=>a.classList.toggle('active', a.dataset.v===v));
-  if(v==='dash') {
-    setTimeout(() => {
-      if(container.clientWidth > 0) {
-        chart.resize(container.clientWidth, 230);
-        chart.timeScale().fitContent();
-      }
-    }, 150);
-  }
-}
+        async function stopBot() {
+            const res = await fetch('/api/stop', { method: 'POST' });
+            const data = await res.json();
+            alert(data.message);
+        }
 
-async function saveConfigAndGo() {
-  const app_id = document.getElementById('app_id').value;
-  const api_token = document.getElementById('api_token').value;
-  const symbol = activeMarket;
+        async function updateUI() {
+            try {
+                const res = await fetch('/api/stats');
+                const data = await res.json();
+                
+                document.getElementById('stBal').innerText = data.balance.toFixed(2);
+                document.getElementById('stTr').innerText = data.total_trades;
+                document.getElementById('stPl').innerText = data.profit.toFixed(2);
+                document.getElementById('stSignal').innerText = data.last_signal;
 
-  if(!app_id || !api_token) {
-    alert("Fenoina daholo azafady ny App ID sy API Token!");
-    return;
-  }
+                // Antoka fa mivoaka foana ny sary na dia mbola miandry signal aza
+                if (data.ui_candles && data.ui_candles.length > 0) {
+                    candleSeries.setData(data.ui_candles);
+                } else {
+                    // Sary vonjimaika raha mbola miandry angona avy amin'ny server
+                    const now = Math.floor(Date.now() / 1000);
+                    candleSeries.setData([
+                        { time: now - 120, open: 100, high: 105, low: 95, close: 102 },
+                        { time: now - 60, open: 102, high: 108, low: 100, close: 106 },
+                        { time: now, open: 106, high: 110, low: 104, close: 108 }
+                    ]);
+                }
+                chart.timeScale().fitContent();
+            } catch (e) {
+                console.log("Olana tamin'ny fakana UI:", e);
+            }
+        }
 
-  try {
-    const res = await fetch('/api/configure', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ app_id, api_token, symbol })
-    });
-    const data = await res.json();
-    if(res.ok) {
-      go('dash');
-    } else {
-      alert(data.message || "Nisy olana.");
-    }
-  } catch(e) {
-    alert("Tsy tafita ny fifandraisana tamin'ny server.");
-  }
-}
-
-const MARKETS = ['R_25','R_50','R_75','R_100','boom150','boom300','boom500','boom1000']; 
-const TIMEFRAMES = ['1m','5m','15m','30m','1h'];
-let activeMarket = 'R_25', activeTf = '5m';
-let stakeVal = 1, running = false;
-
-function renderTabs(){
-  const wrap = document.getElementById('mtabs'); wrap.innerHTML = '';
-  MARKETS.forEach(m => {
-    const el = document.createElement('div');
-    el.className = 'mtab' + (m===activeMarket?' active':'');
-    el.innerHTML = m;
-    el.onclick = ()=>{ activeMarket=m; renderTabs(); };
-    wrap.appendChild(el);
-  });
-}
-function renderTf(){
-  const wrap = document.getElementById('tfRow'); wrap.innerHTML = '';
-  TIMEFRAMES.forEach(tf => {
-    const el = document.createElement('div');
-    el.className = 'tf' + (tf===activeTf?' active':'');
-    el.textContent = tf;
-    el.onclick = ()=>{ activeTf=tf; renderTf(); };
-    wrap.appendChild(el);
-  });
-}
-renderTabs(); renderTf();
-
-function onStakeInput(){ stakeVal = parseFloat(document.getElementById('stakeInput').value)||1; }
-function stepStake(dir){ stakeVal = Math.max(0.35, stakeVal + dir*(stakeVal<1?0.1:1)); document.getElementById('stakeInput').value=stakeVal; }
-function setStake(v){ stakeVal=v; document.getElementById('stakeInput').value=v; }
-
-async function toggleRun(){
-  running = !running;
-  document.getElementById('runT').classList.toggle('on', running);
-  document.getElementById('logBox').innerHTML = running ? '<div>🚀 Bot nalefa. Mikaroka signal...</div>' : '<div>⏹ Bot najanona.</div>';
-}
-
-const container = document.getElementById('chart');
-const chart = LightweightCharts.createChart(container, {
-    width: container.clientWidth || 380, height: 230,
-    layout: { background: {color: 'transparent'}, textColor: '#8b95a6' },
-    grid: { vertLines: {color: 'rgba(255,255,255,0.04)'}, horzLines: {color: 'rgba(255,255,255,0.04)'} }
-});
-const candleSeries = chart.addCandlestickSeries({
-    upColor: '#46E39B', downColor: '#F0546B', borderUpColor: '#46E39B', borderDownColor: '#F0546B'
-});
-
-window.addEventListener('resize', () => {
-    if(container.clientWidth > 0) {
-        chart.resize(container.clientWidth, 230);
-    }
-});
-
-async function updateUI() {
-  try {
-    const res = await fetch('/api/stats'); 
-    const data = await res.json();
-    document.getElementById('stBal').innerText = data.balance.toFixed(2);
-    document.getElementById('stTr').innerText = data.total_trades;
-    document.getElementById('stPl').innerText = data.profit.toFixed(2);
-    
-    if (data.ui_candles && data.ui_candles.length > 0) {
-      candleSeries.setData(data.ui_candles);
-    } else {
-      // Angona vonjimaika mba hivoahan'ny sary foana na dia mbola miandry aza
-      candleSeries.setData([
-        { time: 1700000000, open: 10, high: 15, low: 8, close: 12 },
-        { time: 1700000300, open: 12, high: 18, low: 11, close: 16 }
-      ]);
-    }
-    chart.timeScale().fitContent();
-  } catch(e) { console.log("UI Error:", e); }
-}
-setInterval(updateUI, 1000); updateUI();
-</script>
+        // Fanavaozana ny pejy isaky ny segondra
+        setInterval(updateUI, 1000);
+        updateUI();
+    </script>
 </body>
 </html>
