@@ -6,11 +6,10 @@ from flask import Flask, render_template, request, jsonify
 
 app = Flask(__name__)
 
-# Data hitahirizana ny fiasan'ny bot sy ny statistika
-bot_state = {
+bot_config = {
     "app_id": "",
     "api_token": "",
-    "symbol": "v25",
+    "symbol": "R_25",
     "is_running": False,
     "balance": 0.0,
     "total_trades": 0,
@@ -24,63 +23,56 @@ def on_message(ws, message):
     data = json.loads(message)
     msg_type = data.get("msg_type")
     
-    # Rehefa tafiditra soa aman-tsara (Authorize)
     if msg_type == "authorize":
         print("Tafiditra soa aman-tsara ny Token!")
-        # Mangataka ny balance avy hatrany
         ws.send(json.dumps({"balance": 1, "subscribe": 1}))
-        # Mangataka ny sary famantarana (candles) voalohany
-        request_candles(ws, bot_state["symbol"])
+        request_candles(ws)
 
     elif msg_type == "balance":
-        bal = data.get("balance", {})
-        if "balance" in bal:
-            bot_state["balance"] = float(bal["balance"])
+        bal = data.get("balance")
+        if bal and "balance" in bal:
+            bot_config["balance"] = float(bal["balance"])
 
-    elif msg_type == "ohlc" or msg_type == "candles":
-        # Handraisana ny sary famantarana ho an'ny Lightweight Charts
-        candles_data = data.get("candles") or [data.get("ohlc")]
-        if candles_data:
-            formatted = []
-            for c in candles_data:
-                if c:
-                    formatted.append({
-                        "time": c.get("epoch") or c.get("open_time"),
-                        "open": float(c.get("open", 0)),
-                        "high": float(c.get("high", 0)),
-                        "low": float(c.get("low", 0)),
-                        "close": float(c.get("close", 0))
-                    })
-            bot_state["ui_candles"] = formatted
+    elif msg_type == "candles":
+        candles = data.get("candles", [])
+        formatted_candles = []
+        for c in candles:
+            formatted_candles.append({
+                "time": c["epoch"],
+                "open": float(c["open"]),
+                "high": float(c["high"]),
+                "low": float(c["low"]),
+                "close": float(c["close"])
+            })
+        bot_config["ui_candles"] = formatted_candles
 
-def request_candles(ws, symbol):
-    # Fangatahana tabilao (candles) 
+def request_candles(ws):
     req = {
-        "ticks_history": symbol,
+        "ticks_history": bot_config["symbol"],
         "adjust_start_time": 1,
         "count": 100,
         "end": "latest",
+        "start": 1,
         "style": "candles",
-        "granularity": 60,
-        "subscribe": 1
+        "granularity": 300
     }
     ws.send(json.dumps(req))
 
 def on_error(ws, error):
-    print(f"WebSocket Error: {error}")
+    print(f"Diso ny fifandraisana WebSocket: {error}")
 
 def on_close(ws, close_status_code, close_msg):
-    print("Tapaka ny fifandraisana WebSocket.")
-    bot_state["is_running"] = False
+    print("Tapaka ny fifandraisana tamin'ny Deriv WebSocket.")
+    bot_config["is_running"] = False
 
 def on_open(ws):
-    print("Mifandray amin'ny Deriv WebSocket... Mandefa authorize...")
-    auth_data = {"authorize": bot_state["api_token"]}
+    print("Mifandray amin'ny Deriv... Mandefa authorize...")
+    auth_data = {"authorize": bot_config["api_token"]}
     ws.send(json.dumps(auth_data))
 
 def run_websocket_bot():
     global ws_app
-    app_id = bot_state["app_id"]
+    app_id = bot_config["app_id"]
     socket_url = f"wss://ws.derivws.com/websockets/v3?app_id={app_id}"
     
     websocket.enableTrace(False)
@@ -100,28 +92,28 @@ def configure_bot():
     global ws_app
     data = request.json
     
-    bot_state["app_id"] = data.get("app_id")
-    bot_state["api_token"] = data.get("api_token")
-    bot_state["symbol"] = data.get("symbol", "v25")
+    bot_config["app_id"] = data.get("app_id")
+    bot_config["api_token"] = data.get("api_token")
+    bot_config["symbol"] = data.get("symbol", "R_25")
     
-    if not bot_state["app_id"] or not bot_state["api_token"]:
-        return jsonify({"status": "error", "message": "Fenoina ny App ID sy API Token!"}), 400
+    if not bot_config["app_id"] or not bot_config["api_token"]:
+        return jsonify({"status": "error", "message": "Fenoina daholo ny App ID sy API Token!"}), 400
 
-    if bot_state["is_running"] and ws_app:
+    if bot_config["is_running"] and ws_app:
         ws_app.close()
 
-    bot_state["is_running"] = True
+    bot_config["is_running"] = True
     threading.Thread(target=run_websocket_bot, daemon=True).start()
 
-    return jsonify({"status": "success", "message": "Voarindra sy nanomboka nandeha tsara ny bot!"})
+    return jsonify({"status": "success", "message": "Voarindra tsara ny bot!"})
 
 @app.route('/api/stats', methods=['GET'])
 def get_stats():
     return jsonify({
-        "balance": bot_state["balance"],
-        "total_trades": bot_state["total_trades"],
-        "profit": bot_state["profit"],
-        "ui_candles": bot_state["ui_candles"]
+        "balance": bot_config["balance"],
+        "total_trades": bot_config["total_trades"],
+        "profit": bot_config["profit"],
+        "ui_candles": bot_config["ui_candles"]
     })
 
 if __name__ == '__main__':
