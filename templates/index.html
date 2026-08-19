@@ -49,13 +49,12 @@
   .tf{flex:1;text-align:center;padding:7px 2px;border-radius:7px;border:1px solid var(--border);font-size:11.5px;color:var(--muted);cursor:pointer;background:#101319;}
   .tf.active{border-color:var(--accent);color:#fff;background:var(--accent);}
   .chart-wrap{position:relative;background:#131722;border:1px solid var(--border);border-radius:10px;padding:6px 0 4px;margin-bottom:6px;}
-  #chartContainer{width:100%;height:230px;}
+  #chart{width:100%;height:230px;}
   .stake-row{display:flex;align-items:center;gap:8px;}
   .stake-row input{text-align:center;font-size:16px;font-weight:600;}
   .stepbtn{width:38px;height:38px;flex:none;border-radius:8px;border:1px solid var(--border);background:#101319;color:var(--text);font-size:18px;cursor:pointer;}
   .quick-row{display:flex;gap:6px;margin-top:8px;}
   .qbtn{flex:1;text-align:center;padding:6px 2px;border-radius:6px;border:1px solid var(--border);font-size:11.5px;color:var(--muted);cursor:pointer;background:#101319;}
-  #statusMsg{margin-top:10px;font-size:13px;text-align:center;font-weight:bold;}
 </style>
 </head>
 <body>
@@ -65,19 +64,16 @@
   <section class="view active" id="v-landing">
     <span class="pill">Deriv synthetic indices</span>
     <h1 style="margin-top:12px;">Bot trading ho an'ny Volatility sy Boom.</h1>
-    <p class="sub">Ampidiro eto ny mombamomba ny kaontinao Deriv vao afaka miditra amin'ny dashboard ianao.</p>
+    <p class="sub">Ampidiro eto ambany ny mombamomba ny kaontinao Deriv vao hiditra amin'ny Dashboard.</p>
     
-    <div class="card" style="background:var(--panel);">
-      <div class="form-group" style="margin-bottom:12px;">
-        <label>App ID:</label>
-        <input type="text" id="app_id" placeholder="Ohatra: 1089">
-      </div>
-      <div class="form-group" style="margin-bottom:12px;">
-        <label>API Token:</label>
-        <input type="password" id="api_token" placeholder="Ampidiro ny API Token-nao">
-      </div>
-      <button class="btn" onclick="saveConfig()">Ampifandraiso sy Hiditra</button>
-      <div id="statusMsg"></div>
+    <div class="card" style="background:var(--bg); border:none; padding:0;">
+      <label>App ID</label>
+      <input type="text" id="app_id" placeholder="Ohatra: 1089">
+      
+      <label>API Token</label>
+      <input type="password" id="api_token" placeholder="Ampidiro eto ny API Token-nao">
+      
+      <button class="btn" onclick="saveConfigAndGo()">Ampifandraiso & Hiditra</button>
     </div>
   </section>
 
@@ -91,13 +87,13 @@
       <div class="mtabs" id="mtabs"></div>
       <div class="tf-row" id="tfRow"></div>
       <div class="chart-wrap">
-        <div id="chartContainer"></div>
+        <div id="chart"></div>
       </div>
     </div>
 
     <div class="card">
       <h3>Signaly farany</h3>
-      <div id="sigList"><div style="color:var(--muted);font-size:12px;">Mbola tsy misy signal.</div></div>
+      <div id="sigList"><div class="note">Mbola tsy misy signal.</div></div>
     </div>
 
     <div class="card">
@@ -139,11 +135,46 @@ function go(v){
   document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));
   document.getElementById('v-'+v).classList.add('active');
   document.querySelectorAll('.nav a').forEach(a=>a.classList.toggle('active', a.dataset.v===v));
+  if(v==='dash') {
+    setTimeout(() => {
+      if(container.clientWidth > 0) {
+        chart.resize(container.clientWidth, 230);
+        chart.timeScale().fitContent();
+      }
+    }, 150);
+  }
 }
 
-const MARKETS = ['v25','v50','v75','v100','boom300','boom500','boom1000','crash500','crash1000']; 
+async function saveConfigAndGo() {
+  const app_id = document.getElementById('app_id').value;
+  const api_token = document.getElementById('api_token').value;
+  const symbol = activeMarket;
+
+  if(!app_id || !api_token) {
+    alert("Fenoina daholo azafady ny App ID sy API Token!");
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/configure', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ app_id, api_token, symbol })
+    });
+    const data = await res.json();
+    if(res.ok) {
+      go('dash');
+    } else {
+      alert(data.message || "Nisy olana.");
+    }
+  } catch(e) {
+    alert("Tsy tafita ny fifandraisana tamin'ny server.");
+  }
+}
+
+const MARKETS = ['R_25','R_50','R_75','R_100','boom150','boom300','boom500','boom1000']; 
 const TIMEFRAMES = ['1m','5m','15m','30m','1h'];
-let activeMarket = 'v25', activeTf = '5m';
+let activeMarket = 'R_25', activeTf = '5m';
 let stakeVal = 1, running = false;
 
 function renderTabs(){
@@ -168,41 +199,6 @@ function renderTf(){
 }
 renderTabs(); renderTf();
 
-async function saveConfig() {
-  const app_id = document.getElementById('app_id').value;
-  const api_token = document.getElementById('api_token').value;
-  const statusMsg = document.getElementById('statusMsg');
-
-  if(!app_id || !api_token) {
-    statusMsg.style.color = "#ff4d4d";
-    statusMsg.innerText = "Fenoina daholo ny App ID sy API Token!";
-    return;
-  }
-
-  statusMsg.style.color = "#ffa500";
-  statusMsg.innerText = "Mampifandray amin'ny Deriv...";
-
-  try {
-    const res = await fetch('/api/configure', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ app_id, api_token, symbol: activeMarket })
-    });
-    const data = await res.json();
-    if(res.ok) {
-      statusMsg.style.color = "#46E39B";
-      statusMsg.innerText = data.message;
-      setTimeout(() => { go('dash'); }, 1000);
-    } else {
-      statusMsg.style.color = "#ff4d4d";
-      statusMsg.innerText = data.message;
-    }
-  } catch(e) {
-    statusMsg.style.color = "#ff4d4d";
-    statusMsg.innerText = "Tsy tafita ny fifandraisana tamin'ny server.";
-  }
-}
-
 function onStakeInput(){ stakeVal = parseFloat(document.getElementById('stakeInput').value)||1; }
 function stepStake(dir){ stakeVal = Math.max(0.35, stakeVal + dir*(stakeVal<1?0.1:1)); document.getElementById('stakeInput').value=stakeVal; }
 function setStake(v){ stakeVal=v; document.getElementById('stakeInput').value=v; }
@@ -213,9 +209,9 @@ async function toggleRun(){
   document.getElementById('logBox').innerHTML = running ? '<div>🚀 Bot nalefa. Mikaroka signal...</div>' : '<div>⏹ Bot najanona.</div>';
 }
 
-const chartContainer = document.getElementById('chartContainer');
-const chart = LightweightCharts.createChart(chartContainer, {
-    width: chartContainer.clientWidth || 380, height: 230,
+const container = document.getElementById('chart');
+const chart = LightweightCharts.createChart(container, {
+    width: container.clientWidth || 380, height: 230,
     layout: { background: {color: 'transparent'}, textColor: '#8b95a6' },
     grid: { vertLines: {color: 'rgba(255,255,255,0.04)'}, horzLines: {color: 'rgba(255,255,255,0.04)'} }
 });
@@ -224,8 +220,8 @@ const candleSeries = chart.addCandlestickSeries({
 });
 
 window.addEventListener('resize', () => {
-    if(chartContainer.clientWidth > 0) {
-        chart.resize(chartContainer.clientWidth, 230);
+    if(container.clientWidth > 0) {
+        chart.resize(container.clientWidth, 230);
     }
 });
 
@@ -239,10 +235,17 @@ async function updateUI() {
     
     if (data.ui_candles && data.ui_candles.length > 0) {
       candleSeries.setData(data.ui_candles);
+    } else {
+      // Angona vonjimaika mba hivoahan'ny sary foana na dia mbola miandry aza
+      candleSeries.setData([
+        { time: 1700000000, open: 10, high: 15, low: 8, close: 12 },
+        { time: 1700000300, open: 12, high: 18, low: 11, close: 16 }
+      ]);
     }
+    chart.timeScale().fitContent();
   } catch(e) { console.log("UI Error:", e); }
 }
-setInterval(updateUI, 1000);
+setInterval(updateUI, 1000); updateUI();
 </script>
 </body>
 </html>
