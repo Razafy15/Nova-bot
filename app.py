@@ -10,6 +10,7 @@ app = Flask(__name__)
 bot_config = {
     "app_id": "",
     "api_token": "",
+    "account_type": "demo", # Safidy Demo na Real
     "symbol": "1HZ25V",
     "stake": 1.0,
     "is_running": False,
@@ -129,7 +130,6 @@ def on_message(ws, message):
                 bot_config["profit"] += profit
                 bot_config["last_signal"] = f"Vita ny trade: {status.upper()} ({profit} USD)"
                 
-                # Pause rehefa mahazo $0.05 ho an'ny Boom/Crash
                 symbol = bot_config["symbol"].lower()
                 if ("boom" in symbol or "crash" in symbol) and profit >= 0.05:
                     bot_config["paused_for_profit"] = True
@@ -161,19 +161,19 @@ def check_strategy_and_trade(candles):
     contract_type = None
     signal_msg = ""
 
-    # 1. VOLATILITY (1HZ25V, 1HZ50V) - EMA Trend / SMC
+    # 1. Volatility Indices (SMC EMA Trend)
     if "1hz" in symbol or "r_" in symbol:
         ema_fast = calculate_ema(closes, period=20)
         ema_slow = calculate_ema(closes, period=50)
         
         if ema_fast > ema_slow:
             contract_type = "CALL"
-            signal_msg = f"SMC Trend: EMA20 > EMA50 -> CALL ({symbol.upper()})"
+            signal_msg = f"SMC Trend: EMA20 > EMA50 -> CALL"
         else:
             contract_type = "PUT"
-            signal_msg = f"SMC Trend: EMA20 < EMA50 -> PUT ({symbol.upper()})"
+            signal_msg = f"SMC Trend: EMA20 < EMA50 -> PUT"
 
-    # 2. BOOM (RSI Spike + Pause -> PUT)
+    # 2. Boom (RSI Spike + Pause -> PUT)
     elif "boom" in symbol:
         recent = candles[-4:]
         green_count = sum(1 for c in recent if c["close"] > c["open"])
@@ -182,7 +182,7 @@ def check_strategy_and_trade(candles):
             if current_rsi > 85 and green_count >= 4:
                 bot_config["paused_for_profit"] = False
                 contract_type = "PUT"
-                signal_msg = f"BOOM (Aorian'ny Pause): RSI > 85 & Maitso {green_count} -> PUT"
+                signal_msg = f"BOOM (Pause): RSI > 85 & Maitso {green_count} -> PUT"
             else:
                 signal_msg = "BOOM: Miandry Spike lehibe kokoa (RSI > 85)..."
                 return
@@ -193,7 +193,7 @@ def check_strategy_and_trade(candles):
             else:
                 signal_msg = f"BOOM: Miandry Spike (RSI: {current_rsi:.1f})"
 
-    # 3. CRASH (RSI Spike + Pause -> CALL)
+    # 3. Crash (RSI Spike + Pause -> CALL)
     elif "crash" in symbol:
         recent = candles[-4:]
         red_count = sum(1 for c in recent if c["close"] < c["open"])
@@ -202,9 +202,9 @@ def check_strategy_and_trade(candles):
             if current_rsi < 15 and red_count >= 4:
                 bot_config["paused_for_profit"] = False
                 contract_type = "CALL"
-                signal_msg = f"CRASH (Aorian'ny Pause): RSI < 15 & Mena {red_count} -> CALL"
+                signal_msg = f"CRASH (Pause): RSI < 15 & Mena {red_count} -> CALL"
             else:
-                signal_msg = "CRASH: Miandry Spike lehibe kokoa (RSI < 15)..."
+                signal_msg = "CRASH: Miandry Spike kely kokoa (RSI < 15)..."
                 return
         else:
             if current_rsi < 20 and red_count >= 2:
@@ -266,6 +266,7 @@ def configure_bot():
     
     bot_config["app_id"] = data.get("app_id")
     bot_config["api_token"] = data.get("api_token")
+    bot_config["account_type"] = data.get("account_type", "demo")
     bot_config["symbol"] = data.get("symbol", "1HZ25V")
     bot_config["stake"] = float(data.get("stake", 1.0))
     
@@ -279,7 +280,7 @@ def configure_bot():
             pass
 
     threading.Thread(target=run_websocket_bot, daemon=True).start()
-    return jsonify({"status": "success", "message": "Voarindra tsara ny rafitra!"})
+    return jsonify({"status": "success", "message": f"Voarindra tsara ny kaonty {bot_config['account_type'].upper()}!"})
 
 @app.route('/api/start', methods=['POST'])
 def start_bot():
