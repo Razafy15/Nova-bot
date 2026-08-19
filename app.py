@@ -18,7 +18,7 @@ bot_config = {
     "profit": 0.0,
     "ui_candles": [],
     "last_signal": "Miandry ny fepetra rehetra...",
-    "paused_for_profit": False # Fiarovana amin'ny fanafoanana ny pause ($0.05)
+    "paused_for_profit": False
 }
 
 ws_app = None
@@ -129,7 +129,7 @@ def on_message(ws, message):
                 bot_config["profit"] += profit
                 bot_config["last_signal"] = f"Vita ny trade: {status.upper()} ({profit} USD)"
                 
-                # Fiantraikan'ny Pause rehefa mahazo $0.05 (ho an'ny Boom/Crash)
+                # Pause rehefa mahazo $0.05 ho an'ny Boom/Crash
                 symbol = bot_config["symbol"].lower()
                 if ("boom" in symbol or "crash" in symbol) and profit >= 0.05:
                     bot_config["paused_for_profit"] = True
@@ -146,7 +146,7 @@ def request_market_data():
         "end": "latest",
         "start": 1,
         "style": "candles",
-        "granularity": 60, # 1 minitra alaina avy amin'ny Deriv
+        "granularity": 60,
         "subscribe": 1
     })
 
@@ -161,28 +161,26 @@ def check_strategy_and_trade(candles):
     contract_type = None
     signal_msg = ""
 
-    # 1. STRATEGIE HO AN'NY VOLATILITY (1HZ25V, 1HZ50V) - EMA Trend / SMC Concept
+    # 1. VOLATILITY (1HZ25V, 1HZ50V) - EMA Trend / SMC
     if "1hz" in symbol or "r_" in symbol:
         ema_fast = calculate_ema(closes, period=20)
         ema_slow = calculate_ema(closes, period=50)
         
         if ema_fast > ema_slow:
             contract_type = "CALL"
-            signal_msg = f"SMC Trend: EMA20 > EMA50 -> CALL (Volatility {symbol.upper()})"
+            signal_msg = f"SMC Trend: EMA20 > EMA50 -> CALL ({symbol.upper()})"
         else:
             contract_type = "PUT"
-            signal_msg = f"SMC Trend: EMA20 < EMA50 -> PUT (Volatility {symbol.upper()})"
+            signal_msg = f"SMC Trend: EMA20 < EMA50 -> PUT ({symbol.upper()})"
 
-    # 2. STRATEGIE HO AN'NY BOOM (RSI Spike + Pause -> PUT)
+    # 2. BOOM (RSI Spike + Pause -> PUT)
     elif "boom" in symbol:
-        # Fanisana labozia maitso farany
         recent = candles[-4:]
         green_count = sum(1 for c in recent if c["close"] > c["open"])
 
         if bot_config["paused_for_profit"]:
-            # Mitaky fepetra henjana kokoa raha vao avy nahazo tombony $0.05
             if current_rsi > 85 and green_count >= 4:
-                bot_config["paused_for_profit"] = False # Arovy ny fanombohana indray
+                bot_config["paused_for_profit"] = False
                 contract_type = "PUT"
                 signal_msg = f"BOOM (Aorian'ny Pause): RSI > 85 & Maitso {green_count} -> PUT"
             else:
@@ -195,14 +193,12 @@ def check_strategy_and_trade(candles):
             else:
                 signal_msg = f"BOOM: Miandry Spike (RSI: {current_rsi:.1f})"
 
-    # 3. STRATEGIE HO AN'NY CRASH (RSI Spike + Pause -> CALL)
+    # 3. CRASH (RSI Spike + Pause -> CALL)
     elif "crash" in symbol:
-        # Fanisana labozia mena farany
         recent = candles[-4:]
         red_count = sum(1 for c in recent if c["close"] < c["open"])
 
         if bot_config["paused_for_profit"]:
-            # Mitaky fepetra henjana kokoa raha vao avy nahazo tombony $0.05
             if current_rsi < 15 and red_count >= 4:
                 bot_config["paused_for_profit"] = False
                 contract_type = "CALL"
@@ -219,7 +215,6 @@ def check_strategy_and_trade(candles):
 
     bot_config["last_signal"] = signal_msg
 
-    # Mandefa Proposal sy Buy raha misy contract_type voafaritra
     if contract_type:
         duration_val = 5 if ("boom" in symbol or "crash" in symbol) else 3
         duration_unit_val = "t" if ("boom" in symbol or "crash" in symbol) else "m"
@@ -284,7 +279,7 @@ def configure_bot():
             pass
 
     threading.Thread(target=run_websocket_bot, daemon=True).start()
-    return jsonify({"status": "success", "message": "Voarindra tsara ny rafitra SMC & Spike!"})
+    return jsonify({"status": "success", "message": "Voarindra tsara ny rafitra!"})
 
 @app.route('/api/start', methods=['POST'])
 def start_bot():
