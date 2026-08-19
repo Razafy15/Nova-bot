@@ -7,28 +7,30 @@
     <!-- Lightweight Charts Library -->
     <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
     <style>
-        body { font-family: Arial, sans-serif; background: #121212; color: #e0e0e0; margin: 0; padding: 20px; }
-        .container { max-width: 900px; margin: auto; background: #1e1e1e; padding: 20px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
-        h1 { text-align: center; color: #4CAF50; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0f172a; color: #f8fafc; margin: 0; padding: 15px; }
+        .container { max-width: 800px; margin: auto; background: #1e293b; padding: 20px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
+        h1 { text-align: center; color: #38bdf8; font-size: 24px; margin-bottom: 20px; }
         .form-group { margin-bottom: 15px; }
-        label { display: block; margin-bottom: 5px; font-weight: bold; }
-        input, select { width: 100%; padding: 8px; box-sizing: border-box; background: #2d2d2d; border: 1px solid #444; color: #fff; border-radius: 4px; }
-        button { padding: 10px 15px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; margin-right: 5px; }
-        .btn-start { background: #4CAF50; color: white; }
-        .btn-stop { background: #f44336; color: white; }
-        .btn-config { background: #ff9800; color: white; }
-        #chart { width: 100%; height: 400px; margin-top: 20px; background: #181818; border-radius: 4px; }
-        .stats { display: flex; justify-content: space-between; margin-top: 20px; background: #252525; padding: 15px; border-radius: 4px; }
-        .stat-box { text-align: center; }
-        .stat-box span { display: block; font-size: 18px; font-weight: bold; color: #4CAF50; }
-        .signal-box { margin-top: 15px; background: #2d2d2d; padding: 10px; border-left: 4px solid #4CAF50; font-family: monospace; }
+        label { display: block; margin-bottom: 5px; font-weight: 600; font-size: 14px; color: #cbd5e1; }
+        input, select { width: 100%; padding: 10px; box-sizing: border-box; background: #0f172a; border: 1px solid #334155; color: #fff; border-radius: 6px; font-size: 14px; }
+        .btn-container { display: flex; gap: 10px; margin-top: 20px; }
+        button { flex: 1; padding: 12px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 14px; transition: opacity 0.2s; }
+        button:active { opacity: 0.8; }
+        .btn-config { background: #f59e0b; color: white; }
+        .btn-start { background: #22c55e; color: white; }
+        .btn-stop { background: #ef4444; color: white; }
+        #chart { width: 100%; height: 350px; margin-top: 20px; background: #0b0f19; border-radius: 8px; border: 1px solid #334155; }
+        .stats { display: flex; justify-content: space-between; margin-top: 20px; background: #0f172a; padding: 15px; border-radius: 8px; border: 1px solid #334155; }
+        .stat-box { text-align: center; flex: 1; }
+        .stat-box small { display: block; color: #94a3b8; font-size: 12px; margin-bottom: 3px; }
+        .stat-box span { display: block; font-size: 16px; font-weight: bold; color: #38bdf8; }
+        .signal-box { margin-top: 15px; background: #0f172a; padding: 12px; border-left: 4px solid #38bdf8; font-family: monospace; font-size: 13px; border-radius: 0 6px 6px 0; border-top: 1px solid #334155; border-right: 1px solid #334155; border-bottom: 1px solid #334155; }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>Deriv Trading Bot</h1>
         
-        <!-- Fidirana Paramètre -->
         <div class="form-group">
             <label>App ID:</label>
             <input type="text" id="appId" value="1089">
@@ -51,33 +53,38 @@
             <input type="number" id="stake" value="1.0" step="0.1">
         </div>
         
-        <button class="btn-config" onclick="configureBot()">Rindra (Configure)</button>
-        <button class="btn-start" onclick="startBot()">Alefa (Start)</button>
-        <button class="btn-stop" onclick="stopBot()">Ajanona (Stop)</button>
+        <div class="btn-container">
+            <button class="btn-config" onclick="configureBot()">Rindra</button>
+            <button class="btn-start" onclick="startBot()">Alefa</button>
+            <button class="btn-stop" onclick="stopBot()">Ajanona</button>
+        </div>
 
-        <!-- Sary / Chart -->
         <div id="chart"></div>
 
-        <!-- Estatistika -->
         <div class="stats">
-            <div class="stat-box">Balance: <span id="stBal">0.00</span> USD</div>
-            <div class="stat-box">Trades Vita: <span id="stTr">0</span></div>
-            <div class="stat-box">Profit: <span id="stPl">0.00</span> USD</div>
+            <div class="stat-box"><small>BALANCE</small><span id="stBal">0.00</span></div>
+            <div class="stat-box"><small>TRADES</small><span id="stTr">0</span></div>
+            <div class="stat-box"><small>PROFIT</small><span id="stPl">0.00</span></div>
         </div>
 
         <div class="signal-box">
-            <strong>Siny farany:</strong> <span id="stSignal">Miandry fepetra...</span>
+            <strong>Siny:</strong> <span id="stSignal">Miandry fepetra...</span>
         </div>
     </div>
 
     <script>
-        // Famoronana ny Tabilao (Chart)
         const chartElement = document.getElementById('chart');
         const chart = LightweightCharts.createChart(chartElement, {
-            layout: { background: { color: '#181818' }, textColor: '#d1d4dc' },
-            grid: { vertLines: { color: '#2b2b2b' }, horzLines: { color: '#2b2b2b' } },
+            layout: { background: { color: '#0b0f19' }, textColor: '#94a3b8' },
+            grid: { vertLines: { color: '#1e293b' }, horzLines: { color: '#1e293b' } },
+            timeScale: { borderColor: '#334155' },
+            rightPriceScale: { borderColor: '#334155' }
         });
-        const candleSeries = chart.addCandlestickSeries();
+        const candleSeries = chart.addCandlestickSeries({
+            upColor: '#22c55e', downColor: '#ef4444',
+            borderUpColor: '#22c55e', borderDownColor: '#ef4444',
+            wickUpColor: '#22c55e', wickDownColor: '#ef4444',
+        });
 
         async function configureBot() {
             const appId = document.getElementById('appId').value;
@@ -117,16 +124,14 @@
                 const res = await fetch('/api/stats');
                 const data = await res.json();
                 
-                document.getElementById('stBal').innerText = data.balance.toFixed(2);
+                document.getElementById('stBal').innerText = data.balance.toFixed(2) + " USD";
                 document.getElementById('stTr').innerText = data.total_trades;
-                document.getElementById('stPl').innerText = data.profit.toFixed(2);
+                document.getElementById('stPl').innerText = data.profit.toFixed(2) + " USD";
                 document.getElementById('stSignal').innerText = data.last_signal;
 
-                // Antoka fa mivoaka foana ny sary na dia mbola miandry signal aza
                 if (data.ui_candles && data.ui_candles.length > 0) {
                     candleSeries.setData(data.ui_candles);
                 } else {
-                    // Sary vonjimaika raha mbola miandry angona avy amin'ny server
                     const now = Math.floor(Date.now() / 1000);
                     candleSeries.setData([
                         { time: now - 120, open: 100, high: 105, low: 95, close: 102 },
@@ -140,7 +145,6 @@
             }
         }
 
-        // Fanavaozana ny pejy isaky ny segondra
         setInterval(updateUI, 1000);
         updateUI();
     </script>
