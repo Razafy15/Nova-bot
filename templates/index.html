@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Deriv Bot - SMC & Spike Strategy</title>
-    <!-- Lightweight Charts Library -->
     <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0f172a; color: #f8fafc; margin: 0; padding: 15px; }
@@ -38,6 +37,14 @@
         <div class="form-group">
             <label>API Token:</label>
             <input type="password" id="apiToken" placeholder="Ampidiro eto ny Token-nao">
+        </div>
+        <!-- Eto ilay safidy Kaonty Demo na Real -->
+        <div class="form-group">
+            <label>Karazana Kaonty (Account Type):</label>
+            <select id="accountType">
+                <option value="demo">Demo (Fitsapana)</option>
+                <option value="real">Real (Tena izy)</option>
+            </select>
         </div>
         <div class="form-group">
             <label>Tsena (Symbol):</label>
@@ -89,13 +96,14 @@
         async function configureBot() {
             const appId = document.getElementById('appId').value;
             const apiToken = document.getElementById('apiToken').value;
+            const accountType = document.getElementById('accountType').value;
             const symbol = document.getElementById('symbol').value;
             const stake = document.getElementById('stake').value;
 
             const res = await fetch('/api/configure', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ app_id: appId, api_token: apiToken, symbol: symbol, stake: stake })
+                body: JSON.stringify({ app_id: appId, api_token: apiToken, account_type: accountType, symbol: symbol, stake: stake })
             });
             const data = await res.json();
             alert(data.message);
