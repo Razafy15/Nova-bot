@@ -2,13 +2,23 @@
 <html lang="mg">
 
 <head>
+
 <meta charset="UTF-8">
-<meta name="viewport"
-      content="width=device-width, initial-scale=1.0">
 
-<title>Deriv Bot Pro</title>
+<meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+>
 
-<script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+<title>Deriv Trading Dashboard</title>
+
+<!--
+    IMPORTANT:
+    Version fixe 4.2.3.
+    Tsy mampiasa latest.
+-->
+<script src="https://unpkg.com/lightweight-charts@4.2.3/dist/lightweight-charts.standalone.production.js"></script>
+
 
 <style>
 
@@ -17,900 +27,1389 @@
 }
 
 body{
+
     margin:0;
-    background:#070b14;
+
+    background:#060b14;
+
     color:#e5e7eb;
-    font-family:Arial,Helvetica,sans-serif;
+
+    font-family:
+        Arial,
+        Helvetica,
+        sans-serif;
 }
 
-button,
-input,
-select{
-    font:inherit;
-}
+
+/* ======================================================
+   APP
+====================================================== */
 
 .app{
-    min-height:100vh;
+
     display:flex;
+
+    min-height:100vh;
 }
 
-/* SIDEBAR */
+
+/* ======================================================
+   SIDEBAR
+====================================================== */
 
 .sidebar{
-    width:230px;
-    background:#0b1120;
-    border-right:1px solid #1e293b;
-    padding:20px 14px;
+
+    width:58px;
+
+    background:#091120;
+
+    border-right:1px solid #172033;
+
+    display:flex;
+
+    flex-direction:column;
+
+    align-items:center;
+
+    padding-top:15px;
+
     position:fixed;
-    left:0;
+
     top:0;
     bottom:0;
+    left:0;
+
+    z-index:10;
 }
 
-.logo{
-    font-size:21px;
-    font-weight:800;
-    color:#38bdf8;
-    margin-bottom:30px;
-}
+.side-icon{
 
-.nav button{
-    width:100%;
-    padding:12px;
-    margin-bottom:7px;
-    border:0;
-    background:transparent;
-    color:#94a3b8;
-    text-align:left;
+    width:42px;
+
+    height:42px;
+
+    display:flex;
+
+    align-items:center;
+
+    justify-content:center;
+
+    font-size:19px;
+
+    margin-bottom:8px;
+
     border-radius:8px;
+
     cursor:pointer;
 }
 
-.nav button:hover{
-    background:#162033;
-    color:white;
+.side-icon:hover{
+
+    background:#111c30;
 }
 
-/* MAIN */
+
+/* ======================================================
+   MAIN
+====================================================== */
 
 .main{
-    margin-left:230px;
-    width:calc(100% - 230px);
+
+    width:100%;
+
+    margin-left:58px;
+
     padding:18px;
+
+    max-width:1500px;
 }
 
-.topbar{
+
+/* ======================================================
+   HEADER
+====================================================== */
+
+.header{
+
     display:flex;
+
     justify-content:space-between;
+
     align-items:center;
-    margin-bottom:18px;
-}
 
-.title{
-    font-size:25px;
-    font-weight:800;
-}
-
-.connection{
-    display:flex;
-    align-items:center;
-    gap:8px;
-    background:#111827;
-    border:1px solid #1f2937;
-    padding:9px 13px;
-    border-radius:20px;
-    font-size:13px;
-}
-
-.dot{
-    width:9px;
-    height:9px;
-    background:#ef4444;
-    border-radius:50%;
-}
-
-.dot.online{
-    background:#22c55e;
-}
-
-/* STATS */
-
-.stats{
-    display:grid;
-    grid-template-columns:repeat(4,1fr);
-    gap:12px;
     margin-bottom:15px;
 }
 
-.card{
-    background:#0d1422;
-    border:1px solid #1e293b;
-    border-radius:12px;
-    padding:15px;
+.title{
+
+    font-size:20px;
+
+    font-weight:700;
 }
 
-.card small{
-    color:#64748b;
+.connection{
+
+    padding:7px 12px;
+
+    border-radius:20px;
+
+    background:#25101a;
+
+    color:#f87171;
+
+    font-size:12px;
+
+    font-weight:bold;
 }
 
-.value{
-    font-size:21px;
-    font-weight:800;
-    margin-top:7px;
+.connection.connected{
+
+    background:#09251b;
+
+    color:#4ade80;
 }
 
-/* GRID */
 
-.grid{
+/* ======================================================
+   CARDS
+====================================================== */
+
+.cards{
+
     display:grid;
-    grid-template-columns:minmax(0,1fr) 320px;
-    gap:15px;
+
+    grid-template-columns:
+        repeat(4,1fr);
+
+    gap:10px;
+
+    margin-bottom:12px;
 }
 
-/* CHART */
+.card{
 
-.chart-card{
-    background:#0d1422;
-    border:1px solid #1e293b;
-    border-radius:12px;
-    overflow:hidden;
-}
+    background:#0c1524;
 
-.chart-head{
+    border:1px solid #18243a;
+
+    border-radius:9px;
+
     padding:13px;
-    display:flex;
-    justify-content:space-between;
-    align-items:center;
-    border-bottom:1px solid #1e293b;
 }
 
-.chart-controls{
+.card-label{
+
+    color:#718096;
+
+    font-size:10px;
+
+    text-transform:uppercase;
+
+    margin-bottom:6px;
+}
+
+.card-value{
+
+    font-size:17px;
+
+    font-weight:700;
+}
+
+
+/* ======================================================
+   PANEL
+====================================================== */
+
+.panel{
+
+    background:#0b1422;
+
+    border:1px solid #18243a;
+
+    border-radius:10px;
+
+    padding:12px;
+
+    margin-bottom:12px;
+}
+
+.panel-title{
+
     display:flex;
-    gap:7px;
+
+    justify-content:space-between;
+
+    align-items:center;
+
+    margin-bottom:10px;
+
+    font-size:13px;
+
+    font-weight:bold;
+}
+
+
+/* ======================================================
+   CHART CONTROLS
+====================================================== */
+
+.controls{
+
+    display:flex;
+
+    gap:8px;
 }
 
 select,
 input{
-    background:#080d18;
-    border:1px solid #273449;
-    color:white;
+
+    background:#080f1b;
+
+    color:#e5e7eb;
+
+    border:1px solid #24334d;
+
+    border-radius:6px;
+
     padding:9px;
-    border-radius:7px;
+
+    outline:none;
+
 }
+
+select{
+
+    min-width:130px;
+}
+
+
+/* ======================================================
+   CHART
+====================================================== */
 
 #chart{
+
     width:100%;
-    height:470px;
+
+    height:430px;
+
+    border-radius:7px;
+
+    overflow:hidden;
+
+    background:#080f1b;
+
+    border:1px solid #172238;
 }
 
-/* RIGHT */
 
-.panel{
-    background:#0d1422;
-    border:1px solid #1e293b;
-    border-radius:12px;
-    padding:15px;
-    margin-bottom:15px;
-}
+/* ======================================================
+   SIGNALS
+====================================================== */
 
-.panel h3{
-    margin-top:0;
-}
+.signal-grid{
 
-.field{
-    margin-bottom:11px;
-}
-
-.field label{
-    display:block;
-    color:#94a3b8;
-    font-size:12px;
-    margin-bottom:5px;
-}
-
-.field input,
-.field select{
-    width:100%;
-}
-
-.btn{
-    width:100%;
-    padding:11px;
-    border:0;
-    border-radius:8px;
-    font-weight:800;
-    cursor:pointer;
-    margin-top:6px;
-}
-
-.connect{
-    background:#2563eb;
-    color:white;
-}
-
-.start{
-    background:#16a34a;
-    color:white;
-}
-
-.stop{
-    background:#dc2626;
-    color:white;
-}
-
-/* SIGNAL */
-
-.signal{
-    padding:13px;
-    border-radius:9px;
-    background:#101827;
-    border:1px solid #263449;
-    margin-top:8px;
-}
-
-.signal-title{
-    font-size:12px;
-    color:#64748b;
-}
-
-.signal-value{
-    font-size:20px;
-    font-weight:900;
-    margin-top:4px;
-}
-
-.call{
-    color:#22c55e;
-}
-
-.put{
-    color:#ef4444;
-}
-
-.wait{
-    color:#facc15;
-}
-
-/* SCANNER */
-
-.section{
-    margin-top:15px;
-}
-
-.section-title{
-    font-size:18px;
-    font-weight:800;
-    margin-bottom:10px;
-}
-
-.scanner{
     display:grid;
-    grid-template-columns:repeat(4,1fr);
+
+    grid-template-columns:
+        1fr 1fr;
+
     gap:10px;
 }
 
-.market{
-    background:#0d1422;
-    border:1px solid #1e293b;
+.signal{
+
+    background:#0d1727;
+
+    border:1px solid #1d2b42;
+
+    padding:15px;
+
+    border-radius:8px;
+}
+
+.signal-label{
+
+    font-size:10px;
+
+    color:#6f809b;
+
+    margin-bottom:6px;
+}
+
+.signal-value{
+
+    font-size:20px;
+
+    font-weight:bold;
+
+    color:#facc15;
+}
+
+
+/* ======================================================
+   CONNECTION FORM
+====================================================== */
+
+.form-grid{
+
+    display:grid;
+
+    grid-template-columns:
+        repeat(2,1fr);
+
+    gap:10px;
+}
+
+.form-group{
+
+    display:flex;
+
+    flex-direction:column;
+
+    gap:5px;
+}
+
+.form-group label{
+
+    font-size:11px;
+
+    color:#718096;
+}
+
+.form-group input,
+.form-group select{
+
+    width:100%;
+}
+
+
+/* ======================================================
+   BUTTONS
+====================================================== */
+
+.buttons{
+
+    display:grid;
+
+    grid-template-columns:
+        repeat(3,1fr);
+
+    gap:8px;
+
+    margin-top:12px;
+}
+
+button{
+
+    border:0;
+
     padding:12px;
-    border-radius:10px;
+
+    border-radius:7px;
+
+    color:white;
+
+    font-weight:bold;
+
+    cursor:pointer;
+}
+
+.connect{
+
+    background:#2563eb;
+}
+
+.start{
+
+    background:#16a34a;
+}
+
+.stop{
+
+    background:#dc2626;
+}
+
+button:active{
+
+    transform:scale(.98);
+}
+
+
+/* ======================================================
+   STRATEGY
+====================================================== */
+
+.strategy-grid{
+
+    display:grid;
+
+    grid-template-columns:
+        1fr 1fr;
+
+    gap:10px;
+}
+
+.strategy-box{
+
+    background:#0d1727;
+
+    border:1px solid #1d2b42;
+
+    padding:14px;
+
+    border-radius:8px;
+}
+
+.strategy-box small{
+
+    color:#718096;
+
+    display:block;
+
+    margin-bottom:5px;
+}
+
+.strategy-box strong{
+
+    font-size:15px;
+}
+
+
+/* ======================================================
+   MARKET SCANNER
+====================================================== */
+
+.scanner{
+
+    display:grid;
+
+    grid-template-columns:
+        repeat(3,1fr);
+
+    gap:8px;
+}
+
+.market{
+
+    background:#0d1727;
+
+    border:1px solid #1d2b42;
+
+    padding:10px;
+
+    border-radius:7px;
+
+    cursor:pointer;
+}
+
+.market:hover{
+
+    border-color:#2563eb;
 }
 
 .market-name{
-    font-weight:800;
+
+    font-size:12px;
+
+    font-weight:bold;
 }
 
 .market-type{
-    font-size:11px;
-    color:#64748b;
+
+    font-size:9px;
+
+    color:#718096;
+
     margin-top:4px;
 }
 
-.market-signal{
+
+/* ======================================================
+   ERROR
+====================================================== */
+
+.error{
+
+    background:#2a1015;
+
+    border:1px solid #6b202a;
+
+    color:#fca5a5;
+
+    padding:10px;
+
+    border-radius:7px;
+
+    font-size:11px;
+
     margin-top:10px;
-    font-weight:800;
+
+    display:none;
 }
 
-/* TABLE */
 
-.table-wrap{
-    overflow:auto;
+/* ======================================================
+   FOOTER STATUS
+====================================================== */
+
+.system{
+
+    font-size:11px;
+
+    color:#8492a8;
+
+    background:#0b1422;
+
+    border:1px solid #18243a;
+
+    padding:10px;
+
+    border-radius:7px;
 }
 
-table{
-    width:100%;
-    border-collapse:collapse;
-}
 
-th,
-td{
-    padding:11px;
-    border-bottom:1px solid #1e293b;
-    text-align:left;
-    white-space:nowrap;
-}
+/* ======================================================
+   RESPONSIVE
+====================================================== */
 
-th{
-    color:#64748b;
-    font-size:12px;
-}
+@media(max-width:900px){
 
-/* MOBILE */
+    .cards{
 
-@media(max-width:1000px){
-
-    .sidebar{
-        width:70px;
-        padding:15px 8px;
+        grid-template-columns:
+            repeat(2,1fr);
     }
 
-    .logo{
-        font-size:0;
-    }
+    .form-grid{
 
-    .logo:first-letter{
-        font-size:22px;
-    }
-
-    .nav button{
-        text-align:center;
-        font-size:0;
-    }
-
-    .nav button::first-letter{
-        font-size:19px;
-    }
-
-    .main{
-        margin-left:70px;
-        width:calc(100% - 70px);
-    }
-
-    .stats{
-        grid-template-columns:repeat(2,1fr);
-    }
-
-    .grid{
         grid-template-columns:1fr;
-    }
-
-    .scanner{
-        grid-template-columns:repeat(2,1fr);
-    }
-
-}
-
-@media(max-width:600px){
-
-    .main{
-        margin-left:0;
-        width:100%;
-        padding:10px;
-    }
-
-    .sidebar{
-        display:none;
-    }
-
-    .topbar{
-        align-items:flex-start;
-        gap:10px;
-        flex-direction:column;
-    }
-
-    .title{
-        font-size:21px;
-    }
-
-    .stats{
-        grid-template-columns:repeat(2,1fr);
-    }
-
-    .grid{
-        display:block;
     }
 
     #chart{
-        height:390px;
+
+        height:360px;
     }
 
-    .chart-head{
-        flex-direction:column;
-        align-items:stretch;
-        gap:9px;
+}
+
+
+@media(max-width:600px){
+
+    .sidebar{
+
+        width:48px;
     }
 
-    .chart-controls{
-        width:100%;
+    .side-icon{
+
+        width:36px;
+
+        height:36px;
+
+        font-size:16px;
     }
 
-    .chart-controls select{
-        flex:1;
+    .main{
+
+        margin-left:48px;
+
+        padding:10px;
+    }
+
+    .title{
+
+        font-size:16px;
+    }
+
+    .cards{
+
+        grid-template-columns:
+            repeat(2,1fr);
+
+        gap:7px;
+    }
+
+    .card{
+
+        padding:10px;
+    }
+
+    .card-value{
+
+        font-size:14px;
+    }
+
+    #chart{
+
+        height:330px;
+    }
+
+    .signal-grid{
+
+        grid-template-columns:1fr;
+    }
+
+    .strategy-grid{
+
+        grid-template-columns:1fr;
+    }
+
+    .buttons{
+
+        grid-template-columns:1fr;
     }
 
     .scanner{
-        grid-template-columns:1fr;
+
+        grid-template-columns:
+            repeat(2,1fr);
     }
 
 }
 
 </style>
+
 </head>
+
 
 <body>
 
 <div class="app">
 
-<!-- SIDEBAR -->
 
-<aside class="sidebar">
+<!-- ====================================================
+     SIDEBAR
+===================================================== -->
 
-<div class="logo">
-    ⚡ DERIV BOT PRO
-</div>
+<div class="sidebar">
 
-<div class="nav">
+    <div class="side-icon">⚡</div>
 
-<button>📊 Dashboard</button>
-<button>📈 Live Chart</button>
-<button>🔎 Scanner</button>
-<button>🔔 Signals</button>
-<button>💼 Trades</button>
-<button>📋 History</button>
-<button>⚙️ Settings</button>
+    <div class="side-icon">📊</div>
 
-</div>
+    <div class="side-icon">📈</div>
 
-</aside>
+    <div class="side-icon">🔎</div>
 
+    <div class="side-icon">🔔</div>
 
-<main class="main">
+    <div class="side-icon">💼</div>
 
-<div class="topbar">
+    <div class="side-icon">📋</div>
 
-<div class="title">
-    Deriv Trading Dashboard
-</div>
-
-<div class="connection">
-
-<span id="connectionDot"
-      class="dot"></span>
-
-<span id="connectionText">
-    Disconnected
-</span>
-
-</div>
+    <div class="side-icon">⚙️</div>
 
 </div>
 
 
-<!-- STATS -->
+<!-- ====================================================
+     MAIN
+===================================================== -->
 
-<div class="stats">
+<div class="main">
 
-<div class="card">
-<small>BALANCE</small>
-<div class="value" id="balance">
-    0.00 USD
-</div>
-</div>
 
-<div class="card">
-<small>MARKET PRICE</small>
-<div class="value" id="price">
-    0
-</div>
-</div>
+<!-- HEADER -->
 
-<div class="card">
-<small>PRE-SIGNAL</small>
-<div class="value" id="preSignal">
-    WAIT
-</div>
-</div>
+<div class="header">
 
-<div class="card">
-<small>CONFIDENCE</small>
-<div class="value" id="confidence">
-    0%
-</div>
-</div>
+    <div class="title">
+
+        Deriv Trading Dashboard
+
+    </div>
+
+    <div
+        id="connection"
+        class="connection"
+    >
+
+        🔴 Disconnected
+
+    </div>
 
 </div>
 
 
-<div class="grid">
+<!-- ====================================================
+     TOP CARDS
+===================================================== -->
+
+<div class="cards">
+
+    <div class="card">
+
+        <div class="card-label">
+            Balance
+        </div>
+
+        <div
+            id="balance"
+            class="card-value"
+        >
+            0.00 USD
+        </div>
+
+    </div>
 
 
-<!-- CHART -->
+    <div class="card">
 
-<div>
+        <div class="card-label">
+            Market Price
+        </div>
 
-<div class="chart-card">
+        <div
+            id="price"
+            class="card-value"
+        >
+            0.0000
+        </div>
 
-<div class="chart-head">
-
-<div>
-<strong id="chartSymbol">
-    BOOM1000
-</strong>
-</div>
-
-<div class="chart-controls">
-
-<select id="symbol"
-        onchange="changeChart()">
-
-<option value="BOOM300">Boom 300</option>
-<option value="BOOM500">Boom 500</option>
-<option value="BOOM600">Boom 600</option>
-<option value="BOOM900">Boom 900</option>
-<option value="BOOM1000">Boom 1000</option>
-<option value="BOOM1500">Boom 1500</option>
-
-<option value="CRASH300">Crash 300</option>
-<option value="CRASH500">Crash 500</option>
-<option value="CRASH600">Crash 600</option>
-<option value="CRASH900">Crash 900</option>
-<option value="CRASH1000">Crash 1000</option>
-<option value="CRASH1500">Crash 1500</option>
-
-<option value="1HZ10V">Volatility 10</option>
-<option value="1HZ25V">Volatility 25</option>
-<option value="1HZ50V">Volatility 50</option>
-<option value="1HZ75V">Volatility 75</option>
-<option value="1HZ100V">Volatility 100</option>
-
-</select>
-
-<select id="timeframe"
-        onchange="changeChart()">
-
-<option value="60">1M</option>
-<option value="120">2M</option>
-<option value="180">3M</option>
-<option value="300">5M</option>
-<option value="600">10M</option>
-
-</select>
-
-</div>
-
-</div>
-
-<div id="chart"></div>
-
-</div>
+    </div>
 
 
-<!-- SIGNALS -->
+    <div class="card">
 
-<div class="section">
+        <div class="card-label">
+            Pre-Signal
+        </div>
 
-<div class="section-title">
-    🔔 Live Signals
-</div>
+        <div
+            id="preSignal"
+            class="card-value"
+        >
+            WAIT
+        </div>
 
-<div class="card">
+    </div>
 
-<div class="signal">
 
-<div class="signal-title">
-PRE-SIGNAL
-</div>
+    <div class="card">
 
-<div id="preSignal2"
-     class="signal-value wait">
-WAIT
-</div>
+        <div class="card-label">
+            Confidence
+        </div>
+
+        <div
+            id="confidence"
+            class="card-value"
+        >
+            0%
+        </div>
+
+    </div>
 
 </div>
 
 
-<div class="signal">
-
-<div class="signal-title">
-CONFIRMED SIGNAL
-</div>
-
-<div id="confirmedSignal"
-     class="signal-value wait">
-WAIT
-</div>
-
-</div>
-
-</div>
-
-</div>
-
-</div>
-
-
-<!-- RIGHT PANEL -->
-
-<div>
-
+<!-- ====================================================
+     CHART
+===================================================== -->
 
 <div class="panel">
 
-<h3>🔌 Deriv Connection</h3>
+    <div class="panel-title">
 
-<div class="field">
-
-<label>App ID</label>
-
-<input id="appId"
-       placeholder="App ID">
-
-</div>
+        <span id="chartTitle">
+            BOOM1000
+        </span>
 
 
-<div class="field">
+        <div class="controls">
 
-<label>Account ID</label>
+            <select
+                id="symbolSelect"
+                onchange="changeSymbol()"
+            >
 
-<input id="accountId"
-       placeholder="DOT...">
+                <option value="">
+                    Loading...
+                </option>
 
-</div>
-
-
-<div class="field">
-
-<label>API Token</label>
-
-<input id="token"
-       type="password"
-       placeholder="Token">
-
-</div>
+            </select>
 
 
-<div class="field">
+            <select id="timeframe">
 
-<label>Account</label>
+                <option value="60">
+                    1M
+                </option>
 
-<select id="accountType">
+                <option value="300">
+                    5M
+                </option>
 
-<option value="demo">
-Demo
-</option>
+            </select>
 
-<option value="real">
-Real
-</option>
+        </div>
 
-</select>
+    </div>
+
+
+    <div id="chart"></div>
 
 </div>
 
 
-<button class="btn connect"
-        onclick="connectDeriv()">
-
-CONNECT DERIV
-
-</button>
-
-</div>
-
+<!-- ====================================================
+     LIVE SIGNALS
+===================================================== -->
 
 <div class="panel">
 
-<h3>🤖 Bot Control</h3>
+    <div class="panel-title">
 
-<div class="signal">
+        🔔 Live Signals
 
-<div class="signal-title">
-BOT STATUS
+    </div>
+
+
+    <div class="signal-grid">
+
+        <div class="signal">
+
+            <div class="signal-label">
+                PRE-SIGNAL
+            </div>
+
+            <div
+                id="preSignal2"
+                class="signal-value"
+            >
+                WAIT
+            </div>
+
+        </div>
+
+
+        <div class="signal">
+
+            <div class="signal-label">
+                CONFIRMED SIGNAL
+            </div>
+
+            <div
+                id="confirmedSignal"
+                class="signal-value"
+            >
+                WAIT
+            </div>
+
+        </div>
+
+    </div>
+
 </div>
 
-<div id="botStatus"
-     class="signal-value wait">
 
-STOPPED
-
-</div>
-
-</div>
-
-<button class="btn start"
-        onclick="startBot()">
-
-START BOT
-
-</button>
-
-<button class="btn stop"
-        onclick="stopBot()">
-
-STOP BOT
-
-</button>
-
-</div>
-
+<!-- ====================================================
+     CONNECTION
+===================================================== -->
 
 <div class="panel">
 
-<h3>📡 Strategy</h3>
+    <div class="panel-title">
 
-<div class="signal">
+        🔌 Deriv Connection
 
-<div class="signal-title">
-AUTO TRADING
+    </div>
+
+
+    <div class="form-grid">
+
+
+        <div class="form-group">
+
+            <label>
+                App ID
+            </label>
+
+            <input
+                id="appId"
+                value="1089"
+                placeholder="App ID"
+            >
+
+        </div>
+
+
+        <div class="form-group">
+
+            <label>
+                Account ID
+            </label>
+
+            <input
+                id="accountId"
+                placeholder="DOT..."
+            >
+
+        </div>
+
+
+        <div class="form-group">
+
+            <label>
+                API Token
+            </label>
+
+            <input
+                id="apiToken"
+                type="password"
+                placeholder="Token"
+            >
+
+        </div>
+
+
+        <div class="form-group">
+
+            <label>
+                Account
+            </label>
+
+            <select id="accountType">
+
+                <option value="demo">
+                    Demo
+                </option>
+
+                <option value="real">
+                    Real
+                </option>
+
+            </select>
+
+        </div>
+
+
+        <div class="form-group">
+
+            <label>
+                Stake USD
+            </label>
+
+            <input
+                id="stake"
+                type="number"
+                value="1"
+                min="0.01"
+                step="0.01"
+            >
+
+        </div>
+
+
+        <div class="form-group">
+
+            <label>
+                Auto Trading
+            </label>
+
+            <select id="autoTrading">
+
+                <option value="true">
+                    ON - Boom/Crash
+                </option>
+
+                <option value="false">
+                    OFF - Signal Only
+                </option>
+
+            </select>
+
+        </div>
+
+    </div>
+
+
+    <div class="buttons">
+
+        <button
+            class="connect"
+            onclick="connectDeriv()"
+        >
+            CONNECT DERIV
+        </button>
+
+    </div>
+
+
+    <div
+        id="errorBox"
+        class="error"
+    ></div>
+
 </div>
 
-<div class="signal-value">
-BOOM / CRASH ONLY
-</div>
+
+<!-- ====================================================
+     BOT CONTROL
+===================================================== -->
+
+<div class="panel">
+
+    <div class="panel-title">
+
+        🤖 Bot Control
+
+    </div>
+
+
+    <div class="strategy-box">
+
+        <small>
+            BOT STATUS
+        </small>
+
+        <strong
+            id="botStatus"
+        >
+            STOPPED
+        </strong>
+
+    </div>
+
+
+    <div class="buttons">
+
+        <button
+            class="start"
+            onclick="startBot()"
+        >
+            START BOT
+        </button>
+
+
+        <button
+            class="stop"
+            onclick="stopBot()"
+        >
+            STOP BOT
+        </button>
+
+    </div>
 
 </div>
 
-<div class="signal">
 
-<div class="signal-title">
-VOLATILITY
-</div>
+<!-- ====================================================
+     STRATEGY
+===================================================== -->
 
-<div class="signal-value">
-SIGNAL ONLY
-</div>
+<div class="panel">
 
-</div>
+    <div class="panel-title">
 
-</div>
+        🕊️ Strategy
 
-</div>
-
-</div>
+    </div>
 
 
-<!-- SCANNER -->
+    <div class="strategy-grid">
 
-<div class="section">
+        <div class="strategy-box">
 
-<div class="section-title">
-🔎 Market Scanner
-</div>
+            <small>
+                AUTO TRADING
+            </small>
 
-<div class="scanner"
-     id="scanner">
+            <strong>
+                BOOM / CRASH ONLY
+            </strong>
 
-</div>
-
-</div>
+        </div>
 
 
-<!-- FOOTER -->
+        <div class="strategy-box">
 
-<div class="section">
+            <small>
+                VOLATILITY
+            </small>
 
-<div class="card">
+            <strong>
+                SIGNAL ONLY
+            </strong>
 
-<strong>System:</strong>
+        </div>
 
-<span id="systemMessage">
-Miandry connection...
-</span>
+    </div>
 
 </div>
 
+
+<!-- ====================================================
+     MARKET SCANNER
+===================================================== -->
+
+<div class="panel">
+
+    <div class="panel-title">
+
+        🔎 Market Scanner
+
+    </div>
+
+
+    <div
+        id="scanner"
+        class="scanner"
+    >
+
+        <div class="market">
+
+            <div class="market-name">
+                Miandry...
+            </div>
+
+            <div class="market-type">
+                Connection
+            </div>
+
+        </div>
+
+    </div>
+
 </div>
 
-</main>
+
+<!-- SYSTEM -->
+
+<div
+    id="system"
+    class="system"
+>
+
+    System: Miandry connection...
+
+</div>
+
+
+</div>
 
 </div>
 
 
 <script>
 
-/* =========================
-   CHART
-========================= */
 
-const chartContainer =
-    document.getElementById("chart");
+// ======================================================
+// CHART
+// ======================================================
+
+const chartElement =
+    document.getElementById(
+        "chart"
+    );
+
 
 const chart =
     LightweightCharts.createChart(
-        chartContainer,
+
+        chartElement,
+
         {
+
+            width:
+                chartElement.clientWidth,
+
+            height:430,
+
             layout:{
+
                 background:{
-                    color:"#0d1422"
+                    color:"#080f1b"
                 },
+
                 textColor:"#94a3b8"
             },
 
             grid:{
+
                 vertLines:{
-                    color:"#172033"
+                    color:"#142033"
                 },
+
                 horzLines:{
-                    color:"#172033"
+                    color:"#142033"
                 }
             },
 
             rightPriceScale:{
-                borderColor:"#263449"
+
+                borderColor:
+                    "#24334d"
             },
 
             timeScale:{
-                borderColor:"#263449",
+
+                borderColor:
+                    "#24334d",
+
                 timeVisible:true,
+
                 secondsVisible:false
             }
         }
     );
 
 
-const candleSeries =
-    chart.addSeries(
-        LightweightCharts.CandlestickSeries,
-        {
-            upColor:"#22c55e",
-            downColor:"#ef4444",
-            borderUpColor:"#22c55e",
-            borderDownColor:"#ef4444",
-            wickUpColor:"#22c55e",
-            wickDownColor:"#ef4444"
-        }
-    );
+// ======================================================
+// CANDLE SERIES
+// ======================================================
 
+const candleSeries =
+    chart.addCandlestickSeries({
+
+        upColor:"#22c55e",
+
+        downColor:"#ef4444",
+
+        borderUpColor:"#22c55e",
+
+        borderDownColor:"#ef4444",
+
+        wickUpColor:"#22c55e",
+
+        wickDownColor:"#ef4444"
+
+    });
+
+
+// ======================================================
+// RESPONSIVE CHART
+// ======================================================
 
 window.addEventListener(
     "resize",
     () => {
 
         chart.applyOptions({
-            width:chartContainer.clientWidth
+
+            width:
+                chartElement.clientWidth
+
         });
 
     }
 );
 
 
-/* =========================
-   CONNECT
-========================= */
+// ======================================================
+// FORMAT CANDLES
+// ======================================================
+
+function cleanCandles(candles){
+
+    const map = {};
+
+    candles.forEach(c => {
+
+        if(
+            c &&
+            c.time &&
+            Number.isFinite(c.open) &&
+            Number.isFinite(c.high) &&
+            Number.isFinite(c.low) &&
+            Number.isFinite(c.close)
+        ){
+
+            map[
+                Number(c.time)
+            ] = {
+
+                time:
+                    Number(c.time),
+
+                open:
+                    Number(c.open),
+
+                high:
+                    Number(c.high),
+
+                low:
+                    Number(c.low),
+
+                close:
+                    Number(c.close)
+            };
+
+        }
+
+    });
+
+    return Object.values(map)
+        .sort(
+            (a,b) =>
+                a.time - b.time
+        );
+
+}
+
+
+// ======================================================
+// CONNECT
+// ======================================================
 
 async function connectDeriv(){
 
-    const payload = {
+    const appId =
+        document.getElementById(
+            "appId"
+        ).value.trim();
 
-        app_id:
-            document.getElementById(
-                "appId"
-            ).value.trim(),
 
-        account_id:
-            document.getElementById(
-                "accountId"
-            ).value.trim(),
+    const accountId =
+        document.getElementById(
+            "accountId"
+        ).value.trim();
 
-        api_token:
-            document.getElementById(
-                "token"
-            ).value.trim(),
 
-        account_type:
-            document.getElementById(
-                "accountType"
-            ).value
+    const apiToken =
+        document.getElementById(
+            "apiToken"
+        ).value.trim();
 
-    };
+
+    const accountType =
+        document.getElementById(
+            "accountType"
+        ).value;
+
+
+    const stake =
+        document.getElementById(
+            "stake"
+        ).value;
+
+
+    const symbol =
+        document.getElementById(
+            "symbolSelect"
+        ).value
+        || "BOOM1000";
+
+
+    const autoTrading =
+        document.getElementById(
+            "autoTrading"
+        ).value === "true";
+
+
+    showSystem(
+        "System: Connecting to Deriv..."
+    );
 
 
     try{
 
-        const response =
+        const res =
             await fetch(
-                "/api/connect",
+                "/api/configure",
                 {
+
                     method:"POST",
 
                     headers:{
@@ -918,24 +1417,49 @@ async function connectDeriv(){
                             "application/json"
                     },
 
-                    body:
-                        JSON.stringify(
-                            payload
-                        )
+                    body:JSON.stringify({
+
+                        app_id:appId,
+
+                        account_id:accountId,
+
+                        api_token:apiToken,
+
+                        account_type:
+                            accountType,
+
+                        symbol:symbol,
+
+                        stake:stake
+                    })
                 }
             );
 
 
         const data =
-            await response.json();
+            await res.json();
 
-        alert(data.message);
+
+        if(!res.ok){
+
+            showError(
+                data.message
+            );
+
+            return;
+        }
+
+
+        showSystem(
+            "System: " +
+            data.message
+        );
+
 
     }catch(error){
 
-        alert(
-            "Connection error: "
-            + error
+        showError(
+            error.message
         );
 
     }
@@ -943,263 +1467,370 @@ async function connectDeriv(){
 }
 
 
-/* =========================
-   CHANGE CHART
-========================= */
-
-async function changeChart(){
-
-    const symbol =
-        document.getElementById(
-            "symbol"
-        ).value;
-
-    const timeframe =
-        Number(
-            document.getElementById(
-                "timeframe"
-            ).value
-        );
-
-
-    document.getElementById(
-        "chartSymbol"
-    ).innerText = symbol;
-
-
-    await fetch(
-        "/api/chart",
-        {
-            method:"POST",
-
-            headers:{
-                "Content-Type":
-                    "application/json"
-            },
-
-            body:
-                JSON.stringify({
-                    symbol:symbol,
-                    timeframe:timeframe
-                })
-        }
-    );
-
-}
-
-
-/* =========================
-   START
-========================= */
+// ======================================================
+// START BOT
+// ======================================================
 
 async function startBot(){
 
-    const response =
-        await fetch(
-            "/api/start",
-            {
-                method:"POST"
-            }
+    const symbol =
+        document.getElementById(
+            "symbolSelect"
+        ).value
+        || "BOOM1000";
+
+
+    const stake =
+        document.getElementById(
+            "stake"
+        ).value;
+
+
+    try{
+
+        const res =
+            await fetch(
+                "/api/start",
+                {
+
+                    method:"POST",
+
+                    headers:{
+                        "Content-Type":
+                            "application/json"
+                    },
+
+                    body:JSON.stringify({
+
+                        symbol:symbol,
+
+                        stake:stake
+                    })
+                }
+            );
+
+
+        const data =
+            await res.json();
+
+
+        showSystem(
+            "System: " +
+            data.message
         );
 
-    const data =
-        await response.json();
 
-    alert(data.message);
+    }catch(error){
+
+        showError(
+            error.message
+        );
+
+    }
 
 }
 
 
-/* =========================
-   STOP
-========================= */
+// ======================================================
+// STOP BOT
+// ======================================================
 
 async function stopBot(){
 
-    const response =
+    try{
+
+        const res =
+            await fetch(
+                "/api/stop",
+                {
+                    method:"POST"
+                }
+            );
+
+
+        const data =
+            await res.json();
+
+
+        showSystem(
+            "System: " +
+            data.message
+        );
+
+
+    }catch(error){
+
+        showError(
+            error.message
+        );
+
+    }
+
+}
+
+
+// ======================================================
+// CHANGE SYMBOL
+// ======================================================
+
+async function changeSymbol(){
+
+    const symbol =
+        document.getElementById(
+            "symbolSelect"
+        ).value;
+
+
+    if(!symbol)
+        return;
+
+
+    document.getElementById(
+        "chartTitle"
+    ).innerText =
+        symbol;
+
+
+    try{
+
         await fetch(
-            "/api/stop",
+            "/api/symbol",
             {
-                method:"POST"
+
+                method:"POST",
+
+                headers:{
+                    "Content-Type":
+                        "application/json"
+                },
+
+                body:JSON.stringify({
+
+                    symbol:symbol
+                })
             }
         );
 
-    const data =
-        await response.json();
+    }catch(error){
 
-    alert(data.message);
+        showError(
+            error.message
+        );
+
+    }
 
 }
 
 
-/* =========================
-   SIGNAL COLOR
-========================= */
-
-function signalClass(signal){
-
-    signal =
-        String(signal)
-        .toUpperCase();
-
-    if(signal === "CALL")
-        return "call";
-
-    if(signal === "PUT")
-        return "put";
-
-    return "wait";
-}
-
-
-/* =========================
-   UPDATE UI
-========================= */
+// ======================================================
+// UPDATE UI
+// ======================================================
 
 async function updateUI(){
 
     try{
 
-        const response =
+        const res =
             await fetch(
                 "/api/stats"
             );
 
+
         const data =
-            await response.json();
+            await res.json();
 
 
-        /* CONNECTION */
+        // ----------------------------------------------
+        // CONNECTION
+        // ----------------------------------------------
 
-        const dot =
+        const connection =
             document.getElementById(
-                "connectionDot"
-            );
-
-        const text =
-            document.getElementById(
-                "connectionText"
+                "connection"
             );
 
 
-        if(data.trading_connected){
+        if(data.authorized){
 
-            dot.classList.add(
-                "online"
+            connection.classList.add(
+                "connected"
             );
 
-            text.innerText =
-                "Deriv Connected";
+            connection.innerText =
+                "🟢 Deriv Connected";
 
         }else{
 
-            dot.classList.remove(
-                "online"
+            connection.classList.remove(
+                "connected"
             );
 
-            text.innerText =
-                data.connected
-                ? "Market Connected"
-                : "Disconnected";
+            connection.innerText =
+                "🔴 " +
+                (
+                    data.status
+                    || "Disconnected"
+                );
 
         }
 
 
-        /* STATS */
+        // ----------------------------------------------
+        // BALANCE
+        // ----------------------------------------------
 
         document.getElementById(
             "balance"
         ).innerText =
-            Number(data.balance)
-            .toFixed(2)
-            + " "
-            + data.currency;
 
+            Number(
+                data.balance || 0
+            ).toFixed(2)
+
+            + " "
+
+            + (
+                data.currency
+                || "USD"
+            );
+
+
+        // ----------------------------------------------
+        // PRICE
+        // ----------------------------------------------
 
         document.getElementById(
             "price"
         ).innerText =
-            Number(data.price)
-            .toFixed(4);
 
+            Number(
+                data.market_price || 0
+            ).toFixed(5);
+
+
+        // ----------------------------------------------
+        // SIGNAL
+        // ----------------------------------------------
 
         document.getElementById(
             "preSignal"
         ).innerText =
-            data.pre_signal;
+            data.pre_signal
+            || "WAIT";
+
+
+        document.getElementById(
+            "preSignal2"
+        ).innerText =
+            data.pre_signal
+            || "WAIT";
+
+
+        document.getElementById(
+            "confirmedSignal"
+        ).innerText =
+            data.confirmed_signal
+            || "WAIT";
 
 
         document.getElementById(
             "confidence"
         ).innerText =
-            data.confidence + "%";
+
+            Number(
+                data.confidence || 0
+            )
+
+            + "%";
 
 
-        /* SIGNAL */
-
-        const pre =
-            document.getElementById(
-                "preSignal2"
-            );
-
-        pre.innerText =
-            data.pre_signal;
-
-        pre.className =
-            "signal-value "
-            + signalClass(
-                data.pre_signal
-            );
-
-
-        const confirmed =
-            document.getElementById(
-                "confirmedSignal"
-            );
-
-        confirmed.innerText =
-            data.confirmed_signal;
-
-        confirmed.className =
-            "signal-value "
-            + signalClass(
-                data.confirmed_signal
-            );
-
-
-        /* BOT */
+        // ----------------------------------------------
+        // BOT
+        // ----------------------------------------------
 
         document.getElementById(
             "botStatus"
         ).innerText =
-            data.bot_running
+
+            data.is_running
             ? "RUNNING"
             : "STOPPED";
 
 
-        /* SYSTEM */
+        // ----------------------------------------------
+        // CHART
+        // ----------------------------------------------
 
-        document.getElementById(
-            "systemMessage"
-        ).innerText =
-            data.message;
+        const candles =
+            cleanCandles(
+                data.ui_candles || []
+            );
 
 
-        /* CHART */
-
-        if(
-            data.candles &&
-            data.candles.length
-        ){
+        if(candles.length){
 
             candleSeries.setData(
-                data.candles
+                candles
             );
 
             chart.timeScale()
                 .fitContent();
 
         }
+
+
+        // ----------------------------------------------
+        // SYMBOL
+        // ----------------------------------------------
+
+        document.getElementById(
+            "chartTitle"
+        ).innerText =
+            data.symbol
+            || "BOOM1000";
+
+
+        // ----------------------------------------------
+        // MARKET SELECT
+        // ----------------------------------------------
+
+        updateMarkets(
+            data.markets || [],
+            data.symbol
+        );
+
+
+        // ----------------------------------------------
+        // ERROR
+        // ----------------------------------------------
+
+        if(data.last_error){
+
+            showError(
+                data.last_error
+            );
+
+        }
+
+
+        showSystem(
+
+            "System: "
+
+            + (
+                data.status
+                || "Waiting..."
+            )
+
+            + " | "
+
+            + (
+                data.symbol
+                || ""
+            )
+
+        );
+
 
     }catch(error){
 
@@ -1213,103 +1844,225 @@ async function updateUI(){
 }
 
 
-/* =========================
-   SCANNER
-========================= */
+// ======================================================
+// UPDATE MARKET LIST
+// ======================================================
 
-function renderScanner(data){
+function updateMarkets(
+    markets,
+    selectedSymbol
+){
 
-    const container =
+    const select =
+        document.getElementById(
+            "symbolSelect"
+        );
+
+
+    const current =
+        select.value;
+
+
+    if(
+        markets.length === 0
+    ){
+
+        return;
+
+    }
+
+
+    // Don't rebuild every second
+    if(
+        select.dataset.loaded === "1"
+    ){
+
+        return;
+
+    }
+
+
+    select.innerHTML = "";
+
+
+    markets.forEach(
+        market => {
+
+            const option =
+                document.createElement(
+                    "option"
+                );
+
+
+            option.value =
+                market.symbol;
+
+
+            option.textContent =
+                market.display_name
+                + " ("
+                + market.type
+                + ")";
+
+
+            select.appendChild(
+                option
+            );
+
+        }
+    );
+
+
+    let wanted =
+        selectedSymbol
+        || current
+        || "BOOM1000";
+
+
+    const exists =
+        [...select.options]
+        .some(
+            o =>
+                o.value === wanted
+        );
+
+
+    if(exists){
+
+        select.value =
+            wanted;
+
+    }
+
+
+    select.dataset.loaded =
+        "1";
+
+
+    buildScanner(
+        markets
+    );
+
+}
+
+
+// ======================================================
+// SCANNER
+// ======================================================
+
+function buildScanner(markets){
+
+    const scanner =
         document.getElementById(
             "scanner"
         );
 
-    container.innerHTML = "";
 
-    Object.values(data)
-        .forEach(item => {
+    scanner.innerHTML = "";
 
-            const div =
+
+    markets.forEach(
+        market => {
+
+            const item =
                 document.createElement(
                     "div"
                 );
 
-            div.className =
+
+            item.className =
                 "market";
 
-            const type =
-                item.type ===
-                "BOOM/CRASH"
-                ? "AUTO TRADE"
-                : "SIGNAL ONLY";
+
+            item.onclick =
+                () => {
+
+                    document.getElementById(
+                        "symbolSelect"
+                    ).value =
+                        market.symbol;
+
+                    changeSymbol();
+
+                };
 
 
-            div.innerHTML = `
+            item.innerHTML =
 
-                <div class="market-name">
-                    ${item.symbol}
-                </div>
+                "<div class='market-name'>"
 
-                <div class="market-type">
-                    ${type}
-                </div>
+                + market.display_name
 
-                <div class="market-signal wait">
-                    ${item.signal}
-                </div>
+                + "</div>"
 
-            `;
+                + "<div class='market-type'>"
 
-            container.appendChild(div);
+                + market.type
 
-        });
-
-}
+                + "</div>";
 
 
-/* =========================
-   POLLING
-========================= */
-
-async function refresh(){
-
-    try{
-
-        const response =
-            await fetch(
-                "/api/stats"
+            scanner.appendChild(
+                item
             );
 
-        const data =
-            await response.json();
-
-        renderScanner(
-            data.scanner || {}
-        );
-
-    }catch(e){
-
-        console.log(e);
-
-    }
+        }
+    );
 
 }
 
+
+// ======================================================
+// ERROR
+// ======================================================
+
+function showError(message){
+
+    const box =
+        document.getElementById(
+            "errorBox"
+        );
+
+
+    box.style.display =
+        "block";
+
+
+    box.innerText =
+        "⚠️ " + message;
+
+}
+
+
+// ======================================================
+// SYSTEM
+// ======================================================
+
+function showSystem(message){
+
+    document.getElementById(
+        "system"
+    ).innerText =
+        message;
+
+}
+
+
+// ======================================================
+// START UI
+// ======================================================
 
 setInterval(
     updateUI,
     1000
 );
 
-setInterval(
-    refresh,
-    2000
-);
 
 updateUI();
-refresh();
+
 
 </script>
 
 </body>
+
 </html>
