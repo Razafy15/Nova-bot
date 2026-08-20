@@ -2,392 +2,553 @@ import os
 import json
 import time
 import threading
+
 import requests
 import websocket
 
 from flask import Flask, render_template, request, jsonify
 
+
 app = Flask(__name__)
 
-state = {
+
+# =========================================================
+# GLOBAL BOT STATE
+# =========================================================
+
+bot = {
     "app_id": "",
     "pat_token": "",
     "account_id": "",
+    "symbol": "BOOM500",
 
     "connected": False,
+    "connecting": False,
+
     "balance": 0.0,
     "currency": "USD",
 
-    "symbol": "BOOM500",
     "price": 0.0,
 
     "chart": [],
 
     "message": "Miandry connexion...",
-    "error": ""
+    "error": "",
+
+    "last_update": 0,
+
+    "ws": None,
 }
 
-ws = None
+
+ws_lock = threading.Lock()
 stop_event = threading.Event()
 
 
-# ==========================================================
-# LOG
-# ==========================================================
+# =========================================================
+# HELPERS
+# =========================================================
 
-def log(text):
-    print(text, flush=True)
-
-    state["message"] = text
-
-
-# ==========================================================
-# DERIV NEW API -> GET OTP
-# ==========================================================
-
-def get_otp():
-
-    app_id = state["app_id"].strip()
-    pat = state["pat_token"].strip()
-    account_id = state["account_id"].strip()
-
-    if not app_id:
-        raise Exception("App ID tsy feno.")
-
-    if not pat:
-        raise Exception("PAT Token tsy feno.")
-
-    if not account_id:
-        raise Exception("Account ID tsy feno.")
-
-    url = (
-        "https://api.derivws.com"
-        "/trading/v1/options/accounts/"
-        + account_id
-        + "/otp"
-    )
-
-    headers = {
-        "Authorization": "Bearer " + pat,
-        "Deriv-App-ID": app_id,
-        "Content-Type": "application/json"
-    }
-
-    log("Maka OTP amin'i Deriv...")
-
-    response = requests.post(
-        url,
-        headers=headers,
-        timeout=20
-    )
-
+def log(message):
     print(
-        "OTP HTTP:",
-        response.status_code,
+        f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {message}",
         flush=True
     )
 
-    try:
-        data = response.json()
-    except Exception:
-        data = {
-            "raw": response.text
-        }
 
-    if response.status_code not in (200, 201):
-
-        raise Exception(
-            "OTP ERROR "
-            + str(response.status_code)
-            + ": "
-            + json.dumps(data)
-        )
-
-    # Mety ho data.url na url arakaraka ny response
-    url_ws = None
-
-    if isinstance(data, dict):
-
-        if isinstance(
-            data.get("data"),
-            dict
-        ):
-            url_ws = data["data"].get("url")
-
-        if not url_ws:
-            url_ws = data.get("url")
-
-    if not url_ws:
-
-        raise Exception(
-            "Tsy nahazo WebSocket URL avy amin'i Deriv: "
-            + json.dumps(data)
-        )
-
-    return url_ws
+def set_message(message):
+    bot["message"] = str(message)
+    log(message)
 
 
-# ==========================================================
-# SEND
-# ==========================================================
+def set_error(message):
+    bot["error"] = str(message)
+    bot["message"] = str(message)
 
-def send(data):
+    log("ERROR: " + str(message))
 
-    global ws
+
+def clear_error():
+    bot["error"] = ""
+
+
+# =========================================================
+# DERIV WEBSOCKET
+# =========================================================
+
+def send_ws(data):
+    ws = bot.get("ws")
 
     if ws is None:
         return False
 
     try:
+        with ws_lock:
+            ws.send(json.dumps(data))
 
-        if ws.sock and ws.sock.connected:
-
-            ws.send(
-                json.dumps(data)
-            )
-
-            return True
+        return True
 
     except Exception as e:
 
-        log(
-            "Send error: "
-            + str(e)
+        set_error(
+            f"Tsy afaka nandefa WebSocket: {e}"
         )
 
-    return False
+        return False
 
 
-# ==========================================================
-# BALANCE
-# ==========================================================
+# =========================================================
+# AUTHENTICATION
+# =========================================================
 
-def request_balance():
+def authorize_deriv(ws):
 
-    send({
-        "balance": 1,
-        "subscribe": 1
-    })
+    token = bot["pat_token"]
 
+    if not token:
 
-# ==========================================================
-# TICK HISTORY
-# ==========================================================
-
-def request_history():
-
-    symbol = state["symbol"]
-
-    send({
-
-        "ticks_history": symbol,
-
-        "count": 500,
-
-        "end": "latest",
-
-        "style": "ticks",
-
-        "subscribe": 1
-
-    })
-
-
-# ==========================================================
-# CREATE CANDLES
-# ==========================================================
-
-def make_candles(
-    prices,
-    times,
-    seconds=60
-):
-
-    buckets = {}
-
-    for price, timestamp in zip(
-        prices,
-        times
-    ):
-
-        price = float(price)
-        timestamp = int(timestamp)
-
-        bucket = (
-            timestamp
-            - timestamp % seconds
+        set_error(
+            "Tsy misy PAT Token."
         )
 
-        if bucket not in buckets:
+        return False
 
-            buckets[bucket] = {
-                "time": bucket,
-                "open": price,
-                "high": price,
-                "low": price,
-                "close": price
-            }
-
-        else:
-
-            candle = buckets[bucket]
-
-            candle["high"] = max(
-                candle["high"],
-                price
-            )
-
-            candle["low"] = min(
-                candle["low"],
-                price
-            )
-
-            candle["close"] = price
-
-    return list(
-        sorted(
-            buckets.values(),
-            key=lambda x: x["time"]
-        )
-    )[-300:]
-
-
-# ==========================================================
-# MESSAGE
-# ==========================================================
-
-def on_message(
-    socket,
-    message
-):
+    log("Mandefa authorize amin'i Deriv...")
 
     try:
 
-        data = json.loads(
-            message
+        ws.send(
+            json.dumps(
+                {
+                    "authorize": token,
+                    "req_id": 1
+                }
+            )
         )
+
+        return True
+
+    except Exception as e:
+
+        set_error(
+            f"Authorize error: {e}"
+        )
+
+        return False
+
+
+# =========================================================
+# MARKET DATA
+# =========================================================
+
+def request_balance():
+
+    send_ws(
+        {
+            "balance": 1,
+            "subscribe": 1,
+            "req_id": 10
+        }
+    )
+
+
+def request_chart():
+
+    symbol = bot["symbol"]
+
+    log(
+        f"Mangataka chart: {symbol}"
+    )
+
+    send_ws(
+        {
+            "ticks_history": symbol,
+            "adjust_start_time": 1,
+            "count": 200,
+            "end": "latest",
+            "style": "candles",
+            "granularity": 60,
+            "subscribe": 1,
+            "req_id": 20
+        }
+    )
+
+
+def request_tick_stream():
+
+    symbol = bot["symbol"]
+
+    send_ws(
+        {
+            "ticks": symbol,
+            "subscribe": 1,
+            "req_id": 30
+        }
+    )
+
+
+# =========================================================
+# FORMAT CANDLES
+# =========================================================
+
+def process_history_candles(candles):
+
+    formatted = []
+
+    for candle in candles:
+
+        try:
+
+            item = {
+                "time": int(candle["epoch"]),
+                "open": float(candle["open"]),
+                "high": float(candle["high"]),
+                "low": float(candle["low"]),
+                "close": float(candle["close"])
+            }
+
+            formatted.append(item)
+
+        except Exception as e:
+
+            log(
+                f"Candle tsy mety: {e}"
+            )
+
+
+    # Lightweight Charts mila time miakatra
+    formatted.sort(
+        key=lambda x: x["time"]
+    )
+
+
+    # Esorina duplicate
+    unique = []
+
+    seen = set()
+
+    for candle in formatted:
+
+        if candle["time"] in seen:
+            continue
+
+        seen.add(candle["time"])
+
+        unique.append(candle)
+
+
+    bot["chart"] = unique[-300:]
+
+
+    if bot["chart"]:
+
+        bot["price"] = float(
+            bot["chart"][-1]["close"]
+        )
+
+        bot["last_update"] = time.time()
+
+
+# =========================================================
+# LIVE TICK
+# =========================================================
+
+def process_tick(tick):
+
+    try:
+
+        quote = float(
+            tick.get("quote", 0)
+        )
+
+        bot["price"] = quote
+        bot["last_update"] = time.time()
+
+    except Exception:
+        pass
+
+
+# =========================================================
+# WEBSOCKET MESSAGE
+# =========================================================
+
+def on_message(ws, message):
+
+    try:
+
+        data = json.loads(message)
 
     except Exception as e:
 
         log(
-            "JSON error: "
-            + str(e)
+            f"JSON error: {e}"
         )
 
         return
 
-    # ------------------------------------------------------
-    # ERROR
-    # ------------------------------------------------------
 
-    if data.get("error"):
+    # API error
+    if "error" in data:
 
         error = data["error"]
 
-        message_error = error.get(
+        code = error.get(
+            "code",
+            "UNKNOWN"
+        )
+
+        text = error.get(
             "message",
-            str(error)
+            "Unknown Deriv error"
         )
 
-        state["error"] = message_error
-        state["connected"] = False
-
-        log(
-            "DERIV ERROR: "
-            + message_error
+        set_error(
+            f"Deriv {code}: {text}"
         )
+
+        bot["connected"] = False
+        bot["connecting"] = False
 
         return
+
 
     msg_type = data.get(
         "msg_type"
     )
 
-    # ------------------------------------------------------
+
+    # -----------------------------------------------------
+    # AUTHORIZE
+    # -----------------------------------------------------
+
+    if msg_type == "authorize":
+
+        auth = data.get(
+            "authorize",
+            {}
+        )
+
+        loginid = auth.get(
+            "loginid",
+            ""
+        )
+
+        currency = auth.get(
+            "currency",
+            "USD"
+        )
+
+        balance = auth.get(
+            "balance",
+            0
+        )
+
+
+        # Raha nomena Account ID ny user,
+        # jereo raha mitovy amin'ilay account authorized.
+        expected_account = (
+            bot.get("account_id") or ""
+        ).strip()
+
+
+        if (
+            expected_account
+            and loginid
+            and expected_account != loginid
+        ):
+
+            set_error(
+                "Account ID tsy mifanaraka amin'ilay "
+                "kaonty voa-authorize."
+            )
+
+            bot["connected"] = False
+            bot["connecting"] = False
+
+            try:
+                ws.close()
+            except Exception:
+                pass
+
+            return
+
+
+        bot["connected"] = True
+        bot["connecting"] = False
+        bot["balance"] = float(
+            balance or 0
+        )
+        bot["currency"] = currency
+        bot["error"] = ""
+
+        set_message(
+            f"Connected ✓ Account: {loginid}"
+        )
+
+
+        log(
+            f"AUTHORIZE OK: {loginid}"
+        )
+
+
+        # Balance
+        request_balance()
+
+        # Chart
+        request_chart()
+
+        # Live ticks
+        request_tick_stream()
+
+
+        return
+
+
+    # -----------------------------------------------------
     # BALANCE
-    # ------------------------------------------------------
+    # -----------------------------------------------------
 
     if msg_type == "balance":
 
-        balance = data.get(
+        balance_data = data.get(
             "balance",
             {}
         )
 
-        state["balance"] = float(
-            balance.get(
-                "balance",
-                0
+        try:
+
+            bot["balance"] = float(
+                balance_data.get(
+                    "balance",
+                    0
+                )
             )
+
+        except Exception:
+            pass
+
+
+        if balance_data.get(
+            "currency"
+        ):
+
+            bot["currency"] = (
+                balance_data["currency"]
+            )
+
+
+        return
+
+
+    # -----------------------------------------------------
+    # CANDLES
+    # -----------------------------------------------------
+
+    if msg_type == "candles":
+
+        candles = data.get(
+            "candles",
+            []
         )
 
-        state["currency"] = (
-            balance.get(
-                "currency",
-                "USD"
-            )
+        process_history_candles(
+            candles
         )
 
-        log(
-            "Balance: "
-            + str(
-                state["balance"]
-            )
-            + " "
-            + state["currency"]
+        set_message(
+            f"Chart live: {bot['symbol']}"
         )
 
         return
 
-    # ------------------------------------------------------
-    # HISTORY
-    # ------------------------------------------------------
 
-    if msg_type == "history":
+    # -----------------------------------------------------
+    # OHLC
+    # -----------------------------------------------------
 
-        history = data.get(
-            "history",
-            {}
+    if msg_type == "ohlc":
+
+        ohlc = data.get(
+            "ohlc"
         )
 
-        prices = history.get(
-            "prices",
-            []
-        )
+        if not ohlc:
+            return
 
-        times = history.get(
-            "times",
-            []
-        )
 
-        if prices and times:
+        try:
 
-            state["chart"] = (
-                make_candles(
-                    prices,
-                    times
+            candle = {
+                "time": int(
+                    ohlc["open_time"]
+                ),
+
+                "open": float(
+                    ohlc["open"]
+                ),
+
+                "high": float(
+                    ohlc["high"]
+                ),
+
+                "low": float(
+                    ohlc["low"]
+                ),
+
+                "close": float(
+                    ohlc["close"]
                 )
-            )
+            }
 
-            state["price"] = float(
-                prices[-1]
-            )
+
+            chart = bot["chart"]
+
+
+            if chart:
+
+                if (
+                    chart[-1]["time"]
+                    == candle["time"]
+                ):
+
+                    chart[-1] = candle
+
+                elif (
+                    candle["time"]
+                    > chart[-1]["time"]
+                ):
+
+                    chart.append(
+                        candle
+                    )
+
+            else:
+
+                chart.append(
+                    candle
+                )
+
+
+            bot["chart"] = chart[-300:]
+
+            bot["price"] = candle["close"]
+
+            bot["last_update"] = time.time()
+
+
+        except Exception as e:
 
             log(
-                "Chart chargé: "
-                + str(
-                    len(
-                        state["chart"]
-                    )
-                )
-                + " candles"
+                f"OHLC error: {e}"
             )
+
 
         return
 
-    # ------------------------------------------------------
-    # LIVE TICK
-    # ------------------------------------------------------
+
+    # -----------------------------------------------------
+    # TICK
+    # -----------------------------------------------------
 
     if msg_type == "tick":
 
@@ -396,158 +557,123 @@ def on_message(
             {}
         )
 
-        price = tick.get(
-            "quote"
+        process_tick(
+            tick
         )
-
-        epoch = tick.get(
-            "epoch"
-        )
-
-        if price is None:
-            return
-
-        state["price"] = float(
-            price
-        )
-
-        # Maka chart vaovao amin'ny tick rehetra
-        old_chart = state["chart"]
-
-        if not old_chart:
-
-            state["chart"] = [{
-                "time": int(epoch),
-                "open": float(price),
-                "high": float(price),
-                "low": float(price),
-                "close": float(price)
-            }]
-
-            return
-
-        bucket = (
-            int(epoch)
-            - int(epoch) % 60
-        )
-
-        last = old_chart[-1]
-
-        if last["time"] == bucket:
-
-            last["high"] = max(
-                last["high"],
-                float(price)
-            )
-
-            last["low"] = min(
-                last["low"],
-                float(price)
-            )
-
-            last["close"] = float(price)
-
-        else:
-
-            old_chart.append({
-
-                "time": bucket,
-
-                "open": float(price),
-
-                "high": float(price),
-
-                "low": float(price),
-
-                "close": float(price)
-
-            })
-
-            state["chart"] = old_chart[-300:]
 
         return
 
 
-# ==========================================================
-# OPEN
-# ==========================================================
+# =========================================================
+# WEBSOCKET OPEN
+# =========================================================
 
-def on_open(socket):
-
-    state["connected"] = True
-    state["error"] = ""
+def on_open(ws):
 
     log(
         "WebSocket CONNECTED."
     )
 
-    request_balance()
+    bot["connecting"] = True
+    bot["connected"] = False
 
-    time.sleep(0.5)
+    clear_error()
 
-    request_history()
-
-
-# ==========================================================
-# ERROR
-# ==========================================================
-
-def on_error(
-    socket,
-    error
-):
-
-    state["connected"] = False
-
-    state["error"] = str(
-        error
+    set_message(
+        "WebSocket connected → authorize..."
     )
+
+    authorize_deriv(
+        ws
+    )
+
+
+# =========================================================
+# WEBSOCKET ERROR
+# =========================================================
+
+def on_error(ws, error):
 
     log(
-        "WebSocket ERROR: "
-        + str(error)
+        f"WebSocket ERROR: {error}"
+    )
+
+    bot["connected"] = False
+    bot["connecting"] = False
+
+    set_error(
+        f"WebSocket error: {error}"
     )
 
 
-# ==========================================================
-# CLOSE
-# ==========================================================
+# =========================================================
+# WEBSOCKET CLOSE
+# =========================================================
 
 def on_close(
-    socket,
-    code,
-    reason
+    ws,
+    close_status_code,
+    close_msg
 ):
 
-    state["connected"] = False
-
     log(
-        "WebSocket CLOSED: "
-        + str(code)
-        + " "
-        + str(reason)
+        f"WebSocket CLOSED: "
+        f"{close_status_code} "
+        f"{close_msg}"
+    )
+
+    bot["connected"] = False
+    bot["connecting"] = False
+    bot["ws"] = None
+
+    if not bot["error"]:
+
+        set_message(
+            "Tapaka ny connexion Deriv."
+        )
+
+
+# =========================================================
+# RUN WEBSOCKET
+# =========================================================
+
+def websocket_worker():
+
+    app_id = (
+        bot["app_id"] or ""
+    ).strip()
+
+
+    if not app_id:
+
+        set_error(
+            "Tsy misy App ID."
+        )
+
+        return
+
+
+    # App ID vaovao dia mety ho lava.
+    # Aza atao int na mametra ny halavany.
+    socket_url = (
+        "wss://ws.derivws.com/"
+        "websockets/v3"
+        f"?app_id={app_id}"
     )
 
 
-# ==========================================================
-# CONNECT WORKER
-# ==========================================================
+    log(
+        "WebSocket URL:"
+        " wss://ws.derivws.com/websockets/v3"
+        f"?app_id={app_id}"
+    )
 
-def connection_worker():
-
-    global ws
 
     try:
 
-        ws_url = get_otp()
-
-        log(
-            "OTP OK. Connect WebSocket..."
-        )
-
         ws = websocket.WebSocketApp(
 
-            ws_url,
+            socket_url,
 
             on_open=on_open,
 
@@ -559,40 +685,34 @@ def connection_worker():
 
         )
 
+
+        bot["ws"] = ws
+
+
         ws.run_forever(
-
-            ping_interval=20,
-
+            ping_interval=25,
             ping_timeout=10
-
         )
+
 
     except Exception as e:
 
-        state["connected"] = False
-        state["error"] = str(e)
+        bot["connected"] = False
+        bot["connecting"] = False
 
-        log(
-            "CONNECTION FAILED: "
-            + str(e)
+        set_error(
+            f"WebSocket start error: {e}"
         )
 
 
-# ==========================================================
-# HOME
-# ==========================================================
+    finally:
 
-@app.route("/")
-def index():
-
-    return render_template(
-        "index.html"
-    )
+        bot["ws"] = None
 
 
-# ==========================================================
-# CONNECT
-# ==========================================================
+# =========================================================
+# CONNECT API
+# =========================================================
 
 @app.route(
     "/api/connect",
@@ -600,12 +720,10 @@ def index():
 )
 def connect():
 
-    data = (
-        request.get_json(
-            silent=True
-        )
-        or {}
-    )
+    data = request.get_json(
+        silent=True
+    ) or {}
+
 
     app_id = str(
         data.get(
@@ -614,12 +732,14 @@ def connect():
         )
     ).strip()
 
+
     pat_token = str(
         data.get(
             "pat_token",
             ""
         )
     ).strip()
+
 
     account_id = str(
         data.get(
@@ -628,12 +748,14 @@ def connect():
         )
     ).strip()
 
+
     symbol = str(
         data.get(
             "symbol",
             "BOOM500"
         )
-    ).strip()
+    ).strip().upper()
+
 
     if not app_id:
 
@@ -643,6 +765,7 @@ def connect():
                 "App ID tsy feno."
         }), 400
 
+
     if not pat_token:
 
         return jsonify({
@@ -650,6 +773,7 @@ def connect():
             "message":
                 "PAT Token tsy feno."
         }), 400
+
 
     if not account_id:
 
@@ -659,137 +783,42 @@ def connect():
                 "Account ID tsy feno."
         }), 400
 
-    state["app_id"] = app_id
-    state["pat_token"] = pat_token
-    state["account_id"] = account_id
-    state["symbol"] = symbol
 
-    state["error"] = ""
-
-    thread = threading.Thread(
-        target=connection_worker,
-        daemon=True
+    # Aza aseho amin'ny logs ny token
+    log(
+        f"CONNECT request:"
+        f" app_id={app_id},"
+        f" account_id={account_id},"
+        f" symbol={symbol}"
     )
 
-    thread.start()
 
-    return jsonify({
-
-        "ok": True,
-
-        "message":
-            "Connexion natomboka. "
-            "Jereo ny status."
-
-    })
-
-
-# ==========================================================
-# CHANGE SYMBOL
-# ==========================================================
-
-@app.route(
-    "/api/symbol",
-    methods=["POST"]
-)
-def change_symbol():
-
-    data = (
-        request.get_json(
-            silent=True
-        )
-        or {}
+    # Close old websocket
+    old_ws = bot.get(
+        "ws"
     )
 
-    symbol = str(
-        data.get(
-            "symbol",
-            ""
-        )
-    ).strip()
+    if old_ws:
 
-    if not symbol:
-
-        return jsonify({
-            "ok": False
-        }), 400
-
-    state["symbol"] = symbol
-
-    if state["connected"]:
-
-        request_history()
-
-    return jsonify({
-        "ok": True
-    })
+        try:
+            old_ws.close()
+        except Exception:
+            pass
 
 
-# ==========================================================
-# STATS
-# ==========================================================
+    # Save configuration
+    bot["app_id"] = app_id
+    bot["pat_token"] = pat_token
+    bot["account_id"] = account_id
+    bot["symbol"] = symbol
 
-@app.route(
-    "/api/stats",
-    methods=["GET"]
-)
-def stats():
+    bot["connected"] = False
+    bot["connecting"] = True
+    bot["balance"] = 0.0
+    bot["price"] = 0.0
+    bot["chart"] = []
 
-    return jsonify({
+    clear_error()
 
-        "connected":
-            state["connected"],
-
-        "balance":
-            state["balance"],
-
-        "currency":
-            state["currency"],
-
-        "symbol":
-            state["symbol"],
-
-        "price":
-            state["price"],
-
-        "chart":
-            state["chart"],
-
-        "message":
-            state["message"],
-
-        "error":
-            state["error"]
-
-    })
-
-
-# ==========================================================
-# HEALTH
-# ==========================================================
-
-@app.route("/health")
-def health():
-
-    return jsonify({
-        "status": "ok"
-    })
-
-
-# ==========================================================
-# RUN
-# ==========================================================
-
-if __name__ == "__main__":
-
-    port = int(
-        os.environ.get(
-            "PORT",
-            10000
-        )
-    )
-
-    app.run(
-        host="0.0.0.0",
-        port=port
-    )
+    set_message(
+        "Connecting
