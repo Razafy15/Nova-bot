@@ -13,14 +13,23 @@ app = Flask(__name__)
 
 
 # =========================================================
-# GLOBAL BOT STATE
+# CONFIG
+# =========================================================
+
+API_BASE = "https://api.derivws.com"
+
+DEFAULT_SYMBOL = "BOOM500"
+
+
+# =========================================================
+# BOT STATE
 # =========================================================
 
 bot = {
     "app_id": "",
     "pat_token": "",
     "account_id": "",
-    "symbol": "BOOM500",
+    "symbol": DEFAULT_SYMBOL,
 
     "connected": False,
     "connecting": False,
@@ -30,19 +39,63 @@ bot = {
 
     "price": 0.0,
 
-    "chart": [],
+    "candles": [],
 
-    "message": "Miandry connexion...",
+    "signal": "WAIT",
+    "signal_text": "Miandry market data...",
+    "signal_strength": 0,
+
+    "message": "Vonona hifandray amin'i Deriv.",
     "error": "",
 
     "last_update": 0,
 
     "ws": None,
+    "ws_url": "",
+
+    "connection_started": 0,
 }
 
 
 ws_lock = threading.Lock()
-stop_event = threading.Event()
+
+
+# =========================================================
+# BOOM / CRASH SYMBOLS
+# =========================================================
+
+BOOM_CRASH_SYMBOLS = [
+    "BOOM300",
+    "BOOM500",
+    "BOOM600",
+    "BOOM900",
+    "BOOM1000",
+
+    "CRASH300",
+    "CRASH500",
+    "CRASH600",
+    "CRASH900",
+    "CRASH1000",
+]
+
+
+# Volatility = signal only
+VOLATILITY_SYMBOLS = [
+    "1HZ10V",
+    "1HZ15V",
+    "1HZ25V",
+    "1HZ30V",
+    "1HZ50V",
+    "1HZ75V",
+    "1HZ90V",
+    "1HZ100V",
+
+    "R_10",
+    "R_25",
+    "R_50",
+    "R_75",
+    "R_100",
+]
 
 
 # =========================================================
@@ -58,7 +111,7 @@ def log(message):
 
 def set_message(message):
     bot["message"] = str(message)
-    log(message)
+    log(str(message))
 
 
 def set_error(message):
@@ -72,200 +125,555 @@ def clear_error():
     bot["error"] = ""
 
 
+def reset_market_data():
+
+    bot["price"] = 0.0
+    bot["candles"] = []
+
+    bot["signal"] = "WAIT"
+    bot["signal_text"] = "Miandry market data..."
+    bot["signal_strength"] = 0
+
+
 # =========================================================
-# DERIV WEBSOCKET
+# REST - GET OTP
 # =========================================================
 
-def send_ws(data):
+def get_websocket_url():
+
+    app_id = bot["app_id"]
+    token = bot["pat_token"]
+    account_id = bot["account_id"]
+
+    if not app_id:
+        raise Exception("App ID tsy feno.")
+
+    if not token:
+        raise Exception("PAT Token tsy feno.")
+
+    if not account_id:
+        raise Exception("Account ID tsy feno.")
+
+
+    url = (
+        f"{API_BASE}/trading/v1/options/"
+        f"accounts/{account_id}/otp"
+    )
+
+
+    headers = {
+        "Deriv-App-ID": app_id,
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+    }
+
+
+    log(
+        "Mangataka WebSocket OTP amin'i Deriv..."
+    )
+
+
+    response = requests.post(
+        url,
+        headers=headers,
+        timeout=20
+    )
+
+
+    log(
+        f"OTP HTTP status: {response.status_code}"
+    )
+
+
+    try:
+        data = response.json()
+    except Exception:
+        raise Exception(
+            f"Deriv namaly zavatra tsy JSON: "
+            f"{response.text[:300]}"
+        )
+
+
+    if response.status_code != 200:
+
+        errors = data.get(
+            "errors",
+            []
+        )
+
+        if errors:
+
+            err = errors[0]
+
+            code = err.get(
+                "code",
+                "UNKNOWN"
+            )
+
+            message = err.get(
+                "message",
+                "Unknown error"
+            )
+
+            raise Exception(
+                f"{code}: {message}"
+            )
+
+        raise Exception(
+            f"HTTP {response.status_code}: "
+            f"{data}"
+        )
+
+
+    result = data.get(
+        "data",
+        {}
+    )
+
+
+    ws_url = result.get(
+        "url"
+    )
+
+
+    if not ws_url:
+        raise Exception(
+            "Tsy nahazo WebSocket URL avy amin'i Deriv."
+        )
+
+
+    return ws_url
+
+
+# =========================================================
+# WEBSOCKET SEND
+# =========================================================
+
+def send_ws(payload):
+
     ws = bot.get("ws")
 
     if ws is None:
         return False
 
+
     try:
+
         with ws_lock:
-            ws.send(json.dumps(data))
 
-        return True
-
-    except Exception as e:
-
-        set_error(
-            f"Tsy afaka nandefa WebSocket: {e}"
-        )
-
-        return False
-
-
-# =========================================================
-# AUTHENTICATION
-# =========================================================
-
-def authorize_deriv(ws):
-
-    token = bot["pat_token"]
-
-    if not token:
-
-        set_error(
-            "Tsy misy PAT Token."
-        )
-
-        return False
-
-    log("Mandefa authorize amin'i Deriv...")
-
-    try:
-
-        ws.send(
-            json.dumps(
-                {
-                    "authorize": token,
-                    "req_id": 1
-                }
+            ws.send(
+                json.dumps(payload)
             )
-        )
 
         return True
 
+
     except Exception as e:
 
-        set_error(
-            f"Authorize error: {e}"
+        log(
+            f"WS send error: {e}"
         )
 
         return False
 
 
 # =========================================================
-# MARKET DATA
+# REQUEST BALANCE
 # =========================================================
 
 def request_balance():
 
-    send_ws(
-        {
-            "balance": 1,
-            "subscribe": 1,
-            "req_id": 10
-        }
-    )
+    send_ws({
+        "balance": 1,
+        "subscribe": 1,
+        "req_id": 100
+    })
 
 
-def request_chart():
+# =========================================================
+# REQUEST CANDLES
+# =========================================================
+
+def request_candles():
 
     symbol = bot["symbol"]
 
     log(
-        f"Mangataka chart: {symbol}"
-    )
-
-    send_ws(
-        {
-            "ticks_history": symbol,
-            "adjust_start_time": 1,
-            "count": 200,
-            "end": "latest",
-            "style": "candles",
-            "granularity": 60,
-            "subscribe": 1,
-            "req_id": 20
-        }
+        f"Mangataka candles: {symbol}"
     )
 
 
-def request_tick_stream():
+    send_ws({
 
-    symbol = bot["symbol"]
+        "ticks_history": symbol,
 
-    send_ws(
-        {
-            "ticks": symbol,
-            "subscribe": 1,
-            "req_id": 30
-        }
+        "adjust_start_time": 1,
+
+        "count": 300,
+
+        "end": "latest",
+
+        "style": "candles",
+
+        "granularity": 60,
+
+        "subscribe": 1,
+
+        "req_id": 200
+
+    })
+
+
+# =========================================================
+# SIGNAL ENGINE
+# =========================================================
+
+def calculate_signal():
+
+    candles = bot["candles"]
+
+    if len(candles) < 20:
+
+        bot["signal"] = "WAIT"
+
+        bot["signal_text"] = (
+            "Miandry candles..."
+        )
+
+        bot["signal_strength"] = 0
+
+        return
+
+
+    symbol = bot["symbol"].upper()
+
+
+    closes = [
+        float(c["close"])
+        for c in candles
+    ]
+
+
+    # -----------------------------------------------------
+    # Simple EMA calculation
+    # -----------------------------------------------------
+
+    def ema(values, period):
+
+        if len(values) < period:
+            return values[-1]
+
+        alpha = 2 / (
+            period + 1
+        )
+
+        value = values[0]
+
+        for price in values[1:]:
+
+            value = (
+                alpha * price
+                + (1 - alpha) * value
+            )
+
+        return value
+
+
+    ema9 = ema(
+        closes[-60:],
+        9
     )
+
+    ema21 = ema(
+        closes[-60:],
+        21
+    )
+
+
+    # -----------------------------------------------------
+    # Volatility = SIGNAL ONLY
+    # -----------------------------------------------------
+
+    if symbol in VOLATILITY_SYMBOLS:
+
+        if ema9 > ema21:
+
+            bot["signal"] = "CALL"
+
+            bot["signal_text"] = (
+                f"Volatility signal: "
+                f"UP | EMA9 > EMA21"
+            )
+
+            bot["signal_strength"] = 70
+
+        elif ema9 < ema21:
+
+            bot["signal"] = "PUT"
+
+            bot["signal_text"] = (
+                f"Volatility signal: "
+                f"DOWN | EMA9 < EMA21"
+            )
+
+            bot["signal_strength"] = 70
+
+        else:
+
+            bot["signal"] = "WAIT"
+
+            bot["signal_text"] = (
+                "Volatility: WAIT"
+            )
+
+            bot["signal_strength"] = 0
+
+        return
+
+
+    # -----------------------------------------------------
+    # BOOM
+    # -----------------------------------------------------
+
+    if symbol.startswith("BOOM"):
+
+        recent = candles[-5:]
+
+        green = 0
+
+        for c in recent:
+
+            if c["close"] > c["open"]:
+                green += 1
+
+
+        if (
+            green >= 3
+            and ema9 > ema21
+        ):
+
+            bot["signal"] = "PUT"
+
+            bot["signal_text"] = (
+                "BOOM signal: "
+                "possible spike detected"
+            )
+
+            bot["signal_strength"] = 80
+
+        else:
+
+            bot["signal"] = "WAIT"
+
+            bot["signal_text"] = (
+                "BOOM: miandry spike..."
+            )
+
+            bot["signal_strength"] = 0
+
+        return
+
+
+    # -----------------------------------------------------
+    # CRASH
+    # -----------------------------------------------------
+
+    if symbol.startswith("CRASH"):
+
+        recent = candles[-5:]
+
+        red = 0
+
+        for c in recent:
+
+            if c["close"] < c["open"]:
+                red += 1
+
+
+        if (
+            red >= 3
+            and ema9 < ema21
+        ):
+
+            bot["signal"] = "CALL"
+
+            bot["signal_text"] = (
+                "CRASH signal: "
+                "possible spike detected"
+            )
+
+            bot["signal_strength"] = 80
+
+        else:
+
+            bot["signal"] = "WAIT"
+
+            bot["signal_text"] = (
+                "CRASH: miandry spike..."
+            )
+
+            bot["signal_strength"] = 0
+
+        return
+
+
+    bot["signal"] = "WAIT"
+
+    bot["signal_text"] = (
+        "Market tsy voafaritra."
+    )
+
+    bot["signal_strength"] = 0
 
 
 # =========================================================
 # FORMAT CANDLES
 # =========================================================
 
-def process_history_candles(candles):
+def set_candles(candles):
 
-    formatted = []
+    result = []
+
+    seen = set()
+
 
     for candle in candles:
 
         try:
 
-            item = {
-                "time": int(candle["epoch"]),
-                "open": float(candle["open"]),
-                "high": float(candle["high"]),
-                "low": float(candle["low"]),
-                "close": float(candle["close"])
-            }
+            epoch = int(
+                candle["epoch"]
+            )
 
-            formatted.append(item)
+            if epoch in seen:
+                continue
+
+            seen.add(epoch)
+
+
+            result.append({
+
+                "time": epoch,
+
+                "open": float(
+                    candle["open"]
+                ),
+
+                "high": float(
+                    candle["high"]
+                ),
+
+                "low": float(
+                    candle["low"]
+                ),
+
+                "close": float(
+                    candle["close"]
+                )
+
+            })
 
         except Exception as e:
 
             log(
-                f"Candle tsy mety: {e}"
+                f"Candle error: {e}"
             )
 
 
-    # Lightweight Charts mila time miakatra
-    formatted.sort(
+    result.sort(
         key=lambda x: x["time"]
     )
 
 
-    # Esorina duplicate
-    unique = []
-
-    seen = set()
-
-    for candle in formatted:
-
-        if candle["time"] in seen:
-            continue
-
-        seen.add(candle["time"])
-
-        unique.append(candle)
+    bot["candles"] = result[-300:]
 
 
-    bot["chart"] = unique[-300:]
+    if bot["candles"]:
 
-
-    if bot["chart"]:
-
-        bot["price"] = float(
-            bot["chart"][-1]["close"]
+        bot["price"] = (
+            bot["candles"][-1]["close"]
         )
 
         bot["last_update"] = time.time()
 
 
+    calculate_signal()
+
+
 # =========================================================
-# LIVE TICK
+# UPDATE LIVE OHLC
 # =========================================================
 
-def process_tick(tick):
+def update_ohlc(ohlc):
 
     try:
 
-        quote = float(
-            tick.get("quote", 0)
-        )
+        candle = {
 
-        bot["price"] = quote
+            "time": int(
+                ohlc["open_time"]
+            ),
+
+            "open": float(
+                ohlc["open"]
+            ),
+
+            "high": float(
+                ohlc["high"]
+            ),
+
+            "low": float(
+                ohlc["low"]
+            ),
+
+            "close": float(
+                ohlc["close"]
+            )
+
+        }
+
+
+        candles = bot["candles"]
+
+
+        if not candles:
+
+            candles.append(
+                candle
+            )
+
+        elif (
+            candles[-1]["time"]
+            == candle["time"]
+        ):
+
+            candles[-1] = candle
+
+        elif (
+            candle["time"]
+            > candles[-1]["time"]
+        ):
+
+            candles.append(
+                candle
+            )
+
+
+        bot["candles"] = candles[-300:]
+
+        bot["price"] = candle["close"]
+
         bot["last_update"] = time.time()
 
-    except Exception:
-        pass
+
+        calculate_signal()
+
+
+    except Exception as e:
+
+        log(
+            f"OHLC update error: {e}"
+        )
 
 
 # =========================================================
@@ -276,7 +684,9 @@ def on_message(ws, message):
 
     try:
 
-        data = json.loads(message)
+        data = json.loads(
+            message
+        )
 
     except Exception as e:
 
@@ -287,7 +697,10 @@ def on_message(ws, message):
         return
 
 
-    # API error
+    # -----------------------------------------------------
+    # DERIV ERROR
+    # -----------------------------------------------------
+
     if "error" in data:
 
         error = data["error"]
@@ -302,9 +715,11 @@ def on_message(ws, message):
             "Unknown Deriv error"
         )
 
+
         set_error(
-            f"Deriv {code}: {text}"
+            f"{code}: {text}"
         )
+
 
         bot["connected"] = False
         bot["connecting"] = False
@@ -328,15 +743,12 @@ def on_message(ws, message):
             {}
         )
 
+
         loginid = auth.get(
             "loginid",
             ""
         )
 
-        currency = auth.get(
-            "currency",
-            "USD"
-        )
 
         balance = auth.get(
             "balance",
@@ -344,22 +756,23 @@ def on_message(ws, message):
         )
 
 
-        # Raha nomena Account ID ny user,
-        # jereo raha mitovy amin'ilay account authorized.
-        expected_account = (
-            bot.get("account_id") or ""
-        ).strip()
+        currency = auth.get(
+            "currency",
+            "USD"
+        )
 
 
+        # Account verification
         if (
-            expected_account
+            bot["account_id"]
             and loginid
-            and expected_account != loginid
+            and bot["account_id"]
+            != loginid
         ):
 
             set_error(
-                "Account ID tsy mifanaraka amin'ilay "
-                "kaonty voa-authorize."
+                "Account ID tsy mifanaraka "
+                f"({loginid})."
             )
 
             bot["connected"] = False
@@ -375,31 +788,29 @@ def on_message(ws, message):
 
         bot["connected"] = True
         bot["connecting"] = False
+
         bot["balance"] = float(
             balance or 0
         )
+
         bot["currency"] = currency
-        bot["error"] = ""
+
+        clear_error()
+
 
         set_message(
-            f"Connected ✓ Account: {loginid}"
+            f"Connected ✓ {loginid}"
         )
 
 
         log(
-            f"AUTHORIZE OK: {loginid}"
+            f"AUTHORIZED: {loginid}"
         )
 
 
-        # Balance
         request_balance()
 
-        # Chart
-        request_chart()
-
-        # Live ticks
-        request_tick_stream()
-
+        request_candles()
 
         return
 
@@ -415,6 +826,7 @@ def on_message(ws, message):
             {}
         )
 
+
         try:
 
             bot["balance"] = float(
@@ -428,20 +840,23 @@ def on_message(ws, message):
             pass
 
 
-        if balance_data.get(
-            "currency"
-        ):
-
-            bot["currency"] = (
-                balance_data["currency"]
+        currency = (
+            balance_data.get(
+                "currency"
             )
+        )
+
+
+        if currency:
+
+            bot["currency"] = currency
 
 
         return
 
 
     # -----------------------------------------------------
-    # CANDLES
+    # HISTORICAL CANDLES
     # -----------------------------------------------------
 
     if msg_type == "candles":
@@ -451,19 +866,22 @@ def on_message(ws, message):
             []
         )
 
-        process_history_candles(
+
+        set_candles(
             candles
         )
 
+
         set_message(
-            f"Chart live: {bot['symbol']}"
+            f"Market live • {bot['symbol']}"
         )
+
 
         return
 
 
     # -----------------------------------------------------
-    # OHLC
+    # LIVE OHLC
     # -----------------------------------------------------
 
     if msg_type == "ohlc":
@@ -472,74 +890,11 @@ def on_message(ws, message):
             "ohlc"
         )
 
-        if not ohlc:
-            return
 
+        if ohlc:
 
-        try:
-
-            candle = {
-                "time": int(
-                    ohlc["open_time"]
-                ),
-
-                "open": float(
-                    ohlc["open"]
-                ),
-
-                "high": float(
-                    ohlc["high"]
-                ),
-
-                "low": float(
-                    ohlc["low"]
-                ),
-
-                "close": float(
-                    ohlc["close"]
-                )
-            }
-
-
-            chart = bot["chart"]
-
-
-            if chart:
-
-                if (
-                    chart[-1]["time"]
-                    == candle["time"]
-                ):
-
-                    chart[-1] = candle
-
-                elif (
-                    candle["time"]
-                    > chart[-1]["time"]
-                ):
-
-                    chart.append(
-                        candle
-                    )
-
-            else:
-
-                chart.append(
-                    candle
-                )
-
-
-            bot["chart"] = chart[-300:]
-
-            bot["price"] = candle["close"]
-
-            bot["last_update"] = time.time()
-
-
-        except Exception as e:
-
-            log(
-                f"OHLC error: {e}"
+            update_ohlc(
+                ohlc
             )
 
 
@@ -547,19 +902,10 @@ def on_message(ws, message):
 
 
     # -----------------------------------------------------
-    # TICK
+    # PING / OTHER
     # -----------------------------------------------------
 
-    if msg_type == "tick":
-
-        tick = data.get(
-            "tick",
-            {}
-        )
-
-        process_tick(
-            tick
-        )
+    if msg_type == "ping":
 
         return
 
@@ -571,20 +917,19 @@ def on_message(ws, message):
 def on_open(ws):
 
     log(
-        "WebSocket CONNECTED."
+        "Authenticated WebSocket OPEN."
     )
+
 
     bot["connecting"] = True
     bot["connected"] = False
 
+
     clear_error()
 
-    set_message(
-        "WebSocket connected → authorize..."
-    )
 
-    authorize_deriv(
-        ws
+    set_message(
+        "WebSocket connected • loading account..."
     )
 
 
@@ -595,14 +940,16 @@ def on_open(ws):
 def on_error(ws, error):
 
     log(
-        f"WebSocket ERROR: {error}"
+        f"WebSocket error: {error}"
     )
+
 
     bot["connected"] = False
     bot["connecting"] = False
 
+
     set_error(
-        f"WebSocket error: {error}"
+        f"WebSocket: {error}"
     )
 
 
@@ -617,63 +964,47 @@ def on_close(
 ):
 
     log(
-        f"WebSocket CLOSED: "
+        f"WebSocket closed: "
         f"{close_status_code} "
         f"{close_msg}"
     )
 
+
     bot["connected"] = False
     bot["connecting"] = False
+
     bot["ws"] = None
+
 
     if not bot["error"]:
 
         set_message(
-            "Tapaka ny connexion Deriv."
+            "Tapaka ny connexion."
         )
 
 
 # =========================================================
-# RUN WEBSOCKET
+# CONNECT WORKER
 # =========================================================
 
-def websocket_worker():
-
-    app_id = (
-        bot["app_id"] or ""
-    ).strip()
-
-
-    if not app_id:
-
-        set_error(
-            "Tsy misy App ID."
-        )
-
-        return
-
-
-    # App ID vaovao dia mety ho lava.
-    # Aza atao int na mametra ny halavany.
-    socket_url = (
-        "wss://ws.derivws.com/"
-        "websockets/v3"
-        f"?app_id={app_id}"
-    )
-
-
-    log(
-        "WebSocket URL:"
-        " wss://ws.derivws.com/websockets/v3"
-        f"?app_id={app_id}"
-    )
-
+def connect_worker():
 
     try:
 
+        # Step 1:
+        # REST OTP
+        ws_url = get_websocket_url()
+
+
+        bot["ws_url"] = ws_url
+
+
+        # Step 2:
+        # connect immediately
+        # OTP is short lived
         ws = websocket.WebSocketApp(
 
-            socket_url,
+            ws_url,
 
             on_open=on_open,
 
@@ -689,6 +1020,11 @@ def websocket_worker():
         bot["ws"] = ws
 
 
+        log(
+            "Opening authenticated WebSocket..."
+        )
+
+
         ws.run_forever(
             ping_interval=25,
             ping_timeout=10
@@ -701,7 +1037,7 @@ def websocket_worker():
         bot["connecting"] = False
 
         set_error(
-            f"WebSocket start error: {e}"
+            str(e)
         )
 
 
@@ -718,7 +1054,7 @@ def websocket_worker():
     "/api/connect",
     methods=["POST"]
 )
-def connect():
+def api_connect():
 
     data = request.get_json(
         silent=True
@@ -752,7 +1088,7 @@ def connect():
     symbol = str(
         data.get(
             "symbol",
-            "BOOM500"
+            DEFAULT_SYMBOL
         )
     ).strip().upper()
 
@@ -761,8 +1097,7 @@ def connect():
 
         return jsonify({
             "ok": False,
-            "message":
-                "App ID tsy feno."
+            "message": "App ID tsy feno."
         }), 400
 
 
@@ -770,8 +1105,7 @@ def connect():
 
         return jsonify({
             "ok": False,
-            "message":
-                "PAT Token tsy feno."
+            "message": "PAT Token tsy feno."
         }), 400
 
 
@@ -784,19 +1118,11 @@ def connect():
         }), 400
 
 
-    # Aza aseho amin'ny logs ny token
-    log(
-        f"CONNECT request:"
-        f" app_id={app_id},"
-        f" account_id={account_id},"
-        f" symbol={symbol}"
-    )
-
-
-    # Close old websocket
+    # Close old connection
     old_ws = bot.get(
         "ws"
     )
+
 
     if old_ws:
 
@@ -806,7 +1132,6 @@ def connect():
             pass
 
 
-    # Save configuration
     bot["app_id"] = app_id
     bot["pat_token"] = pat_token
     bot["account_id"] = account_id
@@ -814,11 +1139,197 @@ def connect():
 
     bot["connected"] = False
     bot["connecting"] = True
-    bot["balance"] = 0.0
-    bot["price"] = 0.0
-    bot["chart"] = []
 
-    clear_error()
+    bot["connection_started"] = time.time()
+
+    bot["message"] = (
+        "Connecting amin'i Deriv..."
+    )
+
+    bot["error"] = ""
+
+    reset_market_data()
+
+
+    log(
+        "New connection requested"
+    )
+
+    log(
+        f"App ID: {app_id}"
+    )
+
+    log(
+        f"Account ID: {account_id}"
+    )
+
+    log(
+        f"Symbol: {symbol}"
+    )
+
+    # Never print PAT token
+
+
+    thread = threading.Thread(
+        target=connect_worker,
+        daemon=True
+    )
+
+    thread.start()
+
+
+    return jsonify({
+        "ok": True,
+        "message":
+            "Connexion natomboka."
+    })
+
+
+# =========================================================
+# CHANGE SYMBOL
+# =========================================================
+
+@app.route(
+    "/api/symbol",
+    methods=["POST"]
+)
+def api_symbol():
+
+    data = request.get_json(
+        silent=True
+    ) or {}
+
+
+    symbol = str(
+        data.get(
+            "symbol",
+            DEFAULT_SYMBOL
+        )
+    ).strip().upper()
+
+
+    bot["symbol"] = symbol
+
+
+    reset_market_data()
+
+
+    if bot["connected"]:
+
+        request_candles()
+
 
     set_message(
-        "Connecting
+        f"Market: {symbol}"
+    )
+
+
+    return jsonify({
+        "ok": True,
+        "symbol": symbol
+    })
+
+
+# =========================================================
+# STATS
+# =========================================================
+
+@app.route(
+    "/api/stats",
+    methods=["GET"]
+)
+def api_stats():
+
+    return jsonify({
+
+        "connected":
+            bool(
+                bot["connected"]
+            ),
+
+        "connecting":
+            bool(
+                bot["connecting"]
+            ),
+
+        "balance":
+            bot["balance"],
+
+        "currency":
+            bot["currency"],
+
+        "price":
+            bot["price"],
+
+        "symbol":
+            bot["symbol"],
+
+        "candles":
+            bot["candles"][-300:],
+
+        "signal":
+            bot["signal"],
+
+        "signal_text":
+            bot["signal_text"],
+
+        "signal_strength":
+            bot["signal_strength"],
+
+        "message":
+            bot["message"],
+
+        "error":
+            bot["error"],
+
+        "last_update":
+            bot["last_update"]
+
+    })
+
+
+# =========================================================
+# HEALTH
+# =========================================================
+
+@app.route(
+    "/health"
+)
+def health():
+
+    return jsonify({
+        "status": "ok",
+        "service": "Nova-bot"
+    })
+
+
+# =========================================================
+# HOME
+# =========================================================
+
+@app.route("/")
+def home():
+
+    return render_template(
+        "index.html"
+    )
+
+
+# =========================================================
+# MAIN
+# =========================================================
+
+if __name__ == "__main__":
+
+    port = int(
+        os.environ.get(
+            "PORT",
+            5000
+        )
+    )
+
+
+    app.run(
+        host="0.0.0.0",
+        port=port
+    )
