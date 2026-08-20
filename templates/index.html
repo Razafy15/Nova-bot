@@ -1,14 +1,8 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="mg">
-
 <head>
-
-<meta charset="utf-8">
-
-<meta
-name="viewport"
-content="width=device-width,initial-scale=1,viewport-fit=cover"
->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <title>Deriv Pro Bot</title>
 
@@ -16,1247 +10,1305 @@ content="width=device-width,initial-scale=1,viewport-fit=cover"
 
 <style>
 
-:root{
---bg:#060b14;
---panel:#0d1522;
---line:#1d2a3c;
---text:#e7eef8;
---muted:#7f8da3;
---blue:#2f6df6;
---green:#16b364;
---red:#ef4444;
---yellow:#f5c542;
-}
-
 *{
-box-sizing:border-box;
+    box-sizing:border-box;
 }
 
 body{
-margin:0;
-background:var(--bg);
-color:var(--text);
-font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+    margin:0;
+    background:#070b14;
+    color:#f8fafc;
+    font-family:
+        -apple-system,
+        BlinkMacSystemFont,
+        "Segoe UI",
+        Roboto,
+        Arial,
+        sans-serif;
 }
 
-.app{
-display:grid;
-grid-template-columns:62px 1fr;
-min-height:100vh;
+.container{
+    width:100%;
+    max-width:1400px;
+    margin:auto;
+    padding:15px;
 }
 
-.side{
-border-right:1px solid var(--line);
-padding:16px 10px;
-background:#07101c;
-display:flex;
-flex-direction:column;
-gap:18px;
-align-items:center;
+/* HEADER */
+
+.header{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:15px;
+    margin-bottom:15px;
 }
 
-.side span{
-font-size:20px;
-opacity:.9;
+.logo{
+    font-size:22px;
+    font-weight:800;
 }
 
-.main{
-width:100%;
-max-width:1180px;
-margin:auto;
-padding:18px;
-}
-
-.top{
-display:flex;
-justify-content:space-between;
-align-items:center;
-gap:10px;
-margin-bottom:14px;
-}
-
-.brand{
-font-weight:800;
-font-size:18px;
+.logo span{
+    color:#38bdf8;
 }
 
 .status{
-font-size:12px;
-padding:7px 10px;
-border:1px solid var(--line);
-border-radius:20px;
-background:var(--panel);
+    display:flex;
+    align-items:center;
+    gap:8px;
+    background:#111827;
+    padding:8px 13px;
+    border-radius:20px;
+    font-size:13px;
 }
 
 .dot{
-display:inline-block;
-width:7px;
-height:7px;
-border-radius:50%;
-background:var(--red);
-margin-right:6px;
+    width:9px;
+    height:9px;
+    border-radius:50%;
+    background:#ef4444;
 }
 
-.ok .dot{
-background:var(--green);
+.dot.connected{
+    background:#22c55e;
+    box-shadow:0 0 10px #22c55e;
 }
 
-.cards{
-display:grid;
-grid-template-columns:repeat(4,1fr);
-gap:10px;
+/* GRID */
+
+.dashboard{
+    display:grid;
+    grid-template-columns:320px 1fr;
+    gap:15px;
 }
 
-.card,
-.panel{
-background:linear-gradient(
-180deg,
-var(--panel),
-#0b1320
-);
-border:1px solid var(--line);
-border-radius:12px;
-}
+/* CARD */
 
 .card{
-padding:14px;
+    background:#0f172a;
+    border:1px solid #1e293b;
+    border-radius:14px;
+    padding:15px;
 }
 
-.label{
-font-size:10px;
-color:var(--muted);
-text-transform:uppercase;
+.card-title{
+    font-size:14px;
+    font-weight:700;
+    color:#94a3b8;
+    margin-bottom:15px;
 }
 
-.value{
-font-size:17px;
-font-weight:800;
-margin-top:5px;
+/* FORM */
+
+label{
+    display:block;
+    font-size:12px;
+    color:#94a3b8;
+    margin-bottom:6px;
 }
 
-.yellow{
-color:var(--yellow);
+input,
+select{
+    width:100%;
+    padding:11px;
+    border-radius:8px;
+    border:1px solid #334155;
+    background:#070b14;
+    color:white;
+    outline:none;
+    margin-bottom:12px;
 }
 
-.panel{
-padding:12px;
-margin-top:12px;
+input:focus,
+select:focus{
+    border-color:#38bdf8;
 }
 
-.panelhead{
-display:flex;
-justify-content:space-between;
-align-items:center;
-gap:8px;
-margin-bottom:10px;
-font-weight:700;
-}
+/* BUTTONS */
 
-.controls{
-display:flex;
-gap:8px;
-}
-
-select,
-input{
-width:100%;
-background:#09111d;
-color:var(--text);
-border:1px solid var(--line);
-border-radius:8px;
-padding:10px;
-outline:none;
+.buttons{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:8px;
 }
 
 button{
-border:0;
-border-radius:8px;
-padding:11px 13px;
-color:#fff;
-font-weight:800;
-cursor:pointer;
+    border:none;
+    padding:11px;
+    border-radius:8px;
+    color:white;
+    font-weight:700;
+    cursor:pointer;
 }
 
-.blue{
-background:var(--blue);
+.connect{
+    background:#2563eb;
+    grid-column:1 / -1;
 }
 
-.green{
-background:var(--green);
+.refresh{
+    background:#334155;
 }
 
-.red{
-background:var(--red);
+.disconnect{
+    background:#dc2626;
 }
 
-.chartwrap{
-height:390px;
-position:relative;
+/* BALANCE */
+
+.balance{
+    font-size:25px;
+    font-weight:800;
+    color:#38bdf8;
+    margin-bottom:5px;
 }
 
-.chart{
-height:100%;
-width:100%;
+.account{
+    color:#94a3b8;
+    font-size:12px;
 }
 
-.grid2{
-display:grid;
-grid-template-columns:1fr 1fr;
-gap:12px;
-}
-
-.row{
-display:grid;
-grid-template-columns:1fr 1fr;
-gap:9px;
-margin-bottom:9px;
-}
-
-.row3{
-display:grid;
-grid-template-columns:1fr 1fr 1fr;
-gap:9px;
-}
-
-.signal{
-padding:12px;
-border:1px solid var(--line);
-background:#0a1220;
-border-radius:9px;
-margin-top:8px;
-}
-
-.signal strong{
-display:block;
-font-size:11px;
-color:var(--muted);
-}
-
-.signal b{
-display:block;
-margin-top:4px;
-}
-
-.pre{
-color:var(--yellow);
-}
-
-.confirmed{
-color:#63e6be;
-}
-
-.scanner{
-display:grid;
-grid-template-columns:repeat(3,1fr);
-gap:8px;
-}
-
-.scan{
-border:1px solid var(--line);
-background:#0a1220;
-border-radius:9px;
-padding:10px;
-}
-
-.scan small{
-color:var(--muted);
-}
-
-.scan b{
-display:block;
-margin-top:5px;
-}
-
-.logs{
-max-height:150px;
-overflow:auto;
-font-family:monospace;
-font-size:11px;
-color:#aab6c7;
-white-space:pre-wrap;
-}
-
-.note{
-font-size:11px;
-color:var(--muted);
-line-height:1.5;
-}
-
-@media(max-width:760px){
-
-.app{
-grid-template-columns:48px 1fr;
-}
-
-.side{
-padding:12px 6px;
-}
-
-.side span{
-font-size:16px;
-}
+/* MAIN */
 
 .main{
-padding:10px;
+    min-width:0;
 }
 
-.cards{
-grid-template-columns:repeat(2,1fr);
+.market-header{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:10px;
+    margin-bottom:12px;
 }
 
-.grid2{
-grid-template-columns:1fr;
+.symbol{
+    font-size:20px;
+    font-weight:800;
 }
 
-.row3{
-grid-template-columns:1fr;
+.price{
+    font-size:18px;
+    color:#38bdf8;
+    font-weight:700;
 }
 
-.chartwrap{
-height:330px;
+/* CHART */
+
+.chart-box{
+    width:100%;
+    height:500px;
+    background:#080d18;
+    border:1px solid #1e293b;
+    border-radius:14px;
+    overflow:hidden;
 }
 
-.controls{
-flex-direction:column;
+#chart{
+    width:100%;
+    height:100%;
 }
 
-.top{
-align-items:flex-start;
-flex-direction:column;
+/* STATS */
+
+.stats{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:10px;
+    margin-top:12px;
 }
+
+.stat{
+    background:#0f172a;
+    border:1px solid #1e293b;
+    border-radius:12px;
+    padding:14px;
+}
+
+.stat small{
+    display:block;
+    color:#64748b;
+    margin-bottom:5px;
+}
+
+.stat strong{
+    font-size:17px;
+}
+
+/* SIGNAL */
+
+.signal{
+    margin-top:12px;
+    background:#0f172a;
+    border:1px solid #1e293b;
+    border-radius:12px;
+    padding:15px;
+}
+
+.signal-title{
+    font-size:12px;
+    color:#64748b;
+    margin-bottom:7px;
+}
+
+.signal-text{
+    font-size:15px;
+    font-weight:700;
+}
+
+.signal.buy{
+    border-left:4px solid #22c55e;
+}
+
+.signal.wait{
+    border-left:4px solid #f59e0b;
+}
+
+.signal.error{
+    border-left:4px solid #ef4444;
+}
+
+/* MESSAGE */
+
+.message{
+    margin-top:12px;
+    padding:12px;
+    background:#020617;
+    border-radius:8px;
+    color:#94a3b8;
+    font-size:12px;
+    word-break:break-word;
+}
+
+/* MOBILE */
+
+@media(max-width:850px){
+
+    .dashboard{
+        grid-template-columns:1fr;
+    }
+
+    .chart-box{
+        height:420px;
+    }
+
+}
+
+@media(max-width:600px){
+
+    .container{
+        padding:9px;
+    }
+
+    .header{
+        align-items:flex-start;
+    }
+
+    .logo{
+        font-size:18px;
+    }
+
+    .dashboard{
+        display:flex;
+        flex-direction:column;
+    }
+
+    .chart-box{
+        height:360px;
+    }
+
+    .stats{
+        grid-template-columns:repeat(2,1fr);
+    }
+
+    .market-header{
+        flex-direction:column;
+        align-items:flex-start;
+    }
+
+    .buttons{
+        grid-template-columns:1fr 1fr;
+    }
 
 }
 
 </style>
-
 </head>
 
 <body>
 
-<div class="app">
+<div class="container">
 
-<aside class="side">
+    <!-- HEADER -->
 
-<span>⚡</span>
-<span>📊</span>
-<span>📈</span>
-<span>🔎</span>
-<span>🔔</span>
-<span>💼</span>
-<span>⚙️</span>
+    <div class="header">
 
-</aside>
+        <div class="logo">
+            DERIV <span>PRO BOT</span>
+        </div>
 
-<main class="main">
+        <div class="status">
 
-<div class="top">
+            <div id="statusDot" class="dot"></div>
 
-<div class="brand">
-Deriv Trading Dashboard
-<span style="color:#71809a">
-PRO
-</span>
-</div>
+            <span id="statusText">
+                Disconnected
+            </span>
 
-<div
-id="status"
-class="status"
->
+        </div>
 
-<span class="dot"></span>
+    </div>
 
-Disconnected
 
-</div>
+    <div class="dashboard">
 
-</div>
+        <!-- SIDEBAR -->
 
+        <div>
 
-<section class="cards">
+            <div class="card">
 
-<div class="card">
+                <div class="card-title">
+                    🔐 DERIV CONNECTION
+                </div>
 
-<div class="label">
-Balance
-</div>
+                <label>App ID</label>
 
-<div
-id="balance"
-class="value"
->
-0.00 USD
-</div>
+                <input
+                    id="appId"
+                    type="text"
+                    placeholder="Ampidiro App ID"
+                >
 
-</div>
 
+                <label>PAT Token</label>
 
-<div class="card">
+                <input
+                    id="patToken"
+                    type="password"
+                    placeholder="PAT Token"
+                >
 
-<div class="label">
-Market Price
-</div>
 
-<div
-id="price"
-class="value"
->
-0.0000
-</div>
+                <label>Account ID</label>
 
-</div>
+                <input
+                    id="accountId"
+                    type="text"
+                    placeholder="Account ID"
+                >
 
 
-<div class="card">
+                <label>Market</label>
 
-<div class="label">
-Pre-Signal
-</div>
+                <select id="symbol">
 
-<div
-id="pre"
-class="value yellow"
->
-WAIT
-</div>
+                    <option value="BOOM500">
+                        BOOM 500
+                    </option>
 
-</div>
+                    <option value="BOOM1000">
+                        BOOM 1000
+                    </option>
 
+                    <option value="BOOM300">
+                        BOOM 300
+                    </option>
 
-<div class="card">
+                    <option value="BOOM150">
+                        BOOM 150
+                    </option>
 
-<div class="label">
-Confidence
-</div>
+                    <option value="CRASH500">
+                        CRASH 500
+                    </option>
 
-<div
-id="conf"
-class="value"
->
-0%
-</div>
+                    <option value="CRASH1000">
+                        CRASH 1000
+                    </option>
 
-</div>
+                    <option value="CRASH300">
+                        CRASH 300
+                    </option>
 
-</section>
+                    <option value="CRASH150">
+                        CRASH 150
+                    </option>
 
+                </select>
 
-<section class="panel">
 
-<div class="panelhead">
+                <div class="buttons">
 
-<span id="chartTitle">
-Market Chart
-</span>
+                    <button
+                        class="connect"
+                        onclick="connectDeriv()"
+                    >
+                        🔌 CONNECT
+                    </button>
 
-<div class="controls">
+                    <button
+                        class="refresh"
+                        onclick="refreshMarket()"
+                    >
+                        🔄 REFRESH
+                    </button>
 
-<select
-id="symbol"
->
+                    <button
+                        class="disconnect"
+                        onclick="disconnectBot()"
+                    >
+                        ⛔ STOP
+                    </button>
 
-</select>
+                </div>
 
-<select
-id="tf"
->
+            </div>
 
-<option value="60">
-1M
-</option>
 
-<option value="300">
-5M
-</option>
+            <!-- BALANCE -->
 
-</select>
+            <div
+                class="card"
+                style="margin-top:12px;"
+            >
 
-</div>
+                <div class="card-title">
+                    💰 ACCOUNT
+                </div>
 
-</div>
+                <div
+                    class="balance"
+                    id="balance"
+                >
+                    0.00 USD
+                </div>
 
+                <div
+                    class="account"
+                    id="account"
+                >
+                    Not connected
+                </div>
 
-<div class="chartwrap">
+            </div>
 
-<div
-id="chart"
-class="chart"
->
-</div>
 
-</div>
+            <!-- BOT INFO -->
 
-</section>
+            <div
+                class="card"
+                style="margin-top:12px;"
+            >
 
+                <div class="card-title">
+                    🤖 BOT STATUS
+                </div>
 
-<section class="panel">
+                <div
+                    id="botMessage"
+                    class="message"
+                >
+                    Miandry connexion...
+                </div>
 
-<div class="panelhead">
-🔔 Live Signals
-</div>
+            </div>
 
+        </div>
 
-<div class="signal">
 
-<strong>
-PRE-SIGNAL
-</strong>
+        <!-- MAIN -->
 
-<b
-id="pre2"
-class="pre"
->
-WAIT
-</b>
+        <div class="main">
 
-</div>
+            <div class="market-header">
 
+                <div>
 
-<div class="signal">
+                    <div
+                        class="symbol"
+                        id="marketName"
+                    >
+                        BOOM500
+                    </div>
 
-<strong>
-CONFIRMED SIGNAL
-</strong>
+                    <div
+                        style="font-size:12px;color:#64748b;"
+                    >
+                        Live Market Chart
+                    </div>
 
-<b
-id="confirmed"
-class="confirmed"
->
-WAIT
-</b>
+                </div>
 
-</div>
+                <div
+                    class="price"
+                    id="price"
+                >
+                    0.00000
+                </div>
 
+            </div>
 
-<div class="signal">
 
-<strong>
-STATUS
-</strong>
+            <!-- CHART -->
 
-<b
-id="last"
->
-Miandry...
-</b>
+            <div class="chart-box">
 
-</div>
+                <div id="chart"></div>
 
-</section>
+            </div>
 
 
-<div class="grid2">
+            <!-- STATS -->
 
+            <div class="stats">
 
-<section class="panel">
+                <div class="stat">
 
-<div class="panelhead">
-🔌 Deriv Connection
-</div>
+                    <small>
+                        MARKET
+                    </small>
 
+                    <strong id="statSymbol">
+                        BOOM500
+                    </strong>
 
-<div class="row">
+                </div>
 
-<input
-id="appId"
-placeholder="New App ID"
->
 
-<input
-id="accountId"
-placeholder="DOT... Account ID"
->
+                <div class="stat">
 
-</div>
+                    <small>
+                        PRICE
+                    </small>
 
+                    <strong id="statPrice">
+                        0.00000
+                    </strong>
 
-<div class="row">
+                </div>
 
-<input
-id="token"
-type="password"
-placeholder="PAT Token"
->
 
-<select
-id="accountType"
->
+                <div class="stat">
 
-<option value="demo">
-Demo
-</option>
+                    <small>
+                        CONNECTION
+                    </small>
 
-<option value="real">
-Real
-</option>
+                    <strong id="statConnection">
+                        OFF
+                    </strong>
 
-</select>
+                </div>
 
-</div>
 
+                <div class="stat">
 
-<div class="row3">
+                    <small>
+                        ACCOUNT
+                    </small>
 
-<input
-id="stake"
-type="number"
-step="0.01"
-min="0.35"
-value="1"
-placeholder="Stake USD"
->
+                    <strong id="statAccount">
+                        —
+                    </strong>
 
-<input
-id="duration"
-type="number"
-min="1"
-value="5"
-placeholder="Ticks"
->
+                </div>
 
-<button
-class="blue"
-onclick="connectDeriv()"
->
-CONNECT DERIV
-</button>
+            </div>
 
-</div>
 
+            <!-- SIGNAL -->
 
-<div class="note">
+            <div
+                id="signalBox"
+                class="signal wait"
+            >
 
-PAT token dia apetraka eto amin'ny dashboard ihany;
-tsy ao anaty code.
-Mila scope <b>trade</b> raha hanao auto-trading.
+                <div class="signal-title">
+                    🔔 SIGNAL
+                </div>
 
-</div>
+                <div
+                    id="signalText"
+                    class="signal-text"
+                >
+                    Miandry data avy amin'ny marché...
+                </div>
 
-</section>
+            </div>
 
+        </div>
 
-<section class="panel">
-
-<div class="panelhead">
-🤖 Bot Control
-</div>
-
-
-<div class="signal">
-
-<strong>
-BOT STATUS
-</strong>
-
-<b id="bot">
-STOPPED
-</b>
-
-</div>
-
-
-<div class="row">
-
-<button
-class="green"
-onclick="startBot()"
->
-START BOT
-</button>
-
-<button
-class="red"
-onclick="stopBot()"
->
-STOP BOT
-</button>
-
-</div>
-
-
-<div class="note">
-
-<b>Auto-trading:</b>
-Boom/Crash ihany.
-
-<b>Volatility:</b>
-signal-only.
-
-</div>
-
-</section>
-
-</div>
-
-
-<section class="panel">
-
-<div class="panelhead">
-
-🔎 Market Scanner
-
-<span
-id="scanCount"
-class="note"
->
-</span>
-
-</div>
-
-<div
-id="scanner"
-class="scanner"
->
-</div>
-
-</section>
-
-
-<section class="panel">
-
-<div class="panelhead">
-🧾 System Logs
-</div>
-
-<div
-id="logs"
-class="logs"
->
-No logs yet.
-</div>
-
-</section>
-
-
-</main>
+    </div>
 
 </div>
 
 
 <script>
 
-let chart;
+/* ==========================================================
+   CHART
+========================================================== */
 
-let series;
-
-
-const $ =
-id =>
-document.getElementById(id);
+const chartContainer =
+    document.getElementById("chart");
 
 
-function initChart(){
+const chart =
+    LightweightCharts.createChart(
+        chartContainer,
+        {
 
-chart =
-LightweightCharts.createChart(
-$("chart"),
-{
+            layout:{
+                background:{
+                    color:"#080d18"
+                },
 
-layout:{
-background:{
-color:"#0b1320"
-},
-textColor:"#7f8da3"
-},
+                textColor:"#94a3b8"
+            },
 
-grid:{
-vertLines:{
-color:"#142033"
-},
+            grid:{
+                vertLines:{
+                    color:"#111827"
+                },
 
-horzLines:{
-color:"#142033"
+                horzLines:{
+                    color:"#111827"
+                }
+            },
+
+            crosshair:{
+                mode:1
+            },
+
+            rightPriceScale:{
+                borderColor:"#1e293b"
+            },
+
+            timeScale:{
+                borderColor:"#1e293b",
+
+                timeVisible:true,
+
+                secondsVisible:false
+            }
+
+        }
+    );
+
+
+const candleSeries =
+    chart.addCandlestickSeries({
+
+        upColor:"#22c55e",
+
+        downColor:"#ef4444",
+
+        borderUpColor:"#22c55e",
+
+        borderDownColor:"#ef4444",
+
+        wickUpColor:"#22c55e",
+
+        wickDownColor:"#ef4444"
+
+    });
+
+
+/* ==========================================================
+   RESPONSIVE CHART
+========================================================== */
+
+function resizeChart(){
+
+    chart.applyOptions({
+
+        width:
+            chartContainer.clientWidth,
+
+        height:
+            chartContainer.clientHeight
+
+    });
+
 }
-},
 
-rightPriceScale:{
-borderColor:"#223149"
-},
 
-timeScale:{
-borderColor:"#223149",
-timeVisible:true,
-secondsVisible:false
-},
-
-crosshair:{
-mode:1
-}
-
-}
+window.addEventListener(
+    "resize",
+    resizeChart
 );
 
-
-series =
-chart.addCandlestickSeries({
-
-upColor:"#16b364",
-
-downColor:"#ef4444",
-
-borderUpColor:"#16b364",
-
-borderDownColor:"#ef4444",
-
-wickUpColor:"#16b364",
-
-wickDownColor:"#ef4444"
-
-});
+resizeChart();
 
 
-new ResizeObserver(
-() =>
-chart.applyOptions({
-width:
-$("chart").clientWidth,
-
-height:
-$("chart").clientHeight
-})
-).observe(
-$("chart")
-);
-
-}
-
+/* ==========================================================
+   CONNECT
+========================================================== */
 
 async function connectDeriv(){
 
-const body = {
-
-app_id:
-$("appId").value,
-
-api_token:
-$("token").value,
-
-account_id:
-$("accountId").value,
-
-account_type:
-$("accountType").value,
-
-symbol:
-$("symbol").value,
-
-stake:
-$("stake").value,
-
-duration:
-$("duration").value
-
-};
+    const appId =
+        document.getElementById(
+            "appId"
+        ).value.trim();
 
 
-try{
-
-const response =
-await fetch(
-"/api/connect",
-{
-
-method:"POST",
-
-headers:{
-"Content-Type":
-"application/json"
-},
-
-body:
-JSON.stringify(body)
-
-}
-);
+    const patToken =
+        document.getElementById(
+            "patToken"
+        ).value.trim();
 
 
-const data =
-await response.json();
+    const accountId =
+        document.getElementById(
+            "accountId"
+        ).value.trim();
 
 
-alert(
-data.message ||
-"Connection started"
-);
+    const symbol =
+        document.getElementById(
+            "symbol"
+        ).value;
 
 
-}catch(error){
+    if(!appId){
 
-alert(
-"Connection error: "
-+
-error
-);
+        alert(
+            "Ampidiro aloha ny App ID."
+        );
 
-}
-
-}
+        return;
+    }
 
 
-async function startBot(){
+    if(!patToken){
 
-const response =
-await fetch(
-"/api/start",
-{
-method:"POST"
-}
-);
+        alert(
+            "Ampidiro aloha ny PAT Token."
+        );
 
-
-const data =
-await response.json();
+        return;
+    }
 
 
-if(!data.ok){
+    if(!accountId){
 
-alert(
-data.message
-);
+        alert(
+            "Ampidiro aloha ny Account ID."
+        );
 
-}
-
-}
-
-
-async function stopBot(){
-
-await fetch(
-"/api/stop",
-{
-method:"POST"
-}
-);
-
-}
+        return;
+    }
 
 
-async function selectSymbol(){
-
-const symbol =
-$("symbol").value;
-
-
-await fetch(
-"/api/symbol",
-{
-
-method:"POST",
-
-headers:{
-"Content-Type":
-"application/json"
-},
-
-body:
-JSON.stringify({
-symbol:symbol
-})
-
-}
-);
+    setStatus(
+        false,
+        "Connecting..."
+    );
 
 
-$("chartTitle").innerText =
-symbol
-+
-" • LIVE";
+    try{
+
+        const response =
+            await fetch(
+                "/api/connect",
+                {
+
+                    method:"POST",
+
+                    headers:{
+                        "Content-Type":
+                            "application/json"
+                    },
+
+                    body:JSON.stringify({
+
+                        app_id:appId,
+
+                        pat_token:patToken,
+
+                        account_id:accountId,
+
+                        symbol:symbol
+
+                    })
+
+                }
+            );
+
+
+        const data =
+            await response.json();
+
+
+        if(!data.ok){
+
+            alert(
+                data.message ||
+                "Connexion failed."
+            );
+
+            return;
+        }
+
+
+        setStatus(
+            false,
+            "Connecting..."
+        );
+
+        setMessage(
+            data.message
+        );
+
+    }
+
+    catch(error){
+
+        setStatus(
+            false,
+            "Connection error"
+        );
+
+        setMessage(
+            error.message
+        );
+
+    }
 
 }
 
 
-function fillSymbols(data){
+/* ==========================================================
+   REFRESH MARKET
+========================================================== */
 
-const list = [
-...(data.boom_crash_symbols || []),
-...(data.volatility_symbols || [])
-];
+async function refreshMarket(){
+
+    const symbol =
+        document.getElementById(
+            "symbol"
+        ).value;
 
 
-const current =
-$("symbol").value;
+    try{
+
+        await fetch(
+            "/api/symbol",
+            {
+
+                method:"POST",
+
+                headers:{
+                    "Content-Type":
+                        "application/json"
+                },
+
+                body:JSON.stringify({
+                    symbol:symbol
+                })
+
+            }
+        );
 
 
-if(!list.length){
+        document.getElementById(
+            "marketName"
+        ).innerText =
+            symbol;
 
-return;
+
+        document.getElementById(
+            "statSymbol"
+        ).innerText =
+            symbol;
+
+
+    }
+
+    catch(error){
+
+        console.log(error);
+
+    }
 
 }
 
 
-$("symbol").innerHTML =
-list.map(
-symbol =>
-`<option value="${symbol}">
-${symbol}
-</option>`
-).join("");
+/* ==========================================================
+   STOP
+========================================================== */
+
+function disconnectBot(){
+
+    location.reload();
+
+}
 
 
-if(
-list.includes(current)
+/* ==========================================================
+   STATUS
+========================================================== */
+
+function setStatus(
+    connected,
+    text
 ){
 
-$("symbol").value =
-current;
-
-}else{
-
-$("symbol").value =
-data.boom_crash_symbols?.[0]
-||
-list[0];
-
-}
+    const dot =
+        document.getElementById(
+            "statusDot"
+        );
 
 
-$("symbol").onchange =
-selectSymbol;
-
-}
-
-
-function renderScanner(data){
-
-const list =
-data.boom_crash_symbols
-||
-[];
+    const status =
+        document.getElementById(
+            "statusText"
+        );
 
 
-$("scanCount").innerText =
-`${list.length} Boom/Crash`;
+    const stat =
+        document.getElementById(
+            "statConnection"
+        );
 
 
-$("scanner").innerHTML =
-list.map(
-symbol => {
+    if(connected){
 
-const item =
-(data.scanner || {})[symbol]
-||
-{};
+        dot.classList.add(
+            "connected"
+        );
 
-return `
+        status.innerText =
+            text || "Connected";
 
-<div class="scan">
+        stat.innerText =
+            "ONLINE";
 
-<small>
-${symbol}
-</small>
+    }
 
-<b>
-${item.confirmed || item.pre || "WAIT"}
-</b>
+    else{
 
-<small>
-${item.confidence || 0}%
-confidence
-</small>
+        dot.classList.remove(
+            "connected"
+        );
 
-</div>
+        status.innerText =
+            text || "Disconnected";
 
-`;
+        stat.innerText =
+            "OFF";
 
-}
-).join("")
-||
-`
-<div class="note">
-Tsy mbola nahazo active symbols.
-</div>
-`;
+    }
 
 }
 
 
-async function update(){
+/* ==========================================================
+   MESSAGE
+========================================================== */
 
-try{
+function setMessage(text){
 
-const response =
-await fetch(
-"/api/stats"
-);
-
-
-const data =
-await response.json();
-
-
-$("status").className =
-"status "
-+
-(
-data.connected
-?
-"ok"
-:
-""
-);
-
-
-$("status").innerHTML = `
-
-<span class="dot"></span>
-
-${
-data.connected
-?
-"Deriv Connected"
-:
-"Disconnected"
-}
-
-`;
-
-
-$("balance").innerText =
-
-Number(
-data.balance || 0
-).toFixed(2)
-+
-" "
-+
-(
-data.currency
-||
-"USD"
-);
-
-
-$("price").innerText =
-
-Number(
-data.market_price || 0
-).toFixed(4);
-
-
-$("pre").innerText =
-data.pre_signal
-||
-"WAIT";
-
-
-$("pre2").innerText =
-data.pre_signal
-||
-"WAIT";
-
-
-$("confirmed").innerText =
-data.confirmed_signal
-||
-"WAIT";
-
-
-$("conf").innerText =
-
-(
-data.confidence
-||
-0
-)
-+
-"%";
-
-
-$("last").innerText =
-data.last_signal
-||
-"";
-
-
-$("bot").innerText =
-
-data.bot_running
-?
-"RUNNING"
-:
-"STOPPED";
-
-
-if(
-data.chart
-&&
-data.chart.length
-){
-
-series.setData(
-data.chart.map(
-c => ({
-
-time:c.time,
-
-open:c.open,
-
-high:c.high,
-
-low:c.low,
-
-close:c.close
-
-})
-)
-);
+    document.getElementById(
+        "botMessage"
+    ).innerText =
+        text || "";
 
 }
 
 
-fillSymbols(
-data
-);
+/* ==========================================================
+   SIGNAL
+========================================================== */
 
-renderScanner(
-data
-);
+function setSignal(text){
 
-
-$("logs").innerText =
-
-(
-data.logs
-||
-[]
-).join(
-"\n"
-);
+    const box =
+        document.getElementById(
+            "signalBox"
+        );
 
 
-if(data.error){
+    const signal =
+        document.getElementById(
+            "signalText"
+        );
 
-$("last").innerText =
-"ERROR: "
-+
-data.error;
+
+    signal.innerText =
+        text || "Miandry...";
+
+
+    box.classList.remove(
+        "buy",
+        "error",
+        "wait"
+    );
+
+
+    const upper =
+        String(text).toUpperCase();
+
+
+    if(
+        upper.includes("CALL") ||
+        upper.includes("BUY")
+    ){
+
+        box.classList.add(
+            "buy"
+        );
+
+    }
+
+    else if(
+        upper.includes("ERROR") ||
+        upper.includes("FAILED")
+    ){
+
+        box.classList.add(
+            "error"
+        );
+
+    }
+
+    else{
+
+        box.classList.add(
+            "wait"
+        );
+
+    }
 
 }
 
-}catch(error){
 
-console.log(
-"UI error:",
-error
-);
+/* ==========================================================
+   UPDATE UI
+========================================================== */
+
+async function updateUI(){
+
+    try{
+
+        const response =
+            await fetch(
+                "/api/stats",
+                {
+                    cache:"no-store"
+                }
+            );
+
+
+        const data =
+            await response.json();
+
+
+        /* STATUS */
+
+        setStatus(
+            data.connected,
+            data.connected
+                ? "Connected"
+                : "Disconnected"
+        );
+
+
+        /* BALANCE */
+
+        document.getElementById(
+            "balance"
+        ).innerText =
+            Number(
+                data.balance || 0
+            ).toFixed(2)
+            + " "
+            + (
+                data.currency ||
+                "USD"
+            );
+
+
+        /* ACCOUNT */
+
+        document.getElementById(
+            "account"
+        ).innerText =
+            data.connected
+                ? "Account: Connected"
+                : "Account: Not connected";
+
+
+        document.getElementById(
+            "statAccount"
+        ).innerText =
+            data.connected
+                ? "ONLINE"
+                : "OFF";
+
+
+        /* MARKET */
+
+        document.getElementById(
+            "marketName"
+        ).innerText =
+            data.symbol;
+
+
+        document.getElementById(
+            "statSymbol"
+        ).innerText =
+            data.symbol;
+
+
+        /* PRICE */
+
+        const price =
+            Number(
+                data.price || 0
+            );
+
+
+        document.getElementById(
+            "price"
+        ).innerText =
+            price.toFixed(5);
+
+
+        document.getElementById(
+            "statPrice"
+        ).innerText =
+            price.toFixed(5);
+
+
+        /* MESSAGE */
+
+        setMessage(
+            data.error
+                ? "ERROR: "
+                    + data.error
+                : data.message
+        );
+
+
+        /* SIGNAL */
+
+        if(data.error){
+
+            setSignal(
+                "ERROR: "
+                + data.error
+            );
+
+        }
+
+        else{
+
+            setSignal(
+                data.message ||
+                "Miandry signal..."
+            );
+
+        }
+
+
+        /* CHART */
+
+        if(
+            data.chart &&
+            data.chart.length > 0
+        ){
+
+            const candles =
+                data.chart.map(
+                    c => ({
+
+                        time:
+                            Number(
+                                c.time
+                            ),
+
+                        open:
+                            Number(
+                                c.open
+                            ),
+
+                        high:
+                            Number(
+                                c.high
+                            ),
+
+                        low:
+                            Number(
+                                c.low
+                            ),
+
+                        close:
+                            Number(
+                                c.close
+                            )
+
+                    })
+                );
+
+
+            candleSeries.setData(
+                candles
+            );
+
+
+            chart.timeScale()
+                .fitContent();
+
+        }
+
+    }
+
+    catch(error){
+
+        console.log(
+            "UI error:",
+            error
+        );
+
+        setStatus(
+            false,
+            "Server error"
+        );
+
+    }
 
 }
 
-}
 
-
-initChart();
-
+/* ==========================================================
+   AUTO UPDATE
+========================================================== */
 
 setInterval(
-update,
-1000
+    updateUI,
+    1000
 );
 
 
-update();
+updateUI();
+
+
+/* ==========================================================
+   SYMBOL CHANGE
+========================================================== */
+
+document.getElementById(
+    "symbol"
+).addEventListener(
+    "change",
+    refreshMarket
+);
 
 </script>
 
 </body>
-
 </html>
