@@ -1,356 +1,617 @@
 <!DOCTYPE html>
 <html lang="mg">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>Deriv Pro Bot</title>
+<head>
+
+<meta charset="UTF-8">
+
+<meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+>
+
+<title>Nova Bot • Deriv</title>
 
 <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
 
 <style>
 
-*{
-    box-sizing:border-box;
+* {
+    box-sizing: border-box;
 }
 
-body{
-    margin:0;
-    background:#070b14;
-    color:#f8fafc;
+:root {
+    --bg: #070b14;
+    --panel: #0d1422;
+    --panel2: #111b2d;
+    --border: #1e2a3d;
+    --text: #edf4ff;
+    --muted: #8290a8;
+    --blue: #36a3ff;
+    --green: #20d89a;
+    --red: #ff5575;
+    --yellow: #ffc857;
+}
+
+body {
+    margin: 0;
+    background:
+        radial-gradient(
+            circle at top right,
+            rgba(54,163,255,.10),
+            transparent 35%
+        ),
+        var(--bg);
+    color: var(--text);
     font-family:
+        Inter,
         -apple-system,
         BlinkMacSystemFont,
         "Segoe UI",
-        Roboto,
-        Arial,
         sans-serif;
 }
 
-.container{
-    width:100%;
-    max-width:1400px;
-    margin:auto;
-    padding:15px;
+button,
+input,
+select {
+    font: inherit;
 }
 
-/* HEADER */
-
-.header{
-    display:flex;
-    justify-content:space-between;
-    align-items:center;
-    gap:15px;
-    margin-bottom:15px;
+.app {
+    max-width: 1500px;
+    margin: auto;
+    padding: 18px;
 }
 
-.logo{
-    font-size:22px;
-    font-weight:800;
+/* ======================================================
+   HEADER
+====================================================== */
+
+.header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 15px;
+    margin-bottom: 18px;
 }
 
-.logo span{
-    color:#38bdf8;
+.brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
 }
 
-.status{
-    display:flex;
-    align-items:center;
-    gap:8px;
-    background:#111827;
-    padding:8px 13px;
-    border-radius:20px;
-    font-size:13px;
+.logo {
+    width: 44px;
+    height: 44px;
+    border-radius: 13px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    background:
+        linear-gradient(
+            135deg,
+            #36a3ff,
+            #7c4dff
+        );
+
+    font-weight: 900;
+    font-size: 20px;
 }
 
-.dot{
-    width:9px;
-    height:9px;
-    border-radius:50%;
-    background:#ef4444;
+.brand h1 {
+    margin: 0;
+    font-size: 20px;
 }
 
-.dot.connected{
-    background:#22c55e;
-    box-shadow:0 0 10px #22c55e;
+.brand span {
+    display: block;
+    margin-top: 3px;
+    color: var(--muted);
+    font-size: 12px;
 }
 
-/* GRID */
+.connection {
+    display: flex;
+    align-items: center;
+    gap: 8px;
 
-.dashboard{
-    display:grid;
-    grid-template-columns:320px 1fr;
-    gap:15px;
+    padding: 9px 13px;
+
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+
+    font-size: 13px;
 }
 
-/* CARD */
-
-.card{
-    background:#0f172a;
-    border:1px solid #1e293b;
-    border-radius:14px;
-    padding:15px;
+.dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--yellow);
 }
 
-.card-title{
-    font-size:14px;
-    font-weight:700;
-    color:#94a3b8;
-    margin-bottom:15px;
+.dot.online {
+    background: var(--green);
+    box-shadow:
+        0 0 12px rgba(32,216,154,.7);
 }
 
-/* FORM */
+.dot.offline {
+    background: var(--red);
+}
 
-label{
-    display:block;
-    font-size:12px;
-    color:#94a3b8;
-    margin-bottom:6px;
+/* ======================================================
+   GRID
+====================================================== */
+
+.grid {
+    display: grid;
+    grid-template-columns:
+        330px
+        minmax(0, 1fr);
+
+    gap: 16px;
+}
+
+/* ======================================================
+   PANEL
+====================================================== */
+
+.panel {
+    background:
+        linear-gradient(
+            180deg,
+            rgba(255,255,255,.025),
+            transparent
+        ),
+        var(--panel);
+
+    border: 1px solid var(--border);
+
+    border-radius: 16px;
+
+    box-shadow:
+        0 18px 45px rgba(0,0,0,.20);
+}
+
+.panel-header {
+    padding: 16px 17px;
+
+    border-bottom:
+        1px solid var(--border);
+}
+
+.panel-header h2 {
+    margin: 0;
+    font-size: 14px;
+}
+
+.panel-header p {
+    margin: 5px 0 0;
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.form {
+    padding: 17px;
+}
+
+.field {
+    margin-bottom: 14px;
+}
+
+.field label {
+    display: block;
+
+    margin-bottom: 7px;
+
+    color: #aab6ca;
+
+    font-size: 11px;
+    font-weight: 700;
+
+    text-transform: uppercase;
+    letter-spacing: .6px;
 }
 
 input,
-select{
-    width:100%;
-    padding:11px;
-    border-radius:8px;
-    border:1px solid #334155;
-    background:#070b14;
-    color:white;
-    outline:none;
-    margin-bottom:12px;
+select {
+    width: 100%;
+
+    padding: 12px 13px;
+
+    background: #080f1b;
+
+    border: 1px solid var(--border);
+
+    color: var(--text);
+
+    border-radius: 10px;
+
+    outline: none;
 }
 
 input:focus,
-select:focus{
-    border-color:#38bdf8;
+select:focus {
+    border-color: var(--blue);
+
+    box-shadow:
+        0 0 0 3px
+        rgba(54,163,255,.10);
 }
 
-/* BUTTONS */
+.btn {
+    width: 100%;
 
-.buttons{
-    display:grid;
-    grid-template-columns:1fr 1fr;
-    gap:8px;
+    border: 0;
+
+    padding: 12px;
+
+    border-radius: 10px;
+
+    cursor: pointer;
+
+    font-weight: 800;
+
+    margin-top: 5px;
 }
 
-button{
-    border:none;
-    padding:11px;
-    border-radius:8px;
-    color:white;
-    font-weight:700;
-    cursor:pointer;
+.btn-connect {
+    color: white;
+
+    background:
+        linear-gradient(
+            135deg,
+            #248ef0,
+            #635bff
+        );
 }
 
-.connect{
-    background:#2563eb;
-    grid-column:1 / -1;
+.btn-connect:disabled {
+    opacity: .55;
+    cursor: wait;
 }
 
-.refresh{
-    background:#334155;
+.helper {
+    margin-top: 12px;
+
+    padding: 10px;
+
+    background: #080f1b;
+
+    border:
+        1px solid var(--border);
+
+    border-radius: 9px;
+
+    color: var(--muted);
+
+    font-size: 11px;
+
+    line-height: 1.5;
 }
 
-.disconnect{
-    background:#dc2626;
+/* ======================================================
+   MAIN
+====================================================== */
+
+.main {
+    min-width: 0;
 }
 
-/* BALANCE */
+.stats {
+    display: grid;
 
-.balance{
-    font-size:25px;
-    font-weight:800;
-    color:#38bdf8;
-    margin-bottom:5px;
+    grid-template-columns:
+        repeat(4, 1fr);
+
+    gap: 12px;
+
+    margin-bottom: 14px;
 }
 
-.account{
-    color:#94a3b8;
-    font-size:12px;
+.stat {
+    padding: 15px;
+
+    background: var(--panel);
+
+    border:
+        1px solid var(--border);
+
+    border-radius: 14px;
 }
 
-/* MAIN */
+.stat small {
+    display: block;
 
-.main{
-    min-width:0;
+    color: var(--muted);
+
+    font-size: 10px;
+
+    font-weight: 700;
+
+    letter-spacing: .7px;
 }
 
-.market-header{
-    display:flex;
-    justify-content:space-between;
-    align-items:center;
-    gap:10px;
-    margin-bottom:12px;
+.stat strong {
+    display: block;
+
+    margin-top: 7px;
+
+    font-size: 20px;
 }
 
-.symbol{
-    font-size:20px;
-    font-weight:800;
+.stat .sub {
+    color: var(--muted);
+
+    font-size: 11px;
+
+    margin-top: 3px;
 }
 
-.price{
-    font-size:18px;
-    color:#38bdf8;
-    font-weight:700;
+/* ======================================================
+   CHART
+====================================================== */
+
+.chart-panel {
+    overflow: hidden;
 }
 
-/* CHART */
+.marketbar {
+    display: flex;
 
-.chart-box{
-    width:100%;
-    height:500px;
-    background:#080d18;
-    border:1px solid #1e293b;
-    border-radius:14px;
-    overflow:hidden;
+    align-items: center;
+
+    justify-content: space-between;
+
+    gap: 10px;
+
+    padding: 14px 16px;
+
+    border-bottom:
+        1px solid var(--border);
 }
 
-#chart{
-    width:100%;
-    height:100%;
+.market-name {
+    display: flex;
+
+    align-items: center;
+
+    gap: 9px;
+
+    font-weight: 800;
+
+    font-size: 14px;
 }
 
-/* STATS */
+.live {
+    padding: 4px 7px;
 
-.stats{
-    display:grid;
-    grid-template-columns:repeat(4,1fr);
-    gap:10px;
-    margin-top:12px;
+    border-radius: 5px;
+
+    background:
+        rgba(32,216,154,.10);
+
+    color: var(--green);
+
+    font-size: 9px;
+
+    font-weight: 900;
 }
 
-.stat{
-    background:#0f172a;
-    border:1px solid #1e293b;
-    border-radius:12px;
-    padding:14px;
+#chart {
+    width: 100%;
+    height: 520px;
 }
 
-.stat small{
-    display:block;
-    color:#64748b;
-    margin-bottom:5px;
+/* ======================================================
+   SIGNAL
+====================================================== */
+
+.signal {
+    margin-top: 14px;
+
+    padding: 16px;
+
+    background: var(--panel);
+
+    border:
+        1px solid var(--border);
+
+    border-radius: 14px;
 }
 
-.stat strong{
-    font-size:17px;
+.signal-top {
+    display: flex;
+
+    justify-content: space-between;
+
+    align-items: center;
 }
 
-/* SIGNAL */
+.signal-title {
+    color: var(--muted);
 
-.signal{
-    margin-top:12px;
-    background:#0f172a;
-    border:1px solid #1e293b;
-    border-radius:12px;
-    padding:15px;
+    font-size: 11px;
+
+    font-weight: 800;
+
+    letter-spacing: .7px;
 }
 
-.signal-title{
-    font-size:12px;
-    color:#64748b;
-    margin-bottom:7px;
+.signal-value {
+    font-size: 25px;
+
+    font-weight: 900;
 }
 
-.signal-text{
-    font-size:15px;
-    font-weight:700;
+.signal-value.call {
+    color: var(--green);
 }
 
-.signal.buy{
-    border-left:4px solid #22c55e;
+.signal-value.put {
+    color: var(--red);
 }
 
-.signal.wait{
-    border-left:4px solid #f59e0b;
+.signal-value.wait {
+    color: var(--yellow);
 }
 
-.signal.error{
-    border-left:4px solid #ef4444;
+.signal-text {
+    margin-top: 7px;
+
+    color: #b8c3d6;
+
+    font-size: 12px;
 }
 
-/* MESSAGE */
+.strength {
+    height: 5px;
 
-.message{
-    margin-top:12px;
-    padding:12px;
-    background:#020617;
-    border-radius:8px;
-    color:#94a3b8;
-    font-size:12px;
-    word-break:break-word;
+    margin-top: 12px;
+
+    overflow: hidden;
+
+    border-radius: 99px;
+
+    background: #172235;
 }
 
-/* MOBILE */
+.strength div {
+    height: 100%;
 
-@media(max-width:850px){
+    width: 0%;
 
-    .dashboard{
-        grid-template-columns:1fr;
+    transition: width .3s;
+}
+
+/* ======================================================
+   STATUS
+====================================================== */
+
+.status {
+    margin-top: 14px;
+
+    padding: 12px 14px;
+
+    background: #080f1b;
+
+    border:
+        1px solid var(--border);
+
+    border-radius: 10px;
+
+    color: var(--muted);
+
+    font-size: 11px;
+}
+
+.error {
+    margin-top: 8px;
+
+    color: var(--red);
+
+    white-space: pre-wrap;
+}
+
+/* ======================================================
+   RESPONSIVE
+====================================================== */
+
+@media (max-width: 1000px) {
+
+    .grid {
+        grid-template-columns: 1fr;
     }
 
-    .chart-box{
-        height:420px;
+    .settings {
+        order: 2;
     }
 
+    .main {
+        order: 1;
+    }
+
+    #chart {
+        height: 450px;
+    }
 }
 
-@media(max-width:600px){
+@media (max-width: 650px) {
 
-    .container{
-        padding:9px;
+    .app {
+        padding: 10px;
     }
 
-    .header{
-        align-items:flex-start;
+    .header {
+        align-items: flex-start;
     }
 
-    .logo{
-        font-size:18px;
+    .connection {
+        font-size: 11px;
+        padding: 7px 9px;
     }
 
-    .dashboard{
-        display:flex;
-        flex-direction:column;
+    .stats {
+        grid-template-columns:
+            repeat(2, 1fr);
     }
 
-    .chart-box{
-        height:360px;
+    .stat strong {
+        font-size: 17px;
     }
 
-    .stats{
-        grid-template-columns:repeat(2,1fr);
+    #chart {
+        height: 390px;
     }
 
-    .market-header{
-        flex-direction:column;
-        align-items:flex-start;
+    .marketbar {
+        padding: 12px;
     }
-
-    .buttons{
-        grid-template-columns:1fr 1fr;
-    }
-
 }
 
 </style>
+
 </head>
+
 
 <body>
 
-<div class="container">
+<div class="app">
 
     <!-- HEADER -->
 
-    <div class="header">
+    <header class="header">
 
-        <div class="logo">
-            DERIV <span>PRO BOT</span>
+        <div class="brand">
+
+            <div class="logo">
+                N
+            </div>
+
+            <div>
+
+                <h1>Nova Bot</h1>
+
+                <span>
+                    Deriv Market Intelligence
+                </span>
+
+            </div>
+
         </div>
 
-        <div class="status">
 
-            <div id="statusDot" class="dot"></div>
+        <div class="connection">
+
+            <span
+                id="statusDot"
+                class="dot"
+            ></span>
 
             <span id="statusText">
                 Disconnected
@@ -358,221 +619,238 @@ button{
 
         </div>
 
-    </div>
+    </header>
 
 
-    <div class="dashboard">
+    <div class="grid">
 
-        <!-- SIDEBAR -->
 
-        <div>
+        <!-- =================================================
+             SETTINGS
+        ================================================== -->
 
-            <div class="card">
+        <aside class="panel settings">
 
-                <div class="card-title">
-                    🔐 DERIV CONNECTION
+            <div class="panel-header">
+
+                <h2>Connection</h2>
+
+                <p>
+                    Ampidiro eto ny credentials
+                </p>
+
+            </div>
+
+
+            <div class="form">
+
+
+                <div class="field">
+
+                    <label>
+                        App ID
+                    </label>
+
+                    <input
+                        id="appId"
+                        type="text"
+                        placeholder="Ohatra: 123456"
+                        autocomplete="off"
+                    >
+
                 </div>
 
-                <label>App ID</label>
 
-                <input
-                    id="appId"
-                    type="text"
-                    placeholder="Ampidiro App ID"
-                >
+                <div class="field">
 
+                    <label>
+                        PAT Token
+                    </label>
 
-                <label>PAT Token</label>
-
-                <input
-                    id="patToken"
-                    type="password"
-                    placeholder="PAT Token"
-                >
-
-
-                <label>Account ID</label>
-
-                <input
-                    id="accountId"
-                    type="text"
-                    placeholder="Account ID"
-                >
-
-
-                <label>Market</label>
-
-                <select id="symbol">
-
-                    <option value="BOOM500">
-                        BOOM 500
-                    </option>
-
-                    <option value="BOOM1000">
-                        BOOM 1000
-                    </option>
-
-                    <option value="BOOM300">
-                        BOOM 300
-                    </option>
-
-                    <option value="BOOM150">
-                        BOOM 150
-                    </option>
-
-                    <option value="CRASH500">
-                        CRASH 500
-                    </option>
-
-                    <option value="CRASH1000">
-                        CRASH 1000
-                    </option>
-
-                    <option value="CRASH300">
-                        CRASH 300
-                    </option>
-
-                    <option value="CRASH150">
-                        CRASH 150
-                    </option>
-
-                </select>
-
-
-                <div class="buttons">
-
-                    <button
-                        class="connect"
-                        onclick="connectDeriv()"
+                    <input
+                        id="patToken"
+                        type="password"
+                        placeholder="Personal Access Token"
+                        autocomplete="off"
                     >
-                        🔌 CONNECT
-                    </button>
 
-                    <button
-                        class="refresh"
-                        onclick="refreshMarket()"
-                    >
-                        🔄 REFRESH
-                    </button>
+                </div>
 
-                    <button
-                        class="disconnect"
-                        onclick="disconnectBot()"
+
+                <div class="field">
+
+                    <label>
+                        Account ID
+                    </label>
+
+                    <input
+                        id="accountId"
+                        type="text"
+                        placeholder="Ohatra: DOT..."
+                        autocomplete="off"
                     >
-                        ⛔ STOP
-                    </button>
+
+                </div>
+
+
+                <div class="field">
+
+                    <label>
+                        Market
+                    </label>
+
+                    <select id="symbol">
+
+                        <optgroup label="BOOM">
+
+                            <option value="BOOM300">
+                                BOOM300
+                            </option>
+
+                            <option value="BOOM500" selected>
+                                BOOM500
+                            </option>
+
+                            <option value="BOOM600">
+                                BOOM600
+                            </option>
+
+                            <option value="BOOM900">
+                                BOOM900
+                            </option>
+
+                            <option value="BOOM1000">
+                                BOOM1000
+                            </option>
+
+                        </optgroup>
+
+
+                        <optgroup label="CRASH">
+
+                            <option value="CRASH300">
+                                CRASH300
+                            </option>
+
+                            <option value="CRASH500">
+                                CRASH500
+                            </option>
+
+                            <option value="CRASH600">
+                                CRASH600
+                            </option>
+
+                            <option value="CRASH900">
+                                CRASH900
+                            </option>
+
+                            <option value="CRASH1000">
+                                CRASH1000
+                            </option>
+
+                        </optgroup>
+
+
+                        <optgroup label="VOLATILITY • SIGNAL ONLY">
+
+                            <option value="1HZ10V">
+                                Volatility 10 1s
+                            </option>
+
+                            <option value="1HZ25V">
+                                Volatility 25 1s
+                            </option>
+
+                            <option value="1HZ50V">
+                                Volatility 50 1s
+                            </option>
+
+                            <option value="1HZ75V">
+                                Volatility 75 1s
+                            </option>
+
+                            <option value="1HZ100V">
+                                Volatility 100 1s
+                            </option>
+
+                            <option value="R_10">
+                                Volatility 10
+                            </option>
+
+                            <option value="R_25">
+                                Volatility 25
+                            </option>
+
+                            <option value="R_50">
+                                Volatility 50
+                            </option>
+
+                            <option value="R_75">
+                                Volatility 75
+                            </option>
+
+                            <option value="R_100">
+                                Volatility 100
+                            </option>
+
+                        </optgroup>
+
+                    </select>
+
+                </div>
+
+
+                <button
+                    id="connectBtn"
+                    class="btn btn-connect"
+                    onclick="connectBot()"
+                >
+                    CONNECT TO DERIV
+                </button>
+
+
+                <div class="helper">
+
+                    🔐 Ny PAT Token dia ampiasaina
+                    ao amin'ny backend ihany.
+                    Tsy aseho ao amin'ny chart na logs.
+
+                    <br><br>
+
+                    ⚠️ Ampiasao <b>Demo</b> aloha
+                    mandritra ny test.
 
                 </div>
 
             </div>
 
-
-            <!-- BALANCE -->
-
-            <div
-                class="card"
-                style="margin-top:12px;"
-            >
-
-                <div class="card-title">
-                    💰 ACCOUNT
-                </div>
-
-                <div
-                    class="balance"
-                    id="balance"
-                >
-                    0.00 USD
-                </div>
-
-                <div
-                    class="account"
-                    id="account"
-                >
-                    Not connected
-                </div>
-
-            </div>
+        </aside>
 
 
-            <!-- BOT INFO -->
+        <!-- =================================================
+             MAIN
+        ================================================== -->
 
-            <div
-                class="card"
-                style="margin-top:12px;"
-            >
-
-                <div class="card-title">
-                    🤖 BOT STATUS
-                </div>
-
-                <div
-                    id="botMessage"
-                    class="message"
-                >
-                    Miandry connexion...
-                </div>
-
-            </div>
-
-        </div>
-
-
-        <!-- MAIN -->
-
-        <div class="main">
-
-            <div class="market-header">
-
-                <div>
-
-                    <div
-                        class="symbol"
-                        id="marketName"
-                    >
-                        BOOM500
-                    </div>
-
-                    <div
-                        style="font-size:12px;color:#64748b;"
-                    >
-                        Live Market Chart
-                    </div>
-
-                </div>
-
-                <div
-                    class="price"
-                    id="price"
-                >
-                    0.00000
-                </div>
-
-            </div>
-
-
-            <!-- CHART -->
-
-            <div class="chart-box">
-
-                <div id="chart"></div>
-
-            </div>
+        <main class="main">
 
 
             <!-- STATS -->
 
-            <div class="stats">
+            <section class="stats">
 
                 <div class="stat">
 
                     <small>
-                        MARKET
+                        BALANCE
                     </small>
 
-                    <strong id="statSymbol">
-                        BOOM500
+                    <strong id="balance">
+                        —
                     </strong>
+
+                    <div class="sub">
+                        Account balance
+                    </div>
 
                 </div>
 
@@ -583,62 +861,158 @@ button{
                         PRICE
                     </small>
 
-                    <strong id="statPrice">
-                        0.00000
-                    </strong>
-
-                </div>
-
-
-                <div class="stat">
-
-                    <small>
-                        CONNECTION
-                    </small>
-
-                    <strong id="statConnection">
-                        OFF
-                    </strong>
-
-                </div>
-
-
-                <div class="stat">
-
-                    <small>
-                        ACCOUNT
-                    </small>
-
-                    <strong id="statAccount">
+                    <strong id="price">
                         —
                     </strong>
 
+                    <div class="sub">
+                        Live market
+                    </div>
+
                 </div>
 
-            </div>
+
+                <div class="stat">
+
+                    <small>
+                        MARKET
+                    </small>
+
+                    <strong id="market">
+                        BOOM500
+                    </strong>
+
+                    <div class="sub">
+                        Selected symbol
+                    </div>
+
+                </div>
+
+
+                <div class="stat">
+
+                    <small>
+                        MODE
+                    </small>
+
+                    <strong>
+                        SIGNAL
+                    </strong>
+
+                    <div class="sub">
+                        Volatility = signal only
+                    </div>
+
+                </div>
+
+            </section>
+
+
+            <!-- CHART -->
+
+            <section class="panel chart-panel">
+
+                <div class="marketbar">
+
+                    <div class="market-name">
+
+                        <span id="chartSymbol">
+                            BOOM500
+                        </span>
+
+                        <span class="live">
+                            LIVE
+                        </span>
+
+                    </div>
+
+                    <span
+                        id="chartStatus"
+                        style="
+                            color:#8290a8;
+                            font-size:11px;
+                        "
+                    >
+                        Waiting...
+                    </span>
+
+                </div>
+
+
+                <div id="chart"></div>
+
+            </section>
 
 
             <!-- SIGNAL -->
 
-            <div
-                id="signalBox"
-                class="signal wait"
-            >
+            <section class="signal">
 
-                <div class="signal-title">
-                    🔔 SIGNAL
+                <div class="signal-top">
+
+                    <div>
+
+                        <div class="signal-title">
+                            NOVA SIGNAL
+                        </div>
+
+                        <div
+                            id="signal"
+                            class="signal-value wait"
+                        >
+                            WAIT
+                        </div>
+
+                    </div>
+
+
+                    <div
+                        id="strengthText"
+                        style="
+                            color:#8290a8;
+                            font-size:11px;
+                        "
+                    >
+                        0%
+                    </div>
+
                 </div>
+
 
                 <div
                     id="signalText"
                     class="signal-text"
                 >
-                    Miandry data avy amin'ny marché...
+                    Miandry market data...
                 </div>
 
-            </div>
 
-        </div>
+                <div class="strength">
+
+                    <div id="strengthBar"></div>
+
+                </div>
+
+            </section>
+
+
+            <!-- STATUS -->
+
+            <section class="status">
+
+                <div id="message">
+                    Vonona hifandray amin'i Deriv.
+                </div>
+
+                <div
+                    id="error"
+                    class="error"
+                ></div>
+
+            </section>
+
+
+        </main>
 
     </div>
 
@@ -647,53 +1021,53 @@ button{
 
 <script>
 
-/* ==========================================================
-   CHART
-========================================================== */
 
-const chartContainer =
-    document.getElementById("chart");
+// =========================================================
+// CHART
+// =========================================================
+
+const chartElement =
+    document.getElementById(
+        "chart"
+    );
 
 
 const chart =
     LightweightCharts.createChart(
-        chartContainer,
+        chartElement,
         {
-
-            layout:{
-                background:{
-                    color:"#080d18"
+            layout: {
+                background: {
+                    color: "#0d1422"
                 },
-
-                textColor:"#94a3b8"
+                textColor: "#8290a8"
             },
 
-            grid:{
-                vertLines:{
-                    color:"#111827"
+            grid: {
+                vertLines: {
+                    color: "#152033"
                 },
 
-                horzLines:{
-                    color:"#111827"
+                horzLines: {
+                    color: "#152033"
                 }
             },
 
-            crosshair:{
-                mode:1
+            rightPriceScale: {
+                borderColor: "#1e2a3d"
             },
 
-            rightPriceScale:{
-                borderColor:"#1e293b"
+            timeScale: {
+                borderColor: "#1e2a3d",
+
+                timeVisible: true,
+
+                secondsVisible: false
             },
 
-            timeScale:{
-                borderColor:"#1e293b",
-
-                timeVisible:true,
-
-                secondsVisible:false
+            crosshair: {
+                mode: 0
             }
-
         }
     );
 
@@ -701,53 +1075,39 @@ const chart =
 const candleSeries =
     chart.addCandlestickSeries({
 
-        upColor:"#22c55e",
+        upColor: "#20d89a",
 
-        downColor:"#ef4444",
+        downColor: "#ff5575",
 
-        borderUpColor:"#22c55e",
+        borderUpColor: "#20d89a",
 
-        borderDownColor:"#ef4444",
+        borderDownColor: "#ff5575",
 
-        wickUpColor:"#22c55e",
+        wickUpColor: "#20d89a",
 
-        wickDownColor:"#ef4444"
-
-    });
-
-
-/* ==========================================================
-   RESPONSIVE CHART
-========================================================== */
-
-function resizeChart(){
-
-    chart.applyOptions({
-
-        width:
-            chartContainer.clientWidth,
-
-        height:
-            chartContainer.clientHeight
+        wickDownColor: "#ff5575"
 
     });
-
-}
 
 
 window.addEventListener(
     "resize",
-    resizeChart
+    () => {
+
+        chart.applyOptions({
+            width:
+                chartElement.clientWidth
+        });
+
+    }
 );
 
-resizeChart();
 
+// =========================================================
+// CONNECT
+// =========================================================
 
-/* ==========================================================
-   CONNECT
-========================================================== */
-
-async function connectDeriv(){
+async function connectBot() {
 
     const appId =
         document.getElementById(
@@ -773,65 +1133,76 @@ async function connectDeriv(){
         ).value;
 
 
-    if(!appId){
+    if (!appId) {
 
         alert(
-            "Ampidiro aloha ny App ID."
+            "Ampidiro ny App ID."
         );
 
         return;
     }
 
 
-    if(!patToken){
+    if (!patToken) {
 
         alert(
-            "Ampidiro aloha ny PAT Token."
+            "Ampidiro ny PAT Token."
         );
 
         return;
     }
 
 
-    if(!accountId){
+    if (!accountId) {
 
         alert(
-            "Ampidiro aloha ny Account ID."
+            "Ampidiro ny Account ID."
         );
 
         return;
     }
+
+
+    const button =
+        document.getElementById(
+            "connectBtn"
+        );
+
+
+    button.disabled = true;
+
+    button.innerText =
+        "CONNECTING...";
 
 
     setStatus(
-        false,
-        "Connecting..."
+        "connecting"
     );
 
 
-    try{
+    try {
 
         const response =
             await fetch(
                 "/api/connect",
                 {
+                    method: "POST",
 
-                    method:"POST",
-
-                    headers:{
+                    headers: {
                         "Content-Type":
                             "application/json"
                     },
 
-                    body:JSON.stringify({
+                    body: JSON.stringify({
 
-                        app_id:appId,
+                        app_id: appId,
 
-                        pat_token:patToken,
+                        pat_token: patToken,
 
-                        account_id:accountId,
+                        account_id:
+                            accountId,
 
-                        symbol:symbol
+                        symbol: symbol
 
                     })
 
@@ -843,37 +1214,45 @@ async function connectDeriv(){
             await response.json();
 
 
-        if(!data.ok){
+        if (!data.ok) {
 
             alert(
                 data.message ||
-                "Connexion failed."
+                "Connexion tsy nety."
             );
 
-            return;
+            setStatus(
+                "offline"
+            );
+
         }
 
+    }
 
-        setStatus(
-            false,
-            "Connecting..."
+    catch (error) {
+
+        alert(
+            "Tsy afaka nifandray tamin'ny serveur."
         );
 
-        setMessage(
-            data.message
+        setStatus(
+            "offline"
         );
 
     }
 
-    catch(error){
+    finally {
 
-        setStatus(
-            false,
-            "Connection error"
-        );
+        setTimeout(
+            () => {
 
-        setMessage(
-            error.message
+                button.disabled = false;
+
+                button.innerText =
+                    "CONNECT TO DERIV";
+
+            },
+            2500
         );
 
     }
@@ -881,81 +1260,74 @@ async function connectDeriv(){
 }
 
 
-/* ==========================================================
-   REFRESH MARKET
-========================================================== */
+// =========================================================
+// SYMBOL CHANGE
+// =========================================================
 
-async function refreshMarket(){
+document
+    .getElementById("symbol")
+    .addEventListener(
+        "change",
+        async function () {
 
-    const symbol =
-        document.getElementById(
-            "symbol"
-        ).value;
+            const symbol =
+                this.value;
 
 
-    try{
+            document
+                .getElementById(
+                    "chartSymbol"
+                )
+                .innerText =
+                symbol;
 
-        await fetch(
-            "/api/symbol",
-            {
 
-                method:"POST",
+            document
+                .getElementById(
+                    "market"
+                )
+                .innerText =
+                symbol;
 
-                headers:{
-                    "Content-Type":
-                        "application/json"
-                },
 
-                body:JSON.stringify({
-                    symbol:symbol
-                })
+            try {
+
+                await fetch(
+                    "/api/symbol",
+                    {
+                        method: "POST",
+
+                        headers: {
+                            "Content-Type":
+                                "application/json"
+                        },
+
+                        body:
+                            JSON.stringify({
+                                symbol:
+                                    symbol
+                            })
+                    }
+                );
 
             }
-        );
+            catch (e) {
+
+                console.log(e);
+
+            }
+
+        }
+    );
 
 
-        document.getElementById(
-            "marketName"
-        ).innerText =
-            symbol;
-
-
-        document.getElementById(
-            "statSymbol"
-        ).innerText =
-            symbol;
-
-
-    }
-
-    catch(error){
-
-        console.log(error);
-
-    }
-
-}
-
-
-/* ==========================================================
-   STOP
-========================================================== */
-
-function disconnectBot(){
-
-    location.reload();
-
-}
-
-
-/* ==========================================================
-   STATUS
-========================================================== */
+// =========================================================
+// STATUS
+// =========================================================
 
 function setStatus(
-    connected,
-    text
-){
+    state
+) {
 
     const dot =
         document.getElementById(
@@ -963,142 +1335,63 @@ function setStatus(
         );
 
 
-    const status =
+    const text =
         document.getElementById(
             "statusText"
         );
 
 
-    const stat =
-        document.getElementById(
-            "statConnection"
-        );
+    dot.className =
+        "dot";
 
 
-    if(connected){
+    if (state === "online") {
 
         dot.classList.add(
-            "connected"
+            "online"
         );
 
-        status.innerText =
-            text || "Connected";
-
-        stat.innerText =
-            "ONLINE";
+        text.innerText =
+            "Connected";
 
     }
 
-    else{
+    else if (
+        state === "connecting"
+    ) {
 
-        dot.classList.remove(
-            "connected"
-        );
-
-        status.innerText =
-            text || "Disconnected";
-
-        stat.innerText =
-            "OFF";
+        text.innerText =
+            "Connecting...";
 
     }
 
-}
+    else {
 
-
-/* ==========================================================
-   MESSAGE
-========================================================== */
-
-function setMessage(text){
-
-    document.getElementById(
-        "botMessage"
-    ).innerText =
-        text || "";
-
-}
-
-
-/* ==========================================================
-   SIGNAL
-========================================================== */
-
-function setSignal(text){
-
-    const box =
-        document.getElementById(
-            "signalBox"
+        dot.classList.add(
+            "offline"
         );
 
-
-    const signal =
-        document.getElementById(
-            "signalText"
-        );
-
-
-    signal.innerText =
-        text || "Miandry...";
-
-
-    box.classList.remove(
-        "buy",
-        "error",
-        "wait"
-    );
-
-
-    const upper =
-        String(text).toUpperCase();
-
-
-    if(
-        upper.includes("CALL") ||
-        upper.includes("BUY")
-    ){
-
-        box.classList.add(
-            "buy"
-        );
-
-    }
-
-    else if(
-        upper.includes("ERROR") ||
-        upper.includes("FAILED")
-    ){
-
-        box.classList.add(
-            "error"
-        );
-
-    }
-
-    else{
-
-        box.classList.add(
-            "wait"
-        );
+        text.innerText =
+            "Disconnected";
 
     }
 
 }
 
 
-/* ==========================================================
-   UPDATE UI
-========================================================== */
+// =========================================================
+// UPDATE UI
+// =========================================================
 
-async function updateUI(){
+async function updateUI() {
 
-    try{
+    try {
 
         const response =
             await fetch(
                 "/api/stats",
                 {
-                    cache:"no-store"
+                    cache: "no-store"
                 }
             );
 
@@ -1107,21 +1400,67 @@ async function updateUI(){
             await response.json();
 
 
-        /* STATUS */
+        // ---------------------------------------------
+        // CONNECTION
+        // ---------------------------------------------
 
-        setStatus(
-            data.connected,
-            data.connected
-                ? "Connected"
-                : "Disconnected"
-        );
+        if (data.connected) {
+
+            setStatus(
+                "online"
+            );
+
+            document
+                .getElementById(
+                    "chartStatus"
+                )
+                .innerText =
+                "Streaming";
+
+        }
+
+        else if (
+            data.connecting
+        ) {
+
+            setStatus(
+                "connecting"
+            );
+
+            document
+                .getElementById(
+                    "chartStatus"
+                )
+                .innerText =
+                "Connecting...";
+
+        }
+
+        else {
+
+            setStatus(
+                "offline"
+            );
+
+            document
+                .getElementById(
+                    "chartStatus"
+                )
+                .innerText =
+                "Offline";
+
+        }
 
 
-        /* BALANCE */
+        // ---------------------------------------------
+        // STATS
+        // ---------------------------------------------
 
-        document.getElementById(
-            "balance"
-        ).innerText =
+        document
+            .getElementById(
+                "balance"
+            )
+            .innerText =
             Number(
                 data.balance || 0
             ).toFixed(2)
@@ -1132,133 +1471,154 @@ async function updateUI(){
             );
 
 
-        /* ACCOUNT */
-
-        document.getElementById(
-            "account"
-        ).innerText =
-            data.connected
-                ? "Account: Connected"
-                : "Account: Not connected";
-
-
-        document.getElementById(
-            "statAccount"
-        ).innerText =
-            data.connected
-                ? "ONLINE"
-                : "OFF";
+        document
+            .getElementById(
+                "price"
+            )
+            .innerText =
+            data.price
+                ? Number(
+                    data.price
+                ).toFixed(4)
+                : "—";
 
 
-        /* MARKET */
-
-        document.getElementById(
-            "marketName"
-        ).innerText =
+        document
+            .getElementById(
+                "market"
+            )
+            .innerText =
             data.symbol;
 
 
-        document.getElementById(
-            "statSymbol"
-        ).innerText =
+        document
+            .getElementById(
+                "chartSymbol"
+            )
+            .innerText =
             data.symbol;
 
 
-        /* PRICE */
+        // ---------------------------------------------
+        // SIGNAL
+        // ---------------------------------------------
 
-        const price =
+        const signal =
+            document.getElementById(
+                "signal"
+            );
+
+
+        signal.innerText =
+            data.signal ||
+            "WAIT";
+
+
+        signal.className =
+            "signal-value";
+
+
+        if (
+            data.signal === "CALL"
+        ) {
+
+            signal.classList.add(
+                "call"
+            );
+
+        }
+
+        else if (
+            data.signal === "PUT"
+        ) {
+
+            signal.classList.add(
+                "put"
+            );
+
+        }
+
+        else {
+
+            signal.classList.add(
+                "wait"
+            );
+
+        }
+
+
+        document
+            .getElementById(
+                "signalText"
+            )
+            .innerText =
+            data.signal_text ||
+            "Miandry...";
+
+
+        const strength =
             Number(
-                data.price || 0
+                data.signal_strength ||
+                0
             );
 
 
-        document.getElementById(
-            "price"
-        ).innerText =
-            price.toFixed(5);
+        document
+            .getElementById(
+                "strengthText"
+            )
+            .innerText =
+            strength + "%";
 
 
-        document.getElementById(
-            "statPrice"
-        ).innerText =
-            price.toFixed(5);
+        document
+            .getElementById(
+                "strengthBar"
+            )
+            .style.width =
+            Math.max(
+                0,
+                Math.min(
+                    100,
+                    strength
+                )
+            ) + "%";
 
 
-        /* MESSAGE */
+        // ---------------------------------------------
+        // MESSAGE
+        // ---------------------------------------------
 
-        setMessage(
-            data.error
-                ? "ERROR: "
-                    + data.error
-                : data.message
-        );
-
-
-        /* SIGNAL */
-
-        if(data.error){
-
-            setSignal(
-                "ERROR: "
-                + data.error
-            );
-
-        }
-
-        else{
-
-            setSignal(
-                data.message ||
-                "Miandry signal..."
-            );
-
-        }
+        document
+            .getElementById(
+                "message"
+            )
+            .innerText =
+            data.message ||
+            "";
 
 
-        /* CHART */
+        document
+            .getElementById(
+                "error"
+            )
+            .innerText =
+            data.error ||
+            "";
 
-        if(
-            data.chart &&
-            data.chart.length > 0
-        ){
 
-            const candles =
-                data.chart.map(
-                    c => ({
+        // ---------------------------------------------
+        // CHART
+        // ---------------------------------------------
 
-                        time:
-                            Number(
-                                c.time
-                            ),
-
-                        open:
-                            Number(
-                                c.open
-                            ),
-
-                        high:
-                            Number(
-                                c.high
-                            ),
-
-                        low:
-                            Number(
-                                c.low
-                            ),
-
-                        close:
-                            Number(
-                                c.close
-                            )
-
-                    })
-                );
-
+        if (
+            data.candles &&
+            data.candles.length
+        ) {
 
             candleSeries.setData(
-                candles
+                data.candles
             );
-
 
             chart.timeScale()
                 .fitContent();
@@ -1267,16 +1627,11 @@ async function updateUI(){
 
     }
 
-    catch(error){
+    catch (error) {
 
         console.log(
             "UI error:",
             error
-        );
-
-        setStatus(
-            false,
-            "Server error"
         );
 
     }
@@ -1284,9 +1639,9 @@ async function updateUI(){
 }
 
 
-/* ==========================================================
-   AUTO UPDATE
-========================================================== */
+// =========================================================
+// POLLING
+// =========================================================
 
 setInterval(
     updateUI,
@@ -1297,18 +1652,21 @@ setInterval(
 updateUI();
 
 
-/* ==========================================================
-   SYMBOL CHANGE
-========================================================== */
+// Initial chart size
+setTimeout(
+    () => {
 
-document.getElementById(
-    "symbol"
-).addEventListener(
-    "change",
-    refreshMarket
+        chart.applyOptions({
+            width:
+                chartElement.clientWidth
+        });
+
+    },
+    300
 );
 
 </script>
 
 </body>
+
 </html>
