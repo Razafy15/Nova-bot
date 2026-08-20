@@ -1,6 +1,5 @@
 <!DOCTYPE html>
-<html lang="mg">
-
+<html lang="en">
 <head>
 
 <meta charset="UTF-8">
@@ -10,7 +9,7 @@
     content="width=device-width, initial-scale=1.0"
 >
 
-<title>Nova Bot • Deriv</title>
+<title>Nova Bot</title>
 
 <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
 
@@ -20,41 +19,17 @@
     box-sizing: border-box;
 }
 
-:root {
-    --bg: #070b14;
-    --panel: #0d1422;
-    --panel2: #111b2d;
-    --border: #1e2a3d;
-    --text: #edf4ff;
-    --muted: #8290a8;
-    --blue: #36a3ff;
-    --green: #20d89a;
-    --red: #ff5575;
-    --yellow: #ffc857;
-}
-
 body {
     margin: 0;
-    background:
-        radial-gradient(
-            circle at top right,
-            rgba(54,163,255,.10),
-            transparent 35%
-        ),
-        var(--bg);
-    color: var(--text);
     font-family:
         Inter,
-        -apple-system,
-        BlinkMacSystemFont,
-        "Segoe UI",
+        Arial,
         sans-serif;
-}
 
-button,
-input,
-select {
-    font: inherit;
+    background:
+        #070b14;
+
+    color: #f5f7fb;
 }
 
 .app {
@@ -63,344 +38,159 @@ select {
     padding: 18px;
 }
 
-/* ======================================================
-   HEADER
-====================================================== */
+/* HEADER */
 
 .header {
     display: flex;
-    align-items: center;
     justify-content: space-between;
+    align-items: center;
     gap: 15px;
     margin-bottom: 18px;
 }
 
-.brand {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-
 .logo {
-    width: 44px;
-    height: 44px;
-    border-radius: 13px;
-
-    display: flex;
-    align-items: center;
-    justify-content: center;
-
-    background:
-        linear-gradient(
-            135deg,
-            #36a3ff,
-            #7c4dff
-        );
-
-    font-weight: 900;
-    font-size: 20px;
+    font-size: 25px;
+    font-weight: 800;
 }
 
-.brand h1 {
-    margin: 0;
-    font-size: 20px;
+.logo span {
+    color: #36d399;
 }
 
-.brand span {
-    display: block;
-    margin-top: 3px;
-    color: var(--muted);
-    font-size: 12px;
-}
-
-.connection {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-
-    padding: 9px 13px;
-
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 999px;
-
+.status {
+    padding: 9px 14px;
+    border-radius: 30px;
+    background: #151c2c;
     font-size: 13px;
 }
 
 .dot {
+    display: inline-block;
     width: 8px;
     height: 8px;
     border-radius: 50%;
-    background: var(--yellow);
+    margin-right: 7px;
+    background: #777;
 }
 
-.dot.online {
-    background: var(--green);
-    box-shadow:
-        0 0 12px rgba(32,216,154,.7);
+.connected .dot {
+    background: #36d399;
 }
 
-.dot.offline {
-    background: var(--red);
+.error .dot {
+    background: #ef4444;
 }
 
-/* ======================================================
-   GRID
-====================================================== */
+/* GRID */
 
 .grid {
     display: grid;
     grid-template-columns:
-        330px
+        300px
         minmax(0, 1fr);
 
-    gap: 16px;
+    gap: 18px;
 }
 
-/* ======================================================
-   PANEL
-====================================================== */
+/* PANEL */
 
 .panel {
-    background:
-        linear-gradient(
-            180deg,
-            rgba(255,255,255,.025),
-            transparent
-        ),
-        var(--panel);
-
-    border: 1px solid var(--border);
-
+    background: #0d1320;
+    border: 1px solid #1c2638;
     border-radius: 16px;
-
-    box-shadow:
-        0 18px 45px rgba(0,0,0,.20);
+    padding: 18px;
 }
 
-.panel-header {
-    padding: 16px 17px;
-
-    border-bottom:
-        1px solid var(--border);
+.panel h3 {
+    margin-top: 0;
 }
 
-.panel-header h2 {
-    margin: 0;
-    font-size: 14px;
-}
+/* INPUT */
 
-.panel-header p {
-    margin: 5px 0 0;
-    color: var(--muted);
-    font-size: 12px;
-}
-
-.form {
-    padding: 17px;
-}
-
-.field {
-    margin-bottom: 14px;
-}
-
-.field label {
+label {
     display: block;
-
-    margin-bottom: 7px;
-
-    color: #aab6ca;
-
-    font-size: 11px;
-    font-weight: 700;
-
-    text-transform: uppercase;
-    letter-spacing: .6px;
+    font-size: 12px;
+    color: #8d99ae;
+    margin-top: 13px;
+    margin-bottom: 6px;
 }
 
 input,
 select {
     width: 100%;
-
-    padding: 12px 13px;
-
-    background: #080f1b;
-
-    border: 1px solid var(--border);
-
-    color: var(--text);
-
+    padding: 12px;
     border-radius: 10px;
-
+    border: 1px solid #273247;
+    background: #080d17;
+    color: white;
     outline: none;
 }
 
 input:focus,
 select:focus {
-    border-color: var(--blue);
-
-    box-shadow:
-        0 0 0 3px
-        rgba(54,163,255,.10);
+    border-color: #36d399;
 }
 
-.btn {
+button {
     width: 100%;
-
+    margin-top: 16px;
+    padding: 13px;
     border: 0;
-
-    padding: 12px;
-
     border-radius: 10px;
-
-    cursor: pointer;
-
+    background: #36d399;
+    color: #04120d;
     font-weight: 800;
-
-    margin-top: 5px;
+    cursor: pointer;
 }
 
-.btn-connect {
-    color: white;
-
-    background:
-        linear-gradient(
-            135deg,
-            #248ef0,
-            #635bff
-        );
+button:hover {
+    opacity: .9;
 }
 
-.btn-connect:disabled {
-    opacity: .55;
-    cursor: wait;
-}
-
-.helper {
-    margin-top: 12px;
-
-    padding: 10px;
-
-    background: #080f1b;
-
-    border:
-        1px solid var(--border);
-
-    border-radius: 9px;
-
-    color: var(--muted);
-
-    font-size: 11px;
-
-    line-height: 1.5;
-}
-
-/* ======================================================
-   MAIN
-====================================================== */
-
-.main {
-    min-width: 0;
-}
+/* STATS */
 
 .stats {
     display: grid;
-
     grid-template-columns:
-        repeat(4, 1fr);
+        repeat(3, 1fr);
 
     gap: 12px;
 
-    margin-bottom: 14px;
+    margin-bottom: 15px;
 }
 
-.stat {
-    padding: 15px;
-
-    background: var(--panel);
-
-    border:
-        1px solid var(--border);
-
+.card {
+    background: #0d1320;
+    border: 1px solid #1c2638;
     border-radius: 14px;
+    padding: 15px;
 }
 
-.stat small {
-    display: block;
-
-    color: var(--muted);
-
-    font-size: 10px;
-
-    font-weight: 700;
-
-    letter-spacing: .7px;
+.card small {
+    color: #7f8aa0;
 }
 
-.stat strong {
+.card strong {
     display: block;
-
-    margin-top: 7px;
-
+    margin-top: 6px;
     font-size: 20px;
 }
 
-.stat .sub {
-    color: var(--muted);
-
-    font-size: 11px;
-
-    margin-top: 3px;
-}
-
-/* ======================================================
-   CHART
-====================================================== */
+/* CHART */
 
 .chart-panel {
+    background: #0d1320;
+    border: 1px solid #1c2638;
+    border-radius: 16px;
     overflow: hidden;
 }
 
-.marketbar {
+.chart-header {
+    padding: 15px 18px;
+    border-bottom: 1px solid #1c2638;
+
     display: flex;
-
-    align-items: center;
-
     justify-content: space-between;
-
-    gap: 10px;
-
-    padding: 14px 16px;
-
-    border-bottom:
-        1px solid var(--border);
-}
-
-.market-name {
-    display: flex;
-
-    align-items: center;
-
-    gap: 9px;
-
-    font-weight: 800;
-
-    font-size: 14px;
-}
-
-.live {
-    padding: 4px 7px;
-
-    border-radius: 5px;
-
-    background:
-        rgba(32,216,154,.10);
-
-    color: var(--green);
-
-    font-size: 9px;
-
-    font-weight: 900;
 }
 
 #chart {
@@ -408,140 +198,45 @@ select:focus {
     height: 520px;
 }
 
-/* ======================================================
-   SIGNAL
-====================================================== */
+/* MESSAGE */
 
-.signal {
-    margin-top: 14px;
-
-    padding: 16px;
-
-    background: var(--panel);
-
-    border:
-        1px solid var(--border);
-
-    border-radius: 14px;
-}
-
-.signal-top {
-    display: flex;
-
-    justify-content: space-between;
-
-    align-items: center;
-}
-
-.signal-title {
-    color: var(--muted);
-
-    font-size: 11px;
-
-    font-weight: 800;
-
-    letter-spacing: .7px;
-}
-
-.signal-value {
-    font-size: 25px;
-
-    font-weight: 900;
-}
-
-.signal-value.call {
-    color: var(--green);
-}
-
-.signal-value.put {
-    color: var(--red);
-}
-
-.signal-value.wait {
-    color: var(--yellow);
-}
-
-.signal-text {
-    margin-top: 7px;
-
-    color: #b8c3d6;
-
-    font-size: 12px;
-}
-
-.strength {
-    height: 5px;
-
-    margin-top: 12px;
-
-    overflow: hidden;
-
-    border-radius: 99px;
-
-    background: #172235;
-}
-
-.strength div {
-    height: 100%;
-
-    width: 0%;
-
-    transition: width .3s;
-}
-
-/* ======================================================
-   STATUS
-====================================================== */
-
-.status {
-    margin-top: 14px;
-
-    padding: 12px 14px;
-
-    background: #080f1b;
-
-    border:
-        1px solid var(--border);
-
+.message {
+    margin-top: 15px;
+    padding: 12px;
     border-radius: 10px;
-
-    color: var(--muted);
-
-    font-size: 11px;
+    background: #111a2a;
+    color: #aab5c7;
+    font-size: 13px;
 }
 
-.error {
-    margin-top: 8px;
-
-    color: var(--red);
-
-    white-space: pre-wrap;
+.error-box {
+    margin-top: 10px;
+    padding: 12px;
+    border-radius: 10px;
+    background: #32141a;
+    color: #ff9b9b;
+    font-size: 13px;
 }
 
-/* ======================================================
-   RESPONSIVE
-====================================================== */
+/* MOBILE */
 
-@media (max-width: 1000px) {
+@media(max-width: 850px) {
 
     .grid {
         grid-template-columns: 1fr;
     }
 
-    .settings {
-        order: 2;
-    }
-
-    .main {
-        order: 1;
+    .stats {
+        grid-template-columns:
+            repeat(2, 1fr);
     }
 
     #chart {
-        height: 450px;
+        height: 420px;
     }
 }
 
-@media (max-width: 650px) {
+@media(max-width: 500px) {
 
     .app {
         padding: 10px;
@@ -551,26 +246,16 @@ select:focus {
         align-items: flex-start;
     }
 
-    .connection {
-        font-size: 11px;
-        padding: 7px 9px;
-    }
-
     .stats {
-        grid-template-columns:
-            repeat(2, 1fr);
+        grid-template-columns: 1fr 1fr;
     }
 
-    .stat strong {
+    .card strong {
         font-size: 17px;
     }
 
     #chart {
-        height: 390px;
-    }
-
-    .marketbar {
-        padding: 12px;
+        height: 360px;
     }
 }
 
@@ -578,441 +263,171 @@ select:focus {
 
 </head>
 
-
 <body>
 
 <div class="app">
 
-    <!-- HEADER -->
+    <div class="header">
 
-    <header class="header">
-
-        <div class="brand">
-
-            <div class="logo">
-                N
-            </div>
-
-            <div>
-
-                <h1>Nova Bot</h1>
-
-                <span>
-                    Deriv Market Intelligence
-                </span>
-
-            </div>
-
+        <div class="logo">
+            NOVA<span>BOT</span>
         </div>
 
-
-        <div class="connection">
-
-            <span
-                id="statusDot"
-                class="dot"
-            ></span>
-
-            <span id="statusText">
-                Disconnected
-            </span>
-
+        <div
+            id="status"
+            class="status"
+        >
+            <span class="dot"></span>
+            Disconnected
         </div>
 
-    </header>
+    </div>
 
 
     <div class="grid">
 
+        <!-- SETTINGS -->
 
-        <!-- =================================================
-             SETTINGS
-        ================================================== -->
+        <div class="panel">
 
-        <aside class="panel settings">
+            <h3>Deriv Connection</h3>
 
-            <div class="panel-header">
+            <label>
+                App ID
+            </label>
 
-                <h2>Connection</h2>
+            <input
+                id="appId"
+                type="text"
+                autocomplete="off"
+                placeholder="New App ID"
+            >
 
-                <p>
-                    Ampidiro eto ny credentials
-                </p>
 
+            <label>
+                PAT Token
+            </label>
+
+            <input
+                id="patToken"
+                type="password"
+                autocomplete="off"
+                placeholder="PAT Token"
+            >
+
+
+            <label>
+                Account ID
+            </label>
+
+            <input
+                id="accountId"
+                type="text"
+                autocomplete="off"
+                placeholder="DOT..."
+            >
+
+
+            <label>
+                Market
+            </label>
+
+            <select id="symbol">
+
+                <option>BOOM500</option>
+                <option>BOOM300</option>
+                <option>BOOM600</option>
+                <option>BOOM900</option>
+                <option>BOOM1000</option>
+
+                <option>CRASH300</option>
+                <option>CRASH500</option>
+                <option>CRASH600</option>
+                <option>CRASH900</option>
+                <option>CRASH1000</option>
+
+                <option>1HZ10V</option>
+                <option>1HZ25V</option>
+                <option>1HZ50V</option>
+                <option>1HZ75V</option>
+                <option>1HZ100V</option>
+
+            </select>
+
+
+            <button
+                onclick="connectDeriv()"
+            >
+                CONNECT DERIV
+            </button>
+
+
+            <div
+                id="message"
+                class="message"
+            >
+                Miandry connexion...
             </div>
 
 
-            <div class="form">
+            <div
+                id="error"
+                class="error-box"
+                style="display:none"
+            ></div>
 
+        </div>
 
-                <div class="field">
 
-                    <label>
-                        App ID
-                    </label>
+        <!-- MAIN -->
 
-                    <input
-                        id="appId"
-                        type="text"
-                        placeholder="Ohatra: 123456"
-                        autocomplete="off"
-                    >
+        <div>
 
-                </div>
+            <div class="stats">
 
-
-                <div class="field">
-
-                    <label>
-                        PAT Token
-                    </label>
-
-                    <input
-                        id="patToken"
-                        type="password"
-                        placeholder="Personal Access Token"
-                        autocomplete="off"
-                    >
-
-                </div>
-
-
-                <div class="field">
-
-                    <label>
-                        Account ID
-                    </label>
-
-                    <input
-                        id="accountId"
-                        type="text"
-                        placeholder="Ohatra: DOT..."
-                        autocomplete="off"
-                    >
-
-                </div>
-
-
-                <div class="field">
-
-                    <label>
-                        Market
-                    </label>
-
-                    <select id="symbol">
-
-                        <optgroup label="BOOM">
-
-                            <option value="BOOM300">
-                                BOOM300
-                            </option>
-
-                            <option value="BOOM500" selected>
-                                BOOM500
-                            </option>
-
-                            <option value="BOOM600">
-                                BOOM600
-                            </option>
-
-                            <option value="BOOM900">
-                                BOOM900
-                            </option>
-
-                            <option value="BOOM1000">
-                                BOOM1000
-                            </option>
-
-                        </optgroup>
-
-
-                        <optgroup label="CRASH">
-
-                            <option value="CRASH300">
-                                CRASH300
-                            </option>
-
-                            <option value="CRASH500">
-                                CRASH500
-                            </option>
-
-                            <option value="CRASH600">
-                                CRASH600
-                            </option>
-
-                            <option value="CRASH900">
-                                CRASH900
-                            </option>
-
-                            <option value="CRASH1000">
-                                CRASH1000
-                            </option>
-
-                        </optgroup>
-
-
-                        <optgroup label="VOLATILITY • SIGNAL ONLY">
-
-                            <option value="1HZ10V">
-                                Volatility 10 1s
-                            </option>
-
-                            <option value="1HZ25V">
-                                Volatility 25 1s
-                            </option>
-
-                            <option value="1HZ50V">
-                                Volatility 50 1s
-                            </option>
-
-                            <option value="1HZ75V">
-                                Volatility 75 1s
-                            </option>
-
-                            <option value="1HZ100V">
-                                Volatility 100 1s
-                            </option>
-
-                            <option value="R_10">
-                                Volatility 10
-                            </option>
-
-                            <option value="R_25">
-                                Volatility 25
-                            </option>
-
-                            <option value="R_50">
-                                Volatility 50
-                            </option>
-
-                            <option value="R_75">
-                                Volatility 75
-                            </option>
-
-                            <option value="R_100">
-                                Volatility 100
-                            </option>
-
-                        </optgroup>
-
-                    </select>
-
-                </div>
-
-
-                <button
-                    id="connectBtn"
-                    class="btn btn-connect"
-                    onclick="connectBot()"
-                >
-                    CONNECT TO DERIV
-                </button>
-
-
-                <div class="helper">
-
-                    🔐 Ny PAT Token dia ampiasaina
-                    ao amin'ny backend ihany.
-                    Tsy aseho ao amin'ny chart na logs.
-
-                    <br><br>
-
-                    ⚠️ Ampiasao <b>Demo</b> aloha
-                    mandritra ny test.
-
-                </div>
-
-            </div>
-
-        </aside>
-
-
-        <!-- =================================================
-             MAIN
-        ================================================== -->
-
-        <main class="main">
-
-
-            <!-- STATS -->
-
-            <section class="stats">
-
-                <div class="stat">
-
-                    <small>
-                        BALANCE
-                    </small>
-
+                <div class="card">
+                    <small>Balance</small>
                     <strong id="balance">
-                        —
+                        0.00
                     </strong>
-
-                    <div class="sub">
-                        Account balance
-                    </div>
-
                 </div>
 
-
-                <div class="stat">
-
-                    <small>
-                        PRICE
-                    </small>
-
-                    <strong id="price">
-                        —
-                    </strong>
-
-                    <div class="sub">
-                        Live market
-                    </div>
-
-                </div>
-
-
-                <div class="stat">
-
-                    <small>
-                        MARKET
-                    </small>
-
+                <div class="card">
+                    <small>Market</small>
                     <strong id="market">
                         BOOM500
                     </strong>
-
-                    <div class="sub">
-                        Selected symbol
-                    </div>
-
                 </div>
 
+                <div class="card">
+                    <small>Price</small>
+                    <strong id="price">
+                        0
+                    </strong>
+                </div>
 
-                <div class="stat">
+            </div>
 
-                    <small>
-                        MODE
-                    </small>
 
-                    <strong>
-                        SIGNAL
+            <div class="chart-panel">
+
+                <div class="chart-header">
+
+                    <strong id="chartTitle">
+                        BOOM500
                     </strong>
 
-                    <div class="sub">
-                        Volatility = signal only
-                    </div>
-
-                </div>
-
-            </section>
-
-
-            <!-- CHART -->
-
-            <section class="panel chart-panel">
-
-                <div class="marketbar">
-
-                    <div class="market-name">
-
-                        <span id="chartSymbol">
-                            BOOM500
-                        </span>
-
-                        <span class="live">
-                            LIVE
-                        </span>
-
-                    </div>
-
-                    <span
-                        id="chartStatus"
-                        style="
-                            color:#8290a8;
-                            font-size:11px;
-                        "
-                    >
-                        Waiting...
+                    <span>
+                        LIVE
                     </span>
 
                 </div>
 
-
                 <div id="chart"></div>
 
-            </section>
+            </div>
 
-
-            <!-- SIGNAL -->
-
-            <section class="signal">
-
-                <div class="signal-top">
-
-                    <div>
-
-                        <div class="signal-title">
-                            NOVA SIGNAL
-                        </div>
-
-                        <div
-                            id="signal"
-                            class="signal-value wait"
-                        >
-                            WAIT
-                        </div>
-
-                    </div>
-
-
-                    <div
-                        id="strengthText"
-                        style="
-                            color:#8290a8;
-                            font-size:11px;
-                        "
-                    >
-                        0%
-                    </div>
-
-                </div>
-
-
-                <div
-                    id="signalText"
-                    class="signal-text"
-                >
-                    Miandry market data...
-                </div>
-
-
-                <div class="strength">
-
-                    <div id="strengthBar"></div>
-
-                </div>
-
-            </section>
-
-
-            <!-- STATUS -->
-
-            <section class="status">
-
-                <div id="message">
-                    Vonona hifandray amin'i Deriv.
-                </div>
-
-                <div
-                    id="error"
-                    class="error"
-                ></div>
-
-            </section>
-
-
-        </main>
+        </div>
 
     </div>
 
@@ -1021,111 +436,94 @@ select:focus {
 
 <script>
 
-
-// =========================================================
-// CHART
-// =========================================================
+let chart;
+let candleSeries;
 
 const chartElement =
-    document.getElementById(
-        "chart"
-    );
+    document.getElementById("chart");
 
 
-const chart =
-    LightweightCharts.createChart(
-        chartElement,
-        {
-            layout: {
-                background: {
-                    color: "#0d1422"
+/* =====================================================
+   CHART
+===================================================== */
+
+function createChart() {
+
+    chart =
+        LightweightCharts.createChart(
+            chartElement,
+            {
+                layout: {
+                    background: {
+                        color: "#0d1320"
+                    },
+
+                    textColor: "#9aa5b8"
                 },
-                textColor: "#8290a8"
-            },
 
-            grid: {
-                vertLines: {
-                    color: "#152033"
+                grid: {
+                    vertLines: {
+                        color: "#182235"
+                    },
+
+                    horzLines: {
+                        color: "#182235"
+                    }
                 },
 
-                horzLines: {
-                    color: "#152033"
+                rightPriceScale: {
+                    borderColor: "#263249"
+                },
+
+                timeScale: {
+                    borderColor: "#263249",
+                    timeVisible: true
                 }
-            },
-
-            rightPriceScale: {
-                borderColor: "#1e2a3d"
-            },
-
-            timeScale: {
-                borderColor: "#1e2a3d",
-
-                timeVisible: true,
-
-                secondsVisible: false
-            },
-
-            crosshair: {
-                mode: 0
             }
+        );
+
+
+    candleSeries =
+        chart.addCandlestickSeries();
+
+
+    window.addEventListener(
+        "resize",
+        () => {
+
+            chart.applyOptions({
+                width:
+                    chartElement.clientWidth
+            });
+
         }
     );
+}
 
 
-const candleSeries =
-    chart.addCandlestickSeries({
-
-        upColor: "#20d89a",
-
-        downColor: "#ff5575",
-
-        borderUpColor: "#20d89a",
-
-        borderDownColor: "#ff5575",
-
-        wickUpColor: "#20d89a",
-
-        wickDownColor: "#ff5575"
-
-    });
+createChart();
 
 
-window.addEventListener(
-    "resize",
-    () => {
+/* =====================================================
+   CONNECT
+===================================================== */
 
-        chart.applyOptions({
-            width:
-                chartElement.clientWidth
-        });
-
-    }
-);
-
-
-// =========================================================
-// CONNECT
-// =========================================================
-
-async function connectBot() {
+async function connectDeriv() {
 
     const appId =
         document.getElementById(
             "appId"
         ).value.trim();
 
-
     const patToken =
         document.getElementById(
             "patToken"
         ).value.trim();
 
-
     const accountId =
         document.getElementById(
             "accountId"
         ).value.trim();
-
 
     const symbol =
         document.getElementById(
@@ -1133,50 +531,20 @@ async function connectBot() {
         ).value;
 
 
-    if (!appId) {
+    if (!appId ||
+        !patToken ||
+        !accountId) {
 
-        alert(
-            "Ampidiro ny App ID."
+        showError(
+            "Fenoy App ID, PAT Token ary Account ID."
         );
 
         return;
     }
 
 
-    if (!patToken) {
-
-        alert(
-            "Ampidiro ny PAT Token."
-        );
-
-        return;
-    }
-
-
-    if (!accountId) {
-
-        alert(
-            "Ampidiro ny Account ID."
-        );
-
-        return;
-    }
-
-
-    const button =
-        document.getElementById(
-            "connectBtn"
-        );
-
-
-    button.disabled = true;
-
-    button.innerText =
-        "CONNECTING...";
-
-
-    setStatus(
-        "connecting"
+    setMessage(
+        "Connexion amin'i Deriv..."
     );
 
 
@@ -1194,18 +562,11 @@ async function connectBot() {
                     },
 
                     body: JSON.stringify({
-
                         app_id: appId,
-
                         pat_token: patToken,
-
-                        account_id:
-                            accountId,
-
+                        account_id: accountId,
                         symbol: symbol
-
                     })
-
                 }
             );
 
@@ -1214,174 +575,70 @@ async function connectBot() {
             await response.json();
 
 
-        if (!data.ok) {
+        if (!response.ok) {
 
-            alert(
+            showError(
                 data.message ||
-                "Connexion tsy nety."
+                "Connection error"
             );
 
-            setStatus(
-                "offline"
-            );
-
+            return;
         }
 
-    }
 
-    catch (error) {
-
-        alert(
-            "Tsy afaka nifandray tamin'ny serveur."
+        setMessage(
+            data.message ||
+            "Connexion natomboka..."
         );
 
-        setStatus(
-            "offline"
+    } catch(error) {
+
+        showError(
+            error.message
         );
-
     }
-
-    finally {
-
-        setTimeout(
-            () => {
-
-                button.disabled = false;
-
-                button.innerText =
-                    "CONNECT TO DERIV";
-
-            },
-            2500
-        );
-
-    }
-
 }
 
 
-// =========================================================
-// SYMBOL CHANGE
-// =========================================================
+/* =====================================================
+   MESSAGE
+===================================================== */
 
-document
-    .getElementById("symbol")
-    .addEventListener(
-        "change",
-        async function () {
+function setMessage(text) {
 
-            const symbol =
-                this.value;
-
-
-            document
-                .getElementById(
-                    "chartSymbol"
-                )
-                .innerText =
-                symbol;
-
-
-            document
-                .getElementById(
-                    "market"
-                )
-                .innerText =
-                symbol;
-
-
-            try {
-
-                await fetch(
-                    "/api/symbol",
-                    {
-                        method: "POST",
-
-                        headers: {
-                            "Content-Type":
-                                "application/json"
-                        },
-
-                        body:
-                            JSON.stringify({
-                                symbol:
-                                    symbol
-                            })
-                    }
-                );
-
-            }
-            catch (e) {
-
-                console.log(e);
-
-            }
-
-        }
-    );
-
-
-// =========================================================
-// STATUS
-// =========================================================
-
-function setStatus(
-    state
-) {
-
-    const dot =
-        document.getElementById(
-            "statusDot"
-        );
-
-
-    const text =
-        document.getElementById(
-            "statusText"
-        );
-
-
-    dot.className =
-        "dot";
-
-
-    if (state === "online") {
-
-        dot.classList.add(
-            "online"
-        );
-
-        text.innerText =
-            "Connected";
-
-    }
-
-    else if (
-        state === "connecting"
-    ) {
-
-        text.innerText =
-            "Connecting...";
-
-    }
-
-    else {
-
-        dot.classList.add(
-            "offline"
-        );
-
-        text.innerText =
-            "Disconnected";
-
-    }
-
+    document.getElementById(
+        "message"
+    ).textContent = text;
 }
 
 
-// =========================================================
-// UPDATE UI
-// =========================================================
+function showError(text) {
+
+    const box =
+        document.getElementById(
+            "error"
+        );
+
+    box.textContent = text;
+    box.style.display = "block";
+}
+
+
+function clearError() {
+
+    const box =
+        document.getElementById(
+            "error"
+        );
+
+    box.textContent = "";
+    box.style.display = "none";
+}
+
+
+/* =====================================================
+   UPDATE UI
+===================================================== */
 
 async function updateUI() {
 
@@ -1400,273 +657,175 @@ async function updateUI() {
             await response.json();
 
 
-        // ---------------------------------------------
-        // CONNECTION
-        // ---------------------------------------------
+        /* STATUS */
+
+        const status =
+            document.getElementById(
+                "status"
+            );
+
+
+        status.className =
+            "status";
+
 
         if (data.connected) {
 
-            setStatus(
-                "online"
+            status.classList.add(
+                "connected"
             );
 
-            document
-                .getElementById(
-                    "chartStatus"
-                )
-                .innerText =
-                "Streaming";
+            status.innerHTML =
+                '<span class="dot"></span>Connected';
 
-        }
-
-        else if (
+        } else if (
             data.connecting
         ) {
 
-            setStatus(
-                "connecting"
-            );
+            status.innerHTML =
+                '<span class="dot"></span>Connecting...';
 
-            document
-                .getElementById(
-                    "chartStatus"
-                )
-                .innerText =
-                "Connecting...";
+        } else {
 
-        }
-
-        else {
-
-            setStatus(
-                "offline"
-            );
-
-            document
-                .getElementById(
-                    "chartStatus"
-                )
-                .innerText =
-                "Offline";
-
+            status.innerHTML =
+                '<span class="dot"></span>Disconnected';
         }
 
 
-        // ---------------------------------------------
-        // STATS
-        // ---------------------------------------------
+        /* STATS */
 
-        document
-            .getElementById(
-                "balance"
-            )
-            .innerText =
+        document.getElementById(
+            "balance"
+        ).textContent =
             Number(
                 data.balance || 0
             ).toFixed(2)
             + " "
-            + (
-                data.currency ||
-                "USD"
-            );
+            + (data.currency || "USD");
 
 
-        document
-            .getElementById(
-                "price"
-            )
-            .innerText =
-            data.price
-                ? Number(
-                    data.price
-                ).toFixed(4)
-                : "—";
-
-
-        document
-            .getElementById(
-                "market"
-            )
-            .innerText =
-            data.symbol;
-
-
-        document
-            .getElementById(
-                "chartSymbol"
-            )
-            .innerText =
-            data.symbol;
-
-
-        // ---------------------------------------------
-        // SIGNAL
-        // ---------------------------------------------
-
-        const signal =
-            document.getElementById(
-                "signal"
-            );
-
-
-        signal.innerText =
-            data.signal ||
-            "WAIT";
-
-
-        signal.className =
-            "signal-value";
-
-
-        if (
-            data.signal === "CALL"
-        ) {
-
-            signal.classList.add(
-                "call"
-            );
-
-        }
-
-        else if (
-            data.signal === "PUT"
-        ) {
-
-            signal.classList.add(
-                "put"
-            );
-
-        }
-
-        else {
-
-            signal.classList.add(
-                "wait"
-            );
-
-        }
-
-
-        document
-            .getElementById(
-                "signalText"
-            )
-            .innerText =
-            data.signal_text ||
-            "Miandry...";
-
-
-        const strength =
+        document.getElementById(
+            "price"
+        ).textContent =
             Number(
-                data.signal_strength ||
-                0
+                data.price || 0
+            ).toFixed(5);
+
+
+        document.getElementById(
+            "market"
+        ).textContent =
+            data.symbol || "-";
+
+
+        document.getElementById(
+            "chartTitle"
+        ).textContent =
+            data.symbol || "-";
+
+
+        /* MESSAGE */
+
+        setMessage(
+            data.message || ""
+        );
+
+
+        /* ERROR */
+
+        if (data.error) {
+
+            showError(
+                data.error
             );
 
+        } else {
 
-        document
-            .getElementById(
-                "strengthText"
-            )
-            .innerText =
-            strength + "%";
+            clearError();
+        }
 
 
-        document
-            .getElementById(
-                "strengthBar"
-            )
-            .style.width =
-            Math.max(
-                0,
-                Math.min(
-                    100,
-                    strength
-                )
-            ) + "%";
-
-
-        // ---------------------------------------------
-        // MESSAGE
-        // ---------------------------------------------
-
-        document
-            .getElementById(
-                "message"
-            )
-            .innerText =
-            data.message ||
-            "";
-
-
-        document
-            .getElementById(
-                "error"
-            )
-            .innerText =
-            data.error ||
-            "";
-
-
-        // ---------------------------------------------
-        // CHART
-        // ---------------------------------------------
+        /* CHART */
 
         if (
-            data.candles &&
-            data.candles.length
+            Array.isArray(data.chart) &&
+            data.chart.length > 0
         ) {
 
             candleSeries.setData(
-                data.candles
+                data.chart
             );
 
             chart.timeScale()
                 .fitContent();
-
         }
 
-    }
-
-    catch (error) {
+    } catch(error) {
 
         console.log(
-            "UI error:",
+            "UI update error:",
             error
         );
-
     }
-
 }
 
 
-// =========================================================
-// POLLING
-// =========================================================
+/* =====================================================
+   POLLING
+===================================================== */
 
 setInterval(
     updateUI,
     1000
 );
 
-
 updateUI();
 
 
-// Initial chart size
-setTimeout(
-    () => {
+/* =====================================================
+   SYMBOL CHANGE
+===================================================== */
 
-        chart.applyOptions({
-            width:
-                chartElement.clientWidth
-        });
+document
+    .getElementById("symbol")
+    .addEventListener(
+        "change",
+        async function() {
 
-    },
-    300
-);
+            const symbol =
+                this.value;
+
+            document.getElementById(
+                "chartTitle"
+            ).textContent =
+                symbol;
+
+            try {
+
+                await fetch(
+                    "/api/symbol",
+                    {
+                        method: "POST",
+
+                        headers: {
+                            "Content-Type":
+                                "application/json"
+                        },
+
+                        body: JSON.stringify({
+                            symbol: symbol
+                        })
+                    }
+                );
+
+            } catch(error) {
+
+                console.log(error);
+            }
+        }
+    );
 
 </script>
 
 </body>
-
 </html>
