@@ -1,4 +1,4 @@
 Flask==3.0.2
-websocket-client==1.7.0
-requests==2.32.3
+websocket-client==1.8.0
+numpy==1.26.4
 gunicorn==21.2.0
