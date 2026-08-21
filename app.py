@@ -1,895 +1,376 @@
 import os
 import json
-import time
 import threading
+import time
 
 import requests
 import websocket
-
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, jsonify, render_template
 
 
 app = Flask(__name__)
 
 
-# =========================================================
-# STATE
-# =========================================================
+# ============================================================
+# CONFIG
+# ============================================================
+
+DERIV_APP_ID = os.getenv("DERIV_APP_ID", "")
+DERIV_TOKEN = os.getenv("DERIV_TOKEN", "")
+DERIV_ACCOUNT_ID = os.getenv("DERIV_ACCOUNT_ID", "")
+
+# DEMO only for Version 1
+ACCOUNT_MODE = "demo"
+
+OTP_URL = (
+    "https://api.derivws.com"
+    f"/trading/v1/options/accounts/{DERIV_ACCOUNT_ID}/otp"
+)
+
+
+# ============================================================
+# BOT STATE
+# ============================================================
 
 state = {
-    "app_id": "",
-    "pat_token": "",
-    "account_id": "",
-
-    "symbol": "BOOM500",
-
     "connected": False,
-    "connecting": False,
-
+    "authorized": False,
     "balance": 0.0,
     "currency": "USD",
 
-    "price": 0.0,
+    "symbol": "BOOM150",
+    "direction": "PUT",
+    "duration": 3,
+    "stake": 0.35,
 
-    "chart": [],
+    "running": False,
 
-    "message": "Miandry connexion...",
-    "error": "",
+    "total_trades": 0,
+    "wins": 0,
+    "losses": 0,
+    "profit": 0.0,
+    "loss_streak": 0,
 
-    "last_update": 0,
-
-    "ws": None,
+    "last_error": "",
 }
 
-
+ws = None
 ws_lock = threading.Lock()
 
 
-# =========================================================
-# LOGGING
-# =========================================================
+# ============================================================
+# SEND WEBSOCKET MESSAGE
+# ============================================================
 
-def log(message):
-    print(
-        f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {message}",
-        flush=True
-    )
+def ws_send(payload):
+    global ws
 
+    with ws_lock:
+        if ws is None:
+            return False
 
-def set_message(message):
-    state["message"] = str(message)
-    log(str(message))
-
-
-def set_error(message):
-    state["error"] = str(message)
-    state["message"] = str(message)
-
-    log("ERROR: " + str(message))
+        try:
+            ws.send(json.dumps(payload))
+            return True
+        except Exception as exc:
+            state["last_error"] = str(exc)
+            return False
 
 
-def clear_error():
-    state["error"] = ""
+# ============================================================
+# GET AUTHENTICATED WEBSOCKET URL
+# ============================================================
 
+def get_websocket_url():
+    if not DERIV_APP_ID:
+        raise RuntimeError("DERIV_APP_ID is missing")
 
-# =========================================================
-# DERIV REST - GET OTP
-# =========================================================
+    if not DERIV_TOKEN:
+        raise RuntimeError("DERIV_TOKEN is missing")
 
-def get_authenticated_ws_url(
-    app_id,
-    pat_token,
-    account_id
-):
-
-    url = (
-        "https://api.derivws.com"
-        f"/trading/v1/options/accounts/"
-        f"{account_id}/otp"
-    )
+    if not DERIV_ACCOUNT_ID:
+        raise RuntimeError("DERIV_ACCOUNT_ID is missing")
 
     headers = {
-        "Authorization": f"Bearer {pat_token}",
-        "Deriv-App-ID": app_id,
+        "Deriv-App-ID": DERIV_APP_ID,
+        "Authorization": f"Bearer {DERIV_TOKEN}",
         "Content-Type": "application/json",
     }
 
-    log("Mangataka OTP amin'i Deriv...")
-
     response = requests.post(
-        url,
+        OTP_URL,
         headers=headers,
         timeout=20,
     )
 
-    log(
-        f"Deriv OTP HTTP status: "
-        f"{response.status_code}"
-    )
-
-    try:
-        data = response.json()
-    except Exception:
-        raise RuntimeError(
-            "Deriv namerina réponse tsy JSON."
-        )
-
     if response.status_code != 200:
-
-        errors = data.get("errors", [])
-
-        if errors:
-
-            first = errors[0]
-
-            code = first.get(
-                "code",
-                "UNKNOWN"
-            )
-
-            message = first.get(
-                "message",
-                "Unknown Deriv error"
-            )
-
-            raise RuntimeError(
-                f"Deriv {code}: {message}"
-            )
-
         raise RuntimeError(
-            f"Deriv HTTP {response.status_code}: "
-            f"{data}"
+            f"OTP request failed: HTTP {response.status_code} "
+            f"{response.text}"
         )
 
-    payload = data.get(
-        "data",
-        {}
-    )
+    data = response.json()
 
-    ws_url = payload.get(
-        "url"
-    )
+    ws_url = data.get("data", {}).get("url")
 
     if not ws_url:
-
         raise RuntimeError(
-            "OTP OK fa tsy nahazo WebSocket URL "
-            "avy amin'i Deriv."
+            f"OTP response did not contain WebSocket URL: {data}"
         )
 
     return ws_url
 
 
-# =========================================================
-# WEBSOCKET SEND
-# =========================================================
+# ============================================================
+# WEBSOCKET CALLBACKS
+# ============================================================
 
-def ws_send(data):
+def on_open(socket):
+    state["connected"] = True
+    state["last_error"] = ""
 
-    ws = state.get("ws")
+    print("================================")
+    print("DERIV WEBSOCKET CONNECTED")
+    print("================================")
 
-    if ws is None:
-        return False
-
-    try:
-
-        text = json.dumps(data)
-
-        with ws_lock:
-            ws.send(text)
-
-        return True
-
-    except Exception as e:
-
-        set_error(
-            f"WebSocket send error: {e}"
-        )
-
-        return False
-
-
-# =========================================================
-# REQUEST BALANCE
-# =========================================================
-
-def request_balance():
-
-    return ws_send({
+    # Get balance
+    ws_send({
         "balance": 1,
         "subscribe": 1,
-        "req_id": 100
     })
 
 
-# =========================================================
-# REQUEST CANDLES
-# =========================================================
-
-def request_chart():
-
-    symbol = state["symbol"]
-
-    log(
-        f"Mangataka candles: {symbol}"
-    )
-
-    return ws_send({
-        "ticks_history": symbol,
-        "adjust_start_time": 1,
-        "count": 300,
-        "end": "latest",
-        "style": "candles",
-        "granularity": 60,
-        "req_id": 200
-    })
-
-
-# =========================================================
-# REQUEST LIVE TICKS
-# =========================================================
-
-def request_ticks():
-
-    symbol = state["symbol"]
-
-    log(
-        f"Mangataka live ticks: {symbol}"
-    )
-
-    return ws_send({
-        "ticks": symbol,
-        "subscribe": 1,
-        "req_id": 300
-    })
-
-
-# =========================================================
-# PROCESS CANDLES
-# =========================================================
-
-def process_candles(candles):
-
-    result = []
-
-    for item in candles:
-
-        try:
-
-            result.append({
-                "time": int(
-                    item["epoch"]
-                ),
-
-                "open": float(
-                    item["open"]
-                ),
-
-                "high": float(
-                    item["high"]
-                ),
-
-                "low": float(
-                    item["low"]
-                ),
-
-                "close": float(
-                    item["close"]
-                )
-            })
-
-        except Exception as e:
-
-            log(
-                f"Candle invalid: {e}"
-            )
-
-    result.sort(
-        key=lambda x: x["time"]
-    )
-
-    # Remove duplicate timestamps
-    unique = []
-
-    seen = set()
-
-    for candle in result:
-
-        timestamp = candle["time"]
-
-        if timestamp in seen:
-            continue
-
-        seen.add(timestamp)
-
-        unique.append(candle)
-
-    state["chart"] = unique[-300:]
-
-    if state["chart"]:
-
-        state["price"] = (
-            state["chart"][-1]["close"]
-        )
-
-        state["last_update"] = time.time()
-
-
-# =========================================================
-# PROCESS TICK
-# =========================================================
-
-def process_tick(tick):
-
+def on_message(socket, message):
     try:
-
-        quote = float(
-            tick["quote"]
-        )
-
-        state["price"] = quote
-
-        state["last_update"] = (
-            time.time()
-        )
-
-    except Exception:
-        pass
-
-
-# =========================================================
-# WEBSOCKET MESSAGE
-# =========================================================
-
-def on_message(
-    ws,
-    message
-):
-
-    try:
-
-        data = json.loads(
-            message
-        )
-
-    except Exception as e:
-
-        log(
-            f"JSON error: {e}"
-        )
-
+        data = json.loads(message)
+    except json.JSONDecodeError:
         return
 
-    # -----------------------------------------------------
+    msg_type = data.get("msg_type")
+
+    # --------------------------------------------
+    # BALANCE
+    # --------------------------------------------
+
+    if msg_type == "balance":
+        balance_data = data.get("balance", {})
+
+        try:
+            state["balance"] = float(
+                balance_data.get("balance", 0)
+            )
+        except (TypeError, ValueError):
+            state["balance"] = 0.0
+
+        state["currency"] = (
+            balance_data.get("currency")
+            or state["currency"]
+        )
+
+        state["authorized"] = True
+
+        print(
+            f"BALANCE: "
+            f"{state['balance']:.2f} "
+            f"{state['currency']}"
+        )
+
+    # --------------------------------------------
     # ERROR
-    # -----------------------------------------------------
+    # --------------------------------------------
 
-    if "error" in data:
-
-        error = data.get(
-            "error",
-            {}
-        )
-
-        code = error.get(
-            "code",
-            "UNKNOWN"
-        )
+    elif msg_type == "error":
+        error = data.get("error", {})
 
         message_text = error.get(
             "message",
-            "Unknown error"
+            "Unknown Deriv API error",
         )
 
-        set_error(
-            f"Deriv {code}: "
-            f"{message_text}"
-        )
+        state["last_error"] = message_text
 
-        return
-
-    msg_type = data.get(
-        "msg_type"
-    )
-
-    # -----------------------------------------------------
-    # BALANCE
-    # -----------------------------------------------------
-
-    if msg_type == "balance":
-
-        balance_data = data.get(
-            "balance",
-            {}
-        )
-
-        try:
-
-            state["balance"] = float(
-                balance_data.get(
-                    "balance",
-                    0
-                )
-            )
-
-        except Exception:
-            pass
-
-        currency = (
-            balance_data.get(
-                "currency"
-            )
-        )
-
-        if currency:
-            state["currency"] = currency
-
-        state["last_update"] = (
-            time.time()
-        )
-
-        if not state["error"]:
-
-            set_message(
-                "Connexion + Balance OK ✓"
-            )
-
-        return
-
-    # -----------------------------------------------------
-    # CANDLES
-    # -----------------------------------------------------
-
-    if msg_type == "candles":
-
-        candles = data.get(
-            "candles",
-            []
-        )
-
-        process_candles(
-            candles
-        )
-
-        if not state["error"]:
-
-            set_message(
-                f"Chart live: "
-                f"{state['symbol']}"
-            )
-
-        return
-
-    # -----------------------------------------------------
-    # TICK
-    # -----------------------------------------------------
-
-    if msg_type == "tick":
-
-        tick = data.get(
-            "tick",
-            {}
-        )
-
-        process_tick(
-            tick
-        )
-
-        return
+        print("DERIV ERROR:", message_text)
 
 
-# =========================================================
-# WEBSOCKET OPEN
-# =========================================================
-
-def on_open(ws):
-
-    log(
-        "Authenticated WebSocket OPEN ✓"
-    )
-
-    state["connected"] = True
-    state["connecting"] = False
-
-    clear_error()
-
-    set_message(
-        "Deriv connecté ✓"
-    )
-
-    # Account data
-    request_balance()
-
-    # Chart
-    request_chart()
-
-    # Live price
-    request_ticks()
-
-
-# =========================================================
-# WEBSOCKET ERROR
-# =========================================================
-
-def on_error(
-    ws,
-    error
-):
-
-    log(
-        f"WebSocket ERROR: {error}"
-    )
-
+def on_error(socket, error):
     state["connected"] = False
-    state["connecting"] = False
+    state["authorized"] = False
+    state["last_error"] = str(error)
 
-    set_error(
-        f"WebSocket error: {error}"
-    )
+    print("WEBSOCKET ERROR:", error)
 
 
-# =========================================================
-# WEBSOCKET CLOSE
-# =========================================================
-
-def on_close(
-    ws,
-    close_status_code,
-    close_msg
-):
-
-    log(
-        f"WebSocket CLOSED: "
-        f"{close_status_code} "
-        f"{close_msg}"
-    )
-
+def on_close(socket, close_status_code, close_msg):
     state["connected"] = False
-    state["connecting"] = False
-    state["ws"] = None
+    state["authorized"] = False
 
-    if not state["error"]:
+    print(
+        "WEBSOCKET CLOSED:",
+        close_status_code,
+        close_msg,
+    )
 
-        set_message(
-            "Tapaka ny connexion Deriv."
-        )
 
+# ============================================================
+# CONNECT
+# ============================================================
 
-# =========================================================
-# CONNECT THREAD
-# =========================================================
-
-def connect_worker():
-
-    app_id = state["app_id"]
-    pat_token = state["pat_token"]
-    account_id = state["account_id"]
+def connect_deriv():
+    global ws
 
     try:
+        print("Getting authenticated WebSocket URL...")
 
-        state["connecting"] = True
-        state["connected"] = False
+        ws_url = get_websocket_url()
 
-        clear_error()
-
-        set_message(
-            "Mangataka authentication..."
-        )
-
-        # -------------------------------------------------
-        # 1. REST OTP
-        # -------------------------------------------------
-
-        ws_url = get_authenticated_ws_url(
-            app_id,
-            pat_token,
-            account_id
-        )
-
-        log(
-            "OTP nahomby ✓"
-        )
-
-        # Aza atao log ny URL satria misy OTP ao anatiny.
-
-        set_message(
-            "OTP OK → mampifandray WebSocket..."
-        )
-
-        # -------------------------------------------------
-        # 2. AUTHENTICATED WEBSOCKET
-        # -------------------------------------------------
+        print("WebSocket URL received.")
 
         ws = websocket.WebSocketApp(
-
             ws_url,
-
             on_open=on_open,
-
             on_message=on_message,
-
             on_error=on_error,
-
-            on_close=on_close
+            on_close=on_close,
         )
-
-        state["ws"] = ws
 
         ws.run_forever(
             ping_interval=20,
-            ping_timeout=10
+            ping_timeout=10,
         )
 
-    except Exception as e:
-
+    except Exception as exc:
         state["connected"] = False
-        state["connecting"] = False
+        state["authorized"] = False
+        state["last_error"] = str(exc)
 
-        set_error(
-            str(e)
-        )
-
-    finally:
-
-        state["ws"] = None
+        print("CONNECT ERROR:", exc)
 
 
-# =========================================================
-# CONNECT API
-# =========================================================
+# ============================================================
+# START CONNECTION THREAD
+# ============================================================
 
-@app.route(
-    "/api/connect",
-    methods=["POST"]
-)
-def api_connect():
-
-    data = request.get_json(
-        silent=True
-    ) or {}
-
-    app_id = str(
-        data.get(
-            "app_id",
-            ""
-        )
-    ).strip()
-
-    pat_token = str(
-        data.get(
-            "pat_token",
-            ""
-        )
-    ).strip()
-
-    account_id = str(
-        data.get(
-            "account_id",
-            ""
-        )
-    ).strip()
-
-    symbol = str(
-        data.get(
-            "symbol",
-            "BOOM500"
-        )
-    ).strip().upper()
-
-    # -----------------------------------------------------
-    # VALIDATION
-    # -----------------------------------------------------
-
-    if not app_id:
-
-        return jsonify({
-            "ok": False,
-            "message":
-                "App ID tsy feno."
-        }), 400
-
-    if not pat_token:
-
-        return jsonify({
-            "ok": False,
-            "message":
-                "PAT Token tsy feno."
-        }), 400
-
-    if not account_id:
-
-        return jsonify({
-            "ok": False,
-            "message":
-                "Account ID tsy feno."
-        }), 400
-
-    # -----------------------------------------------------
-    # CLOSE OLD CONNECTION
-    # -----------------------------------------------------
-
-    old_ws = state.get(
-        "ws"
-    )
-
-    if old_ws:
-
-        try:
-            old_ws.close()
-        except Exception:
-            pass
-
-    # -----------------------------------------------------
-    # SAVE CONFIG
-    # -----------------------------------------------------
-
-    state["app_id"] = app_id
-    state["pat_token"] = pat_token
-    state["account_id"] = account_id
-    state["symbol"] = symbol
-
-    state["connected"] = False
-    state["connecting"] = True
-
-    state["balance"] = 0.0
-    state["price"] = 0.0
-
-    state["chart"] = []
-
-    clear_error()
-
-    set_message(
-        "Connexion amin'i Deriv..."
-    )
-
-    # -----------------------------------------------------
-    # START THREAD
-    # -----------------------------------------------------
-
+def start_connection():
     thread = threading.Thread(
-        target=connect_worker,
-        daemon=True
+        target=connect_deriv,
+        daemon=True,
     )
 
     thread.start()
 
-    return jsonify({
-        "ok": True,
-        "message":
-            "Connexion natomboka."
-    })
 
-
-# =========================================================
-# CHANGE SYMBOL
-# =========================================================
-
-@app.route(
-    "/api/symbol",
-    methods=["POST"]
-)
-def api_symbol():
-
-    data = request.get_json(
-        silent=True
-    ) or {}
-
-    symbol = str(
-        data.get(
-            "symbol",
-            "BOOM500"
-        )
-    ).strip().upper()
-
-    state["symbol"] = symbol
-
-    state["chart"] = []
-    state["price"] = 0.0
-
-    if state["connected"]:
-
-        request_chart()
-        request_ticks()
-
-    set_message(
-        f"Market: {symbol}"
-    )
-
-    return jsonify({
-        "ok": True,
-        "symbol": symbol
-    })
-
-
-# =========================================================
-# STATS
-# =========================================================
-
-@app.route(
-    "/api/stats",
-    methods=["GET"]
-)
-def api_stats():
-
-    return jsonify({
-
-        "connected":
-            bool(
-                state["connected"]
-            ),
-
-        "connecting":
-            bool(
-                state["connecting"]
-            ),
-
-        "balance":
-            state["balance"],
-
-        "currency":
-            state["currency"],
-
-        "price":
-            state["price"],
-
-        "symbol":
-            state["symbol"],
-
-        "chart":
-            state["chart"][-300:],
-
-        "message":
-            state["message"],
-
-        "error":
-            state["error"],
-
-        "last_update":
-            state["last_update"]
-    })
-
-
-# =========================================================
-# HOME
-# =========================================================
+# ============================================================
+# FLASK ROUTES
+# ============================================================
 
 @app.route("/")
 def index():
-
-    return render_template(
-        "index.html"
-    )
+    return render_template("index.html")
 
 
-# =========================================================
-# HEALTH
-# =========================================================
+@app.route("/api/status")
+def api_status():
+    total = state["total_trades"]
+    wins = state["wins"]
 
-@app.route(
-    "/health"
-)
-def health():
+    if total > 0:
+        win_rate = (wins / total) * 100
+    else:
+        win_rate = 0.0
 
     return jsonify({
-        "status": "ok",
-        "service": "Nova-bot"
+        "connected": state["connected"],
+        "authorized": state["authorized"],
+
+        "balance": state["balance"],
+        "currency": state["currency"],
+
+        "symbol": state["symbol"],
+        "direction": state["direction"],
+        "duration": state["duration"],
+        "stake": state["stake"],
+
+        "running": state["running"],
+
+        "total_trades": state["total_trades"],
+        "wins": state["wins"],
+        "losses": state["losses"],
+        "win_rate": round(win_rate, 2),
+
+        "profit": round(state["profit"], 2),
+        "loss_streak": state["loss_streak"],
+
+        "last_error": state["last_error"],
     })
 
 
-# =========================================================
+@app.route("/api/start", methods=["POST"])
+def start_bot():
+    if not state["authorized"]:
+        return jsonify({
+            "ok": False,
+            "error": "Deriv account is not connected.",
+        }), 400
+
+    state["running"] = True
+
+    return jsonify({
+        "ok": True,
+        "running": True,
+    })
+
+
+@app.route("/api/stop", methods=["POST"])
+def stop_bot():
+    state["running"] = False
+
+    return jsonify({
+        "ok": True,
+        "running": False,
+    })
+
+
+@app.route("/api/pause", methods=["POST"])
+def pause_bot():
+    state["running"] = False
+
+    return jsonify({
+        "ok": True,
+        "running": False,
+    })
+
+
+# ============================================================
 # MAIN
-# =========================================================
+# ============================================================
 
 if __name__ == "__main__":
 
-    port = int(
-        os.environ.get(
-            "PORT",
-            5000
-        )
-    )
+    print("================================")
+    print("BOOM FALL BOT - VERSION 1")
+    print("DEMO MODE")
+    print("================================")
+
+    if not DERIV_APP_ID:
+        print("WARNING: DERIV_APP_ID is not configured.")
+
+    if not DERIV_TOKEN:
+        print("WARNING: DERIV_TOKEN is not configured.")
+
+    if not DERIV_ACCOUNT_ID:
+        print("WARNING: DERIV_ACCOUNT_ID is not configured.")
+
+    if (
+        DERIV_APP_ID
+        and DERIV_TOKEN
+        and DERIV_ACCOUNT_ID
+    ):
+        start_connection()
 
     app.run(
         host="0.0.0.0",
-        port=port
+        port=int(
+            os.getenv("PORT", "5000")
+        ),
+        debug=False,
     )
