@@ -1,7 +1,10 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
+
     <meta charset="UTF-8">
+
     <meta
         name="viewport"
         content="width=device-width, initial-scale=1.0"
@@ -9,153 +12,178 @@
 
     <title>BOOM FALL BOT</title>
 
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
     <style>
+
         * {
             box-sizing: border-box;
         }
 
         body {
             margin: 0;
-            font-family: Arial, sans-serif;
             background: #070914;
-            color: #ffffff;
+            color: white;
+            font-family: Arial, sans-serif;
         }
 
-        .header {
-            padding: 18px;
+        header {
             background: #0d1020;
-            border-bottom: 1px solid #242842;
+            border-bottom: 1px solid #252a43;
+            padding: 18px;
             display: flex;
             justify-content: space-between;
             align-items: center;
         }
 
         .brand {
-            font-size: 21px;
-            font-weight: 800;
+            font-size: 22px;
+            font-weight: 900;
         }
 
         .status {
-            padding: 7px 12px;
+            padding: 8px 13px;
             border-radius: 20px;
             font-size: 12px;
-            background: #25283b;
+            font-weight: bold;
         }
 
-        .connected {
-            background: #123d2b;
-            color: #43ff9a;
+        .offline {
+            background: #401722;
+            color: #ff7182;
         }
 
-        .disconnected {
-            background: #421a25;
-            color: #ff6d7d;
+        .online {
+            background: #123b2b;
+            color: #45f39b;
         }
 
-        .container {
-            max-width: 1400px;
+        main {
+            max-width: 1250px;
             margin: auto;
             padding: 18px;
+        }
+
+        .panel {
+            background: #101426;
+            border: 1px solid #252a43;
+            border-radius: 15px;
+            padding: 18px;
+            margin-bottom: 16px;
+        }
+
+        .title {
+            font-size: 16px;
+            font-weight: 800;
+            margin-bottom: 16px;
+        }
+
+        .connection-grid {
+            display: grid;
+            grid-template-columns:
+                repeat(3, 1fr);
+            gap: 12px;
+        }
+
+        input,
+        select {
+            width: 100%;
+            padding: 13px;
+            border-radius: 9px;
+            border: 1px solid #30364f;
+            background: #080b17;
+            color: white;
+            outline: none;
+        }
+
+        label {
+            display: block;
+            font-size: 12px;
+            color: #8e96b5;
+            margin-bottom: 7px;
+        }
+
+        button {
+            border: 0;
+            padding: 13px 18px;
+            border-radius: 9px;
+            color: white;
+            font-weight: 800;
+            cursor: pointer;
+        }
+
+        .connect {
+            margin-top: 14px;
+            background: #7257ff;
+        }
+
+        .connect:hover {
+            opacity: .9;
+        }
+
+        .connection-message {
+            margin-top: 12px;
+            color: #8e96b5;
+            font-size: 13px;
         }
 
         .cards {
             display: grid;
             grid-template-columns:
-                repeat(auto-fit, minmax(160px, 1fr));
-            gap: 14px;
+                repeat(auto-fit, minmax(150px, 1fr));
+            gap: 12px;
         }
 
         .card {
             background: #101426;
-            border: 1px solid #242842;
+            border: 1px solid #252a43;
             border-radius: 14px;
-            padding: 17px;
+            padding: 16px;
         }
 
-        .label {
+        .card-label {
             color: #8e96b5;
             font-size: 12px;
-            margin-bottom: 8px;
         }
 
-        .value {
-            font-size: 23px;
-            font-weight: 800;
+        .card-value {
+            margin-top: 8px;
+            font-size: 22px;
+            font-weight: 900;
         }
 
-        .profit {
-            color: #45f39b;
-        }
-
-        .loss {
-            color: #ff6375;
-        }
-
-        .grid {
+        .trading-grid {
             display: grid;
-            grid-template-columns:
-                minmax(0, 2fr)
-                minmax(280px, 1fr);
+            grid-template-columns: 1fr 1fr;
             gap: 16px;
-            margin-top: 16px;
-        }
-
-        .panel {
-            background: #101426;
-            border: 1px solid #242842;
-            border-radius: 15px;
-            padding: 18px;
-        }
-
-        .panel-title {
-            font-size: 15px;
-            font-weight: 700;
-            margin-bottom: 15px;
-        }
-
-        .chart-box {
-            height: 320px;
         }
 
         .settings {
             display: grid;
-            gap: 12px;
+            gap: 10px;
         }
 
-        .setting {
+        .row {
             background: #080b17;
+            border-radius: 9px;
             padding: 12px;
-            border-radius: 10px;
             display: flex;
             justify-content: space-between;
         }
 
-        .setting span:first-child {
+        .muted {
             color: #8e96b5;
         }
 
-        .put {
-            color: #ff6175;
-            font-weight: 800;
+        .fall {
+            color: #ff6375;
+            font-weight: 900;
         }
 
         .buttons {
             display: grid;
             grid-template-columns:
                 repeat(3, 1fr);
-            gap: 10px;
-            margin-top: 16px;
-        }
-
-        button {
-            border: 0;
-            border-radius: 10px;
-            padding: 13px;
-            color: white;
-            font-weight: 800;
-            cursor: pointer;
+            gap: 8px;
+            margin-top: 15px;
         }
 
         .start {
@@ -163,51 +191,29 @@
         }
 
         .pause {
-            background: #c48a18;
+            background: #b98218;
         }
 
         .stop {
-            background: #c52f45;
-        }
-
-        .table-wrap {
-            overflow-x: auto;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 13px;
-        }
-
-        th,
-        td {
-            padding: 12px 8px;
-            border-bottom: 1px solid #242842;
-            text-align: left;
-        }
-
-        th {
-            color: #8e96b5;
-        }
-
-        .empty {
-            text-align: center;
-            color: #707895;
-            padding: 30px;
+            background: #c83249;
         }
 
         .error {
-            margin-top: 15px;
-            padding: 12px;
-            background: #351720;
-            color: #ff8795;
-            border-radius: 10px;
+            margin-top: 12px;
+            padding: 11px;
+            background: #381721;
+            color: #ff8796;
+            border-radius: 9px;
             display: none;
         }
 
-        @media (max-width: 800px) {
-            .grid {
+        @media(max-width: 800px) {
+
+            .connection-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .trading-grid {
                 grid-template-columns: 1fr;
             }
 
@@ -215,165 +221,256 @@
                 grid-template-columns: 1fr;
             }
 
-            .header {
+            header {
                 align-items: flex-start;
-                gap: 10px;
                 flex-direction: column;
+                gap: 10px;
             }
+
         }
+
     </style>
+
 </head>
+
 
 <body>
 
-<header class="header">
+<header>
+
     <div class="brand">
         🤖 BOOM FALL BOT
     </div>
 
-    <div id="connection"
-         class="status disconnected">
+    <div
+        id="connectionStatus"
+        class="status offline"
+    >
         ● DISCONNECTED
     </div>
+
 </header>
 
 
-<main class="container">
+<main>
 
-    <!-- STATISTICS -->
+
+    <!-- API CONNECTION -->
+
+    <section class="panel">
+
+        <div class="title">
+            🔐 DERIV API CONNECTION
+        </div>
+
+        <div class="connection-grid">
+
+            <div>
+
+                <label>
+                    App ID
+                </label>
+
+                <input
+                    id="appId"
+                    type="text"
+                    placeholder="Your App ID"
+                >
+
+            </div>
+
+
+            <div>
+
+                <label>
+                    PAT / API Token
+                </label>
+
+                <input
+                    id="token"
+                    type="password"
+                    placeholder="Your PAT"
+                >
+
+            </div>
+
+
+            <div>
+
+                <label>
+                    Account ID
+                </label>
+
+                <input
+                    id="accountId"
+                    type="text"
+                    placeholder="DOT..."
+                >
+
+            </div>
+
+        </div>
+
+
+        <button
+            class="connect"
+            onclick="connectDeriv()"
+        >
+            🔌 CONNECT DERIV
+        </button>
+
+
+        <div
+            id="connectionMessage"
+            class="connection-message"
+        >
+            Not connected
+        </div>
+
+
+        <div
+            id="error"
+            class="error"
+        ></div>
+
+    </section>
+
+
+    <!-- STATS -->
 
     <section class="cards">
 
         <div class="card">
-            <div class="label">BALANCE</div>
-            <div id="balance"
-                 class="value">
+
+            <div class="card-label">
+                BALANCE
+            </div>
+
+            <div
+                id="balance"
+                class="card-value"
+            >
                 $0.00
             </div>
+
         </div>
 
-        <div class="card">
-            <div class="label">PROFIT / LOSS</div>
-            <div id="profit"
-                 class="value profit">
-                $0.00
-            </div>
-        </div>
 
         <div class="card">
-            <div class="label">TOTAL TRADES</div>
-            <div id="trades"
-                 class="value">
-                0
+
+            <div class="card-label">
+                ACCOUNT
             </div>
+
+            <div
+                id="accountType"
+                class="card-value"
+            >
+                —
+            </div>
+
         </div>
 
-        <div class="card">
-            <div class="label">WINS</div>
-            <div id="wins"
-                 class="value profit">
-                0
-            </div>
-        </div>
 
         <div class="card">
-            <div class="label">LOSSES</div>
-            <div id="losses"
-                 class="value loss">
-                0
+
+            <div class="card-label">
+                CURRENCY
             </div>
+
+            <div
+                id="currency"
+                class="card-value"
+            >
+                USD
+            </div>
+
         </div>
 
-        <div class="card">
-            <div class="label">WIN RATE</div>
-            <div id="winRate"
-                 class="value">
-                0.00%
-            </div>
-        </div>
 
         <div class="card">
-            <div class="label">CURRENT STAKE</div>
-            <div id="stake"
-                 class="value">
-                $0.35
-            </div>
-        </div>
 
-        <div class="card">
-            <div class="label">LOSS STREAK</div>
-            <div id="lossStreak"
-                 class="value loss">
-                0
+            <div class="card-label">
+                BOT STATUS
             </div>
+
+            <div
+                id="botStatus"
+                class="card-value"
+            >
+                STOPPED
+            </div>
+
         </div>
 
     </section>
 
 
-    <!-- MAIN -->
+    <!-- TRADING -->
 
-    <section class="grid">
+    <section
+        class="trading-grid"
+        style="margin-top:16px"
+    >
 
-        <!-- PERFORMANCE GRAPH -->
 
         <div class="panel">
 
-            <div class="panel-title">
-                📈 PERFORMANCE
-            </div>
-
-            <div class="chart-box">
-                <canvas id="performanceChart"></canvas>
-            </div>
-
-        </div>
-
-
-        <!-- SETTINGS -->
-
-        <div class="panel">
-
-            <div class="panel-title">
-                ⚙️ BOT SETTINGS
+            <div class="title">
+                ⚙️ TRADING SETTINGS
             </div>
 
             <div class="settings">
 
-                <div class="setting">
-                    <span>Market</span>
-                    <strong>BOOM</strong>
+                <div class="row">
+
+                    <span class="muted">
+                        Market
+                    </span>
+
+                    <strong>
+                        BOOM
+                    </strong>
+
                 </div>
 
-                <div class="setting">
-                    <span>Direction</span>
-                    <strong class="put">
+
+                <div class="row">
+
+                    <span class="muted">
+                        Direction
+                    </span>
+
+                    <strong class="fall">
                         PUT / FALL
                     </strong>
+
                 </div>
 
-                <div class="setting">
-                    <span>Duration</span>
-                    <strong>3 sec</strong>
-                </div>
 
-                <div class="setting">
-                    <span>Base Stake</span>
-                    <strong id="settingsStake">
-                        $0.35
+                <div class="row">
+
+                    <span class="muted">
+                        Duration
+                    </span>
+
+                    <strong>
+                        3 seconds
                     </strong>
+
                 </div>
 
-                <div class="setting">
-                    <span>Martingale</span>
-                    <strong>OFF</strong>
-                </div>
 
-                <div class="setting">
-                    <span>Status</span>
-                    <strong id="botStatus">
-                        STOPPED
+                <div class="row">
+
+                    <span class="muted">
+                        Martingale
+                    </span>
+
+                    <strong>
+                        OFF
                     </strong>
+
                 </div>
 
             </div>
@@ -383,71 +480,80 @@
 
                 <button
                     class="start"
-                    onclick="controlBot('/api/start')">
+                    onclick="botCommand('/api/start')"
+                >
                     START
                 </button>
 
                 <button
                     class="pause"
-                    onclick="controlBot('/api/pause')">
+                    onclick="botCommand('/api/pause')"
+                >
                     PAUSE
                 </button>
 
                 <button
                     class="stop"
-                    onclick="controlBot('/api/stop')">
+                    onclick="botCommand('/api/stop')"
+                >
                     STOP
                 </button>
 
             </div>
 
-            <div id="error"
-                 class="error">
+        </div>
+
+
+        <div class="panel">
+
+            <div class="title">
+                📡 CONNECTION INFO
+            </div>
+
+            <div class="settings">
+
+                <div class="row">
+
+                    <span class="muted">
+                        Account ID
+                    </span>
+
+                    <strong id="shownAccount">
+                        —
+                    </strong>
+
+                </div>
+
+
+                <div class="row">
+
+                    <span class="muted">
+                        Connection
+                    </span>
+
+                    <strong id="shownConnection">
+                        OFFLINE
+                    </strong>
+
+                </div>
+
+
+                <div class="row">
+
+                    <span class="muted">
+                        Authorization
+                    </span>
+
+                    <strong id="shownAuth">
+                        —
+                    </strong>
+
+                </div>
+
             </div>
 
         </div>
 
-    </section>
-
-
-    <!-- TRADE HISTORY -->
-
-    <section class="panel"
-             style="margin-top:16px">
-
-        <div class="panel-title">
-            📋 TRADE HISTORY
-        </div>
-
-        <div class="table-wrap">
-
-            <table>
-
-                <thead>
-                    <tr>
-                        <th>TIME</th>
-                        <th>MARKET</th>
-                        <th>TYPE</th>
-                        <th>STAKE</th>
-                        <th>RESULT</th>
-                        <th>PROFIT</th>
-                    </tr>
-                </thead>
-
-                <tbody id="history">
-
-                    <tr>
-                        <td colspan="6"
-                            class="empty">
-                            No trades yet
-                        </td>
-                    </tr>
-
-                </tbody>
-
-            </table>
-
-        </div>
 
     </section>
 
@@ -456,179 +562,218 @@
 
 <script>
 
-let performanceLabels = [];
-let performanceData = [];
+async function connectDeriv() {
 
-const ctx =
-    document
-    .getElementById("performanceChart")
-    .getContext("2d");
+    const appId =
+        document
+        .getElementById("appId")
+        .value
+        .trim();
 
+    const token =
+        document
+        .getElementById("token")
+        .value
+        .trim();
 
-const performanceChart =
-    new Chart(ctx, {
-
-        type: "line",
-
-        data: {
-
-            labels: performanceLabels,
-
-            datasets: [{
-
-                label: "Profit / Loss",
-
-                data: performanceData,
-
-                tension: 0.35,
-
-                fill: false
-
-            }]
-
-        },
-
-        options: {
-
-            responsive: true,
-
-            maintainAspectRatio: false,
-
-            plugins: {
-
-                legend: {
-                    display: false
-                }
-
-            },
-
-            scales: {
-
-                x: {
-                    ticks: {
-                        color: "#8e96b5"
-                    }
-                },
-
-                y: {
-                    ticks: {
-                        color: "#8e96b5"
-                    }
-                }
-
-            }
-
-        }
-
-    });
+    const accountId =
+        document
+        .getElementById("accountId")
+        .value
+        .trim();
 
 
-async function updateDashboard() {
+    const error =
+        document
+        .getElementById("error");
+
+
+    error.style.display =
+        "none";
+
+
+    if (!appId ||
+        !token ||
+        !accountId) {
+
+        showError(
+            "Fill App ID, PAT and Account ID."
+        );
+
+        return;
+    }
+
+
+    setMessage(
+        "Connecting to Deriv..."
+    );
+
 
     try {
 
         const response =
-            await fetch("/api/status");
+            await fetch(
+                "/api/connect",
+                {
+                    method: "POST",
+
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    },
+
+                    body: JSON.stringify({
+                        app_id:
+                            appId,
+
+                        token:
+                            token,
+
+                        account_id:
+                            accountId
+                    })
+                }
+            );
+
 
         const data =
             await response.json();
 
 
-        document
-            .getElementById("balance")
-            .textContent =
-            "$" +
-            Number(data.balance)
-            .toFixed(2);
+        if (!data.ok) {
+
+            showError(
+                data.error ||
+                "Connection failed."
+            );
+
+            return;
+        }
 
 
-        document
-            .getElementById("profit")
-            .textContent =
-            "$" +
-            Number(data.profit)
-            .toFixed(2);
+        setMessage(
+            "WebSocket connection started..."
+        );
+
+    } catch (err) {
+
+        showError(
+            err.message
+        );
+
+    }
+
+}
 
 
-        document
-            .getElementById("trades")
-            .textContent =
-            data.total_trades;
+async function updateStatus() {
+
+    try {
+
+        const response =
+            await fetch(
+                "/api/status"
+            );
 
 
-        document
-            .getElementById("wins")
-            .textContent =
-            data.wins;
+        const data =
+            await response.json();
 
 
-        document
-            .getElementById("losses")
-            .textContent =
-            data.losses;
-
-
-        document
-            .getElementById("winRate")
-            .textContent =
-            Number(data.win_rate)
-            .toFixed(2) +
-            "%";
-
-
-        document
-            .getElementById("stake")
-            .textContent =
-            "$" +
-            Number(data.stake)
-            .toFixed(2);
-
-
-        document
-            .getElementById("settingsStake")
-            .textContent =
-            "$" +
-            Number(data.stake)
-            .toFixed(2);
-
-
-        document
-            .getElementById("lossStreak")
-            .textContent =
-            data.loss_streak;
-
-
-        const connection =
+        const status =
             document
-            .getElementById("connection");
+            .getElementById(
+                "connectionStatus"
+            );
 
 
-        if (data.connected &&
-            data.authorized) {
+        if (
+            data.connected &&
+            data.authorized
+        ) {
 
-            connection
-                .textContent =
+            status.textContent =
                 "● CONNECTED";
 
-            connection
-                .className =
-                "status connected";
+            status.className =
+                "status online";
+
+            setMessage(
+                "Deriv connected successfully."
+            );
 
         } else {
 
-            connection
-                .textContent =
+            status.textContent =
                 "● DISCONNECTED";
 
-            connection
-                .className =
-                "status disconnected";
+            status.className =
+                "status offline";
 
         }
 
 
         document
-            .getElementById("botStatus")
+            .getElementById(
+                "balance"
+            )
+            .textContent =
+            Number(data.balance)
+            .toFixed(2) +
+            " " +
+            data.currency;
+
+
+        document
+            .getElementById(
+                "currency"
+            )
+            .textContent =
+            data.currency;
+
+
+        document
+            .getElementById(
+                "accountType"
+            )
+            .textContent =
+            data.account_type ||
+            "—";
+
+
+        document
+            .getElementById(
+                "shownAccount"
+            )
+            .textContent =
+            data.account_id ||
+            "—";
+
+
+        document
+            .getElementById(
+                "shownConnection"
+            )
+            .textContent =
+            data.connected
+            ? "ONLINE"
+            : "OFFLINE";
+
+
+        document
+            .getElementById(
+                "shownAuth"
+            )
+            .textContent =
+            data.authorized
+            ? "AUTHORIZED"
+            : "NOT AUTHORIZED";
+
+
+        document
+            .getElementById(
+                "botStatus"
+            )
             .textContent =
             data.running
             ? "RUNNING"
@@ -637,59 +782,22 @@ async function updateDashboard() {
 
         if (data.last_error) {
 
-            const error =
-                document
-                .getElementById("error");
-
-            error.textContent =
-                data.last_error;
-
-            error.style.display =
-                "block";
+            showError(
+                data.last_error
+            );
 
         }
 
+    } catch (err) {
 
-        updatePerformance(
-            Number(data.profit)
-        );
-
-    } catch (error) {
-
-        console.error(error);
+        console.error(err);
 
     }
 
 }
 
 
-function updatePerformance(value) {
-
-    const now =
-        new Date()
-        .toLocaleTimeString();
-
-
-    performanceLabels.push(now);
-
-    performanceData.push(value);
-
-
-    if (performanceLabels.length > 30) {
-
-        performanceLabels.shift();
-
-        performanceData.shift();
-
-    }
-
-
-    performanceChart.update();
-
-}
-
-
-async function controlBot(endpoint) {
+async function botCommand(endpoint) {
 
     try {
 
@@ -708,38 +816,62 @@ async function controlBot(endpoint) {
 
         if (!data.ok) {
 
-            const error =
-                document
-                .getElementById("error");
-
-            error.textContent =
+            showError(
                 data.error ||
-                "Bot command failed.";
-
-            error.style.display =
-                "block";
+                "Command failed."
+            );
 
         }
 
-        await updateDashboard();
+        updateStatus();
 
-    } catch (error) {
+    } catch (err) {
 
-        console.error(error);
+        showError(
+            err.message
+        );
 
     }
 
 }
 
 
-updateDashboard();
+function setMessage(message) {
+
+    document
+        .getElementById(
+            "connectionMessage"
+        )
+        .textContent =
+        message;
+
+}
+
+
+function showError(message) {
+
+    const error =
+        document
+        .getElementById("error");
+
+    error.textContent =
+        message;
+
+    error.style.display =
+        "block";
+
+}
+
+
+updateStatus();
 
 setInterval(
-    updateDashboard,
+    updateStatus,
     1000
 );
 
 </script>
 
 </body>
+
 </html>
