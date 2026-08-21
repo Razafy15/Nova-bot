@@ -1,56 +1,23 @@
-import os
 import json
 import threading
-import time
 
 import requests
 import websocket
-from flask import Flask, jsonify, render_template
+
+from flask import Flask, jsonify, render_template, request
 
 
 app = Flask(__name__)
-
-
-# ============================================================
-# CONFIG
-# ============================================================
-
-DERIV_APP_ID = os.getenv("DERIV_APP_ID", "")
-DERIV_TOKEN = os.getenv("DERIV_TOKEN", "")
-DERIV_ACCOUNT_ID = os.getenv("DERIV_ACCOUNT_ID", "")
-
-# DEMO only for Version 1
-ACCOUNT_MODE = "demo"
-
-OTP_URL = (
-    "https://api.derivws.com"
-    f"/trading/v1/options/accounts/{DERIV_ACCOUNT_ID}/otp"
-)
-
-
-# ============================================================
-# BOT STATE
-# ============================================================
 
 state = {
     "connected": False,
     "authorized": False,
     "balance": 0.0,
     "currency": "USD",
-
-    "symbol": "BOOM150",
-    "direction": "PUT",
-    "duration": 3,
-    "stake": 0.35,
-
+    "account_id": "",
+    "account_type": "",
+    "app_id": "",
     "running": False,
-
-    "total_trades": 0,
-    "wins": 0,
-    "losses": 0,
-    "profit": 0.0,
-    "loss_streak": 0,
-
     "last_error": "",
 }
 
@@ -58,11 +25,7 @@ ws = None
 ws_lock = threading.Lock()
 
 
-# ============================================================
-# SEND WEBSOCKET MESSAGE
-# ============================================================
-
-def ws_send(payload):
+def send_ws(payload):
     global ws
 
     with ws_lock:
@@ -77,66 +40,78 @@ def ws_send(payload):
             return False
 
 
-# ============================================================
-# GET AUTHENTICATED WEBSOCKET URL
-# ============================================================
-
-def get_websocket_url():
-    if not DERIV_APP_ID:
-        raise RuntimeError("DERIV_APP_ID is missing")
-
-    if not DERIV_TOKEN:
-        raise RuntimeError("DERIV_TOKEN is missing")
-
-    if not DERIV_ACCOUNT_ID:
-        raise RuntimeError("DERIV_ACCOUNT_ID is missing")
+def get_accounts(app_id, token):
+    url = "https://api.derivws.com/trading/v1/options/accounts"
 
     headers = {
-        "Deriv-App-ID": DERIV_APP_ID,
-        "Authorization": f"Bearer {DERIV_TOKEN}",
+        "Deriv-App-ID": app_id,
+        "Authorization": f"Bearer {token}",
         "Content-Type": "application/json",
     }
 
-    response = requests.post(
-        OTP_URL,
+    response = requests.get(
+        url,
         headers=headers,
         timeout=20,
     )
 
-    if response.status_code != 200:
+    if not response.ok:
         raise RuntimeError(
-            f"OTP request failed: HTTP {response.status_code} "
-            f"{response.text}"
+            f"Accounts request failed: HTTP "
+            f"{response.status_code}: {response.text}"
         )
 
-    data = response.json()
+    result = response.json()
 
-    ws_url = data.get("data", {}).get("url")
+    return result.get("data", [])
+
+
+def get_otp_url(app_id, token, account_id):
+    url = (
+        "https://api.derivws.com"
+        f"/trading/v1/options/accounts/{account_id}/otp"
+    )
+
+    headers = {
+        "Deriv-App-ID": app_id,
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+    }
+
+    response = requests.post(
+        url,
+        headers=headers,
+        timeout=20,
+    )
+
+    if not response.ok:
+        raise RuntimeError(
+            f"OTP request failed: HTTP "
+            f"{response.status_code}: {response.text}"
+        )
+
+    result = response.json()
+
+    ws_url = result.get("data", {}).get("url")
 
     if not ws_url:
         raise RuntimeError(
-            f"OTP response did not contain WebSocket URL: {data}"
+            f"No WebSocket URL in OTP response: {result}"
         )
 
     return ws_url
 
 
-# ============================================================
-# WEBSOCKET CALLBACKS
-# ============================================================
-
 def on_open(socket):
     state["connected"] = True
     state["last_error"] = ""
 
-    print("================================")
     print("DERIV WEBSOCKET CONNECTED")
-    print("================================")
 
-    # Get balance
-    ws_send({
+    send_ws({
         "balance": 1,
         "subscribe": 1,
+        "req_id": 1,
     })
 
 
@@ -148,11 +123,8 @@ def on_message(socket, message):
 
     msg_type = data.get("msg_type")
 
-    # --------------------------------------------
-    # BALANCE
-    # --------------------------------------------
-
     if msg_type == "balance":
+
         balance_data = data.get("balance", {})
 
         try:
@@ -164,32 +136,30 @@ def on_message(socket, message):
 
         state["currency"] = (
             balance_data.get("currency")
-            or state["currency"]
+            or "USD"
         )
 
         state["authorized"] = True
 
         print(
-            f"BALANCE: "
-            f"{state['balance']:.2f} "
-            f"{state['currency']}"
+            "BALANCE:",
+            state["balance"],
+            state["currency"],
         )
-
-    # --------------------------------------------
-    # ERROR
-    # --------------------------------------------
 
     elif msg_type == "error":
+
         error = data.get("error", {})
 
-        message_text = error.get(
-            "message",
-            "Unknown Deriv API error",
+        state["last_error"] = (
+            error.get("message")
+            or "Deriv API error"
         )
 
-        state["last_error"] = message_text
-
-        print("DERIV ERROR:", message_text)
+        print(
+            "DERIV ERROR:",
+            state["last_error"],
+        )
 
 
 def on_error(socket, error):
@@ -200,177 +170,225 @@ def on_error(socket, error):
     print("WEBSOCKET ERROR:", error)
 
 
-def on_close(socket, close_status_code, close_msg):
+def on_close(socket, code, message):
     state["connected"] = False
     state["authorized"] = False
 
     print(
         "WEBSOCKET CLOSED:",
-        close_status_code,
-        close_msg,
+        code,
+        message,
     )
 
 
-# ============================================================
-# CONNECT
-# ============================================================
-
-def connect_deriv():
+def connect_websocket(ws_url):
     global ws
 
-    try:
-        print("Getting authenticated WebSocket URL...")
-
-        ws_url = get_websocket_url()
-
-        print("WebSocket URL received.")
-
-        ws = websocket.WebSocketApp(
-            ws_url,
-            on_open=on_open,
-            on_message=on_message,
-            on_error=on_error,
-            on_close=on_close,
-        )
-
-        ws.run_forever(
-            ping_interval=20,
-            ping_timeout=10,
-        )
-
-    except Exception as exc:
-        state["connected"] = False
-        state["authorized"] = False
-        state["last_error"] = str(exc)
-
-        print("CONNECT ERROR:", exc)
-
-
-# ============================================================
-# START CONNECTION THREAD
-# ============================================================
-
-def start_connection():
-    thread = threading.Thread(
-        target=connect_deriv,
-        daemon=True,
+    ws = websocket.WebSocketApp(
+        ws_url,
+        on_open=on_open,
+        on_message=on_message,
+        on_error=on_error,
+        on_close=on_close,
     )
 
-    thread.start()
+    ws.run_forever(
+        ping_interval=20,
+        ping_timeout=10,
+    )
 
-
-# ============================================================
-# FLASK ROUTES
-# ============================================================
 
 @app.route("/")
 def index():
     return render_template("index.html")
 
 
-@app.route("/api/status")
-def api_status():
-    total = state["total_trades"]
-    wins = state["wins"]
+@app.post("/api/connect")
+def api_connect():
 
-    if total > 0:
-        win_rate = (wins / total) * 100
-    else:
-        win_rate = 0.0
+    global ws
+
+    data = request.get_json(silent=True) or {}
+
+    app_id = str(
+        data.get("app_id", "")
+    ).strip()
+
+    token = str(
+        data.get("token", "")
+    ).strip()
+
+    account_id = str(
+        data.get("account_id", "")
+    ).strip()
+
+    if not app_id:
+        return jsonify({
+            "ok": False,
+            "error": "App ID is required.",
+        }), 400
+
+    if not token:
+        return jsonify({
+            "ok": False,
+            "error": "PAT/API token is required.",
+        }), 400
+
+    if not account_id:
+        return jsonify({
+            "ok": False,
+            "error": "Account ID is required.",
+        }), 400
+
+    try:
+
+        accounts = get_accounts(
+            app_id,
+            token,
+        )
+
+        selected_account = None
+
+        for account in accounts:
+
+            if (
+                account.get("account_id")
+                == account_id
+            ):
+                selected_account = account
+                break
+
+        if selected_account is None:
+            return jsonify({
+                "ok": False,
+                "error": (
+                    "Account ID was not found "
+                    "for this PAT."
+                ),
+            }), 400
+
+        ws_url = get_otp_url(
+            app_id,
+            token,
+            account_id,
+        )
+
+        state["app_id"] = app_id
+        state["account_id"] = account_id
+
+        state["account_type"] = (
+            selected_account.get(
+                "account_type",
+                "",
+            )
+        )
+
+        state["last_error"] = ""
+
+        thread = threading.Thread(
+            target=connect_websocket,
+            args=(ws_url,),
+            daemon=True,
+        )
+
+        thread.start()
+
+        return jsonify({
+            "ok": True,
+            "message": (
+                "WebSocket connection "
+                "started."
+            ),
+            "account": {
+                "account_id": account_id,
+                "account_type":
+                    state["account_type"],
+            },
+        })
+
+    except Exception as exc:
+
+        state["connected"] = False
+        state["authorized"] = False
+        state["last_error"] = str(exc)
+
+        return jsonify({
+            "ok": False,
+            "error": str(exc),
+        }), 400
+
+
+@app.get("/api/status")
+def api_status():
 
     return jsonify({
-        "connected": state["connected"],
-        "authorized": state["authorized"],
+        "connected":
+            state["connected"],
 
-        "balance": state["balance"],
-        "currency": state["currency"],
+        "authorized":
+            state["authorized"],
 
-        "symbol": state["symbol"],
-        "direction": state["direction"],
-        "duration": state["duration"],
-        "stake": state["stake"],
+        "balance":
+            state["balance"],
 
-        "running": state["running"],
+        "currency":
+            state["currency"],
 
-        "total_trades": state["total_trades"],
-        "wins": state["wins"],
-        "losses": state["losses"],
-        "win_rate": round(win_rate, 2),
+        "account_id":
+            state["account_id"],
 
-        "profit": round(state["profit"], 2),
-        "loss_streak": state["loss_streak"],
+        "account_type":
+            state["account_type"],
 
-        "last_error": state["last_error"],
+        "running":
+            state["running"],
+
+        "last_error":
+            state["last_error"],
     })
 
 
-@app.route("/api/start", methods=["POST"])
-def start_bot():
+@app.post("/api/start")
+def api_start():
+
     if not state["authorized"]:
         return jsonify({
             "ok": False,
-            "error": "Deriv account is not connected.",
+            "error":
+                "Connect Deriv first.",
         }), 400
 
     state["running"] = True
 
     return jsonify({
         "ok": True,
-        "running": True,
     })
 
 
-@app.route("/api/stop", methods=["POST"])
-def stop_bot():
+@app.post("/api/pause")
+def api_pause():
+
     state["running"] = False
 
     return jsonify({
         "ok": True,
-        "running": False,
     })
 
 
-@app.route("/api/pause", methods=["POST"])
-def pause_bot():
+@app.post("/api/stop")
+def api_stop():
+
     state["running"] = False
 
     return jsonify({
         "ok": True,
-        "running": False,
     })
 
-
-# ============================================================
-# MAIN
-# ============================================================
 
 if __name__ == "__main__":
 
-    print("================================")
-    print("BOOM FALL BOT - VERSION 1")
-    print("DEMO MODE")
-    print("================================")
-
-    if not DERIV_APP_ID:
-        print("WARNING: DERIV_APP_ID is not configured.")
-
-    if not DERIV_TOKEN:
-        print("WARNING: DERIV_TOKEN is not configured.")
-
-    if not DERIV_ACCOUNT_ID:
-        print("WARNING: DERIV_ACCOUNT_ID is not configured.")
-
-    if (
-        DERIV_APP_ID
-        and DERIV_TOKEN
-        and DERIV_ACCOUNT_ID
-    ):
-        start_connection()
-
     app.run(
         host="0.0.0.0",
-        port=int(
-            os.getenv("PORT", "5000")
-        ),
+        port=5000,
         debug=False,
     )
