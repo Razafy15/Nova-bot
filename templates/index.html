@@ -1,572 +1,703 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <meta charset="UTF-8">
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
 
-<meta charset="UTF-8">
+    <title>BOOM FALL BOT</title>
 
-<meta
-    name="viewport"
-    content="width=device-width, initial-scale=1.0"
->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-<title>Nova Bot</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
 
-<script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #070914;
+            color: #ffffff;
+        }
 
-<style>
+        .header {
+            padding: 18px;
+            background: #0d1020;
+            border-bottom: 1px solid #242842;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
 
-* {
-    box-sizing: border-box;
-}
+        .brand {
+            font-size: 21px;
+            font-weight: 800;
+        }
 
-body {
-    margin: 0;
-    font-family:
-        Inter,
-        Arial,
-        sans-serif;
+        .status {
+            padding: 7px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            background: #25283b;
+        }
 
-    background:
-        #070b14;
+        .connected {
+            background: #123d2b;
+            color: #43ff9a;
+        }
 
-    color: #f5f7fb;
-}
+        .disconnected {
+            background: #421a25;
+            color: #ff6d7d;
+        }
 
-.app {
-    max-width: 1500px;
-    margin: auto;
-    padding: 18px;
-}
+        .container {
+            max-width: 1400px;
+            margin: auto;
+            padding: 18px;
+        }
 
-/* HEADER */
+        .cards {
+            display: grid;
+            grid-template-columns:
+                repeat(auto-fit, minmax(160px, 1fr));
+            gap: 14px;
+        }
 
-.header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 15px;
-    margin-bottom: 18px;
-}
+        .card {
+            background: #101426;
+            border: 1px solid #242842;
+            border-radius: 14px;
+            padding: 17px;
+        }
 
-.logo {
-    font-size: 25px;
-    font-weight: 800;
-}
+        .label {
+            color: #8e96b5;
+            font-size: 12px;
+            margin-bottom: 8px;
+        }
 
-.logo span {
-    color: #36d399;
-}
+        .value {
+            font-size: 23px;
+            font-weight: 800;
+        }
 
-.status {
-    padding: 9px 14px;
-    border-radius: 30px;
-    background: #151c2c;
-    font-size: 13px;
-}
+        .profit {
+            color: #45f39b;
+        }
 
-.dot {
-    display: inline-block;
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    margin-right: 7px;
-    background: #777;
-}
+        .loss {
+            color: #ff6375;
+        }
 
-.connected .dot {
-    background: #36d399;
-}
+        .grid {
+            display: grid;
+            grid-template-columns:
+                minmax(0, 2fr)
+                minmax(280px, 1fr);
+            gap: 16px;
+            margin-top: 16px;
+        }
 
-.error .dot {
-    background: #ef4444;
-}
+        .panel {
+            background: #101426;
+            border: 1px solid #242842;
+            border-radius: 15px;
+            padding: 18px;
+        }
 
-/* GRID */
+        .panel-title {
+            font-size: 15px;
+            font-weight: 700;
+            margin-bottom: 15px;
+        }
 
-.grid {
-    display: grid;
-    grid-template-columns:
-        300px
-        minmax(0, 1fr);
+        .chart-box {
+            height: 320px;
+        }
 
-    gap: 18px;
-}
+        .settings {
+            display: grid;
+            gap: 12px;
+        }
 
-/* PANEL */
+        .setting {
+            background: #080b17;
+            padding: 12px;
+            border-radius: 10px;
+            display: flex;
+            justify-content: space-between;
+        }
 
-.panel {
-    background: #0d1320;
-    border: 1px solid #1c2638;
-    border-radius: 16px;
-    padding: 18px;
-}
+        .setting span:first-child {
+            color: #8e96b5;
+        }
 
-.panel h3 {
-    margin-top: 0;
-}
+        .put {
+            color: #ff6175;
+            font-weight: 800;
+        }
 
-/* INPUT */
+        .buttons {
+            display: grid;
+            grid-template-columns:
+                repeat(3, 1fr);
+            gap: 10px;
+            margin-top: 16px;
+        }
 
-label {
-    display: block;
-    font-size: 12px;
-    color: #8d99ae;
-    margin-top: 13px;
-    margin-bottom: 6px;
-}
+        button {
+            border: 0;
+            border-radius: 10px;
+            padding: 13px;
+            color: white;
+            font-weight: 800;
+            cursor: pointer;
+        }
 
-input,
-select {
-    width: 100%;
-    padding: 12px;
-    border-radius: 10px;
-    border: 1px solid #273247;
-    background: #080d17;
-    color: white;
-    outline: none;
-}
+        .start {
+            background: #16a765;
+        }
 
-input:focus,
-select:focus {
-    border-color: #36d399;
-}
+        .pause {
+            background: #c48a18;
+        }
 
-button {
-    width: 100%;
-    margin-top: 16px;
-    padding: 13px;
-    border: 0;
-    border-radius: 10px;
-    background: #36d399;
-    color: #04120d;
-    font-weight: 800;
-    cursor: pointer;
-}
+        .stop {
+            background: #c52f45;
+        }
 
-button:hover {
-    opacity: .9;
-}
+        .table-wrap {
+            overflow-x: auto;
+        }
 
-/* STATS */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
 
-.stats {
-    display: grid;
-    grid-template-columns:
-        repeat(3, 1fr);
+        th,
+        td {
+            padding: 12px 8px;
+            border-bottom: 1px solid #242842;
+            text-align: left;
+        }
 
-    gap: 12px;
+        th {
+            color: #8e96b5;
+        }
 
-    margin-bottom: 15px;
-}
+        .empty {
+            text-align: center;
+            color: #707895;
+            padding: 30px;
+        }
 
-.card {
-    background: #0d1320;
-    border: 1px solid #1c2638;
-    border-radius: 14px;
-    padding: 15px;
-}
+        .error {
+            margin-top: 15px;
+            padding: 12px;
+            background: #351720;
+            color: #ff8795;
+            border-radius: 10px;
+            display: none;
+        }
 
-.card small {
-    color: #7f8aa0;
-}
+        @media (max-width: 800px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
 
-.card strong {
-    display: block;
-    margin-top: 6px;
-    font-size: 20px;
-}
+            .buttons {
+                grid-template-columns: 1fr;
+            }
 
-/* CHART */
-
-.chart-panel {
-    background: #0d1320;
-    border: 1px solid #1c2638;
-    border-radius: 16px;
-    overflow: hidden;
-}
-
-.chart-header {
-    padding: 15px 18px;
-    border-bottom: 1px solid #1c2638;
-
-    display: flex;
-    justify-content: space-between;
-}
-
-#chart {
-    width: 100%;
-    height: 520px;
-}
-
-/* MESSAGE */
-
-.message {
-    margin-top: 15px;
-    padding: 12px;
-    border-radius: 10px;
-    background: #111a2a;
-    color: #aab5c7;
-    font-size: 13px;
-}
-
-.error-box {
-    margin-top: 10px;
-    padding: 12px;
-    border-radius: 10px;
-    background: #32141a;
-    color: #ff9b9b;
-    font-size: 13px;
-}
-
-/* MOBILE */
-
-@media(max-width: 850px) {
-
-    .grid {
-        grid-template-columns: 1fr;
-    }
-
-    .stats {
-        grid-template-columns:
-            repeat(2, 1fr);
-    }
-
-    #chart {
-        height: 420px;
-    }
-}
-
-@media(max-width: 500px) {
-
-    .app {
-        padding: 10px;
-    }
-
-    .header {
-        align-items: flex-start;
-    }
-
-    .stats {
-        grid-template-columns: 1fr 1fr;
-    }
-
-    .card strong {
-        font-size: 17px;
-    }
-
-    #chart {
-        height: 360px;
-    }
-}
-
-</style>
-
+            .header {
+                align-items: flex-start;
+                gap: 10px;
+                flex-direction: column;
+            }
+        }
+    </style>
 </head>
 
 <body>
 
-<div class="app">
-
-    <div class="header">
-
-        <div class="logo">
-            NOVA<span>BOT</span>
-        </div>
-
-        <div
-            id="status"
-            class="status"
-        >
-            <span class="dot"></span>
-            Disconnected
-        </div>
-
+<header class="header">
+    <div class="brand">
+        🤖 BOOM FALL BOT
     </div>
 
+    <div id="connection"
+         class="status disconnected">
+        ● DISCONNECTED
+    </div>
+</header>
 
-    <div class="grid">
+
+<main class="container">
+
+    <!-- STATISTICS -->
+
+    <section class="cards">
+
+        <div class="card">
+            <div class="label">BALANCE</div>
+            <div id="balance"
+                 class="value">
+                $0.00
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="label">PROFIT / LOSS</div>
+            <div id="profit"
+                 class="value profit">
+                $0.00
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="label">TOTAL TRADES</div>
+            <div id="trades"
+                 class="value">
+                0
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="label">WINS</div>
+            <div id="wins"
+                 class="value profit">
+                0
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="label">LOSSES</div>
+            <div id="losses"
+                 class="value loss">
+                0
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="label">WIN RATE</div>
+            <div id="winRate"
+                 class="value">
+                0.00%
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="label">CURRENT STAKE</div>
+            <div id="stake"
+                 class="value">
+                $0.35
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="label">LOSS STREAK</div>
+            <div id="lossStreak"
+                 class="value loss">
+                0
+            </div>
+        </div>
+
+    </section>
+
+
+    <!-- MAIN -->
+
+    <section class="grid">
+
+        <!-- PERFORMANCE GRAPH -->
+
+        <div class="panel">
+
+            <div class="panel-title">
+                📈 PERFORMANCE
+            </div>
+
+            <div class="chart-box">
+                <canvas id="performanceChart"></canvas>
+            </div>
+
+        </div>
+
 
         <!-- SETTINGS -->
 
         <div class="panel">
 
-            <h3>Deriv Connection</h3>
-
-            <label>
-                App ID
-            </label>
-
-            <input
-                id="appId"
-                type="text"
-                autocomplete="off"
-                placeholder="New App ID"
-            >
-
-
-            <label>
-                PAT Token
-            </label>
-
-            <input
-                id="patToken"
-                type="password"
-                autocomplete="off"
-                placeholder="PAT Token"
-            >
-
-
-            <label>
-                Account ID
-            </label>
-
-            <input
-                id="accountId"
-                type="text"
-                autocomplete="off"
-                placeholder="DOT..."
-            >
-
-
-            <label>
-                Market
-            </label>
-
-            <select id="symbol">
-
-                <option>BOOM500</option>
-                <option>BOOM300</option>
-                <option>BOOM600</option>
-                <option>BOOM900</option>
-                <option>BOOM1000</option>
-
-                <option>CRASH300</option>
-                <option>CRASH500</option>
-                <option>CRASH600</option>
-                <option>CRASH900</option>
-                <option>CRASH1000</option>
-
-                <option>1HZ10V</option>
-                <option>1HZ25V</option>
-                <option>1HZ50V</option>
-                <option>1HZ75V</option>
-                <option>1HZ100V</option>
-
-            </select>
-
-
-            <button
-                onclick="connectDeriv()"
-            >
-                CONNECT DERIV
-            </button>
-
-
-            <div
-                id="message"
-                class="message"
-            >
-                Miandry connexion...
+            <div class="panel-title">
+                ⚙️ BOT SETTINGS
             </div>
 
+            <div class="settings">
 
-            <div
-                id="error"
-                class="error-box"
-                style="display:none"
-            ></div>
+                <div class="setting">
+                    <span>Market</span>
+                    <strong>BOOM</strong>
+                </div>
 
-        </div>
-
-
-        <!-- MAIN -->
-
-        <div>
-
-            <div class="stats">
-
-                <div class="card">
-                    <small>Balance</small>
-                    <strong id="balance">
-                        0.00
+                <div class="setting">
+                    <span>Direction</span>
+                    <strong class="put">
+                        PUT / FALL
                     </strong>
                 </div>
 
-                <div class="card">
-                    <small>Market</small>
-                    <strong id="market">
-                        BOOM500
+                <div class="setting">
+                    <span>Duration</span>
+                    <strong>3 sec</strong>
+                </div>
+
+                <div class="setting">
+                    <span>Base Stake</span>
+                    <strong id="settingsStake">
+                        $0.35
                     </strong>
                 </div>
 
-                <div class="card">
-                    <small>Price</small>
-                    <strong id="price">
-                        0
+                <div class="setting">
+                    <span>Martingale</span>
+                    <strong>OFF</strong>
+                </div>
+
+                <div class="setting">
+                    <span>Status</span>
+                    <strong id="botStatus">
+                        STOPPED
                     </strong>
                 </div>
 
             </div>
 
 
-            <div class="chart-panel">
+            <div class="buttons">
 
-                <div class="chart-header">
+                <button
+                    class="start"
+                    onclick="controlBot('/api/start')">
+                    START
+                </button>
 
-                    <strong id="chartTitle">
-                        BOOM500
-                    </strong>
+                <button
+                    class="pause"
+                    onclick="controlBot('/api/pause')">
+                    PAUSE
+                </button>
 
-                    <span>
-                        LIVE
-                    </span>
+                <button
+                    class="stop"
+                    onclick="controlBot('/api/stop')">
+                    STOP
+                </button>
 
-                </div>
+            </div>
 
-                <div id="chart"></div>
-
+            <div id="error"
+                 class="error">
             </div>
 
         </div>
 
-    </div>
+    </section>
 
-</div>
+
+    <!-- TRADE HISTORY -->
+
+    <section class="panel"
+             style="margin-top:16px">
+
+        <div class="panel-title">
+            📋 TRADE HISTORY
+        </div>
+
+        <div class="table-wrap">
+
+            <table>
+
+                <thead>
+                    <tr>
+                        <th>TIME</th>
+                        <th>MARKET</th>
+                        <th>TYPE</th>
+                        <th>STAKE</th>
+                        <th>RESULT</th>
+                        <th>PROFIT</th>
+                    </tr>
+                </thead>
+
+                <tbody id="history">
+
+                    <tr>
+                        <td colspan="6"
+                            class="empty">
+                            No trades yet
+                        </td>
+                    </tr>
+
+                </tbody>
+
+            </table>
+
+        </div>
+
+    </section>
+
+</main>
 
 
 <script>
 
-let chart;
-let candleSeries;
+let performanceLabels = [];
+let performanceData = [];
 
-const chartElement =
-    document.getElementById("chart");
+const ctx =
+    document
+    .getElementById("performanceChart")
+    .getContext("2d");
 
 
-/* =====================================================
-   CHART
-===================================================== */
+const performanceChart =
+    new Chart(ctx, {
 
-function createChart() {
+        type: "line",
 
-    chart =
-        LightweightCharts.createChart(
-            chartElement,
-            {
-                layout: {
-                    background: {
-                        color: "#0d1320"
-                    },
+        data: {
 
-                    textColor: "#9aa5b8"
-                },
+            labels: performanceLabels,
 
-                grid: {
-                    vertLines: {
-                        color: "#182235"
-                    },
+            datasets: [{
 
-                    horzLines: {
-                        color: "#182235"
+                label: "Profit / Loss",
+
+                data: performanceData,
+
+                tension: 0.35,
+
+                fill: false
+
+            }]
+
+        },
+
+        options: {
+
+            responsive: true,
+
+            maintainAspectRatio: false,
+
+            plugins: {
+
+                legend: {
+                    display: false
+                }
+
+            },
+
+            scales: {
+
+                x: {
+                    ticks: {
+                        color: "#8e96b5"
                     }
                 },
 
-                rightPriceScale: {
-                    borderColor: "#263249"
-                },
-
-                timeScale: {
-                    borderColor: "#263249",
-                    timeVisible: true
+                y: {
+                    ticks: {
+                        color: "#8e96b5"
+                    }
                 }
+
             }
-        );
-
-
-    candleSeries =
-        chart.addCandlestickSeries();
-
-
-    window.addEventListener(
-        "resize",
-        () => {
-
-            chart.applyOptions({
-                width:
-                    chartElement.clientWidth
-            });
 
         }
-    );
+
+    });
+
+
+async function updateDashboard() {
+
+    try {
+
+        const response =
+            await fetch("/api/status");
+
+        const data =
+            await response.json();
+
+
+        document
+            .getElementById("balance")
+            .textContent =
+            "$" +
+            Number(data.balance)
+            .toFixed(2);
+
+
+        document
+            .getElementById("profit")
+            .textContent =
+            "$" +
+            Number(data.profit)
+            .toFixed(2);
+
+
+        document
+            .getElementById("trades")
+            .textContent =
+            data.total_trades;
+
+
+        document
+            .getElementById("wins")
+            .textContent =
+            data.wins;
+
+
+        document
+            .getElementById("losses")
+            .textContent =
+            data.losses;
+
+
+        document
+            .getElementById("winRate")
+            .textContent =
+            Number(data.win_rate)
+            .toFixed(2) +
+            "%";
+
+
+        document
+            .getElementById("stake")
+            .textContent =
+            "$" +
+            Number(data.stake)
+            .toFixed(2);
+
+
+        document
+            .getElementById("settingsStake")
+            .textContent =
+            "$" +
+            Number(data.stake)
+            .toFixed(2);
+
+
+        document
+            .getElementById("lossStreak")
+            .textContent =
+            data.loss_streak;
+
+
+        const connection =
+            document
+            .getElementById("connection");
+
+
+        if (data.connected &&
+            data.authorized) {
+
+            connection
+                .textContent =
+                "● CONNECTED";
+
+            connection
+                .className =
+                "status connected";
+
+        } else {
+
+            connection
+                .textContent =
+                "● DISCONNECTED";
+
+            connection
+                .className =
+                "status disconnected";
+
+        }
+
+
+        document
+            .getElementById("botStatus")
+            .textContent =
+            data.running
+            ? "RUNNING"
+            : "STOPPED";
+
+
+        if (data.last_error) {
+
+            const error =
+                document
+                .getElementById("error");
+
+            error.textContent =
+                data.last_error;
+
+            error.style.display =
+                "block";
+
+        }
+
+
+        updatePerformance(
+            Number(data.profit)
+        );
+
+    } catch (error) {
+
+        console.error(error);
+
+    }
+
 }
 
 
-createChart();
+function updatePerformance(value) {
+
+    const now =
+        new Date()
+        .toLocaleTimeString();
 
 
-/* =====================================================
-   CONNECT
-===================================================== */
+    performanceLabels.push(now);
 
-async function connectDeriv() {
-
-    const appId =
-        document.getElementById(
-            "appId"
-        ).value.trim();
-
-    const patToken =
-        document.getElementById(
-            "patToken"
-        ).value.trim();
-
-    const accountId =
-        document.getElementById(
-            "accountId"
-        ).value.trim();
-
-    const symbol =
-        document.getElementById(
-            "symbol"
-        ).value;
+    performanceData.push(value);
 
 
-    if (!appId ||
-        !patToken ||
-        !accountId) {
+    if (performanceLabels.length > 30) {
 
-        showError(
-            "Fenoy App ID, PAT Token ary Account ID."
-        );
+        performanceLabels.shift();
 
-        return;
+        performanceData.shift();
+
     }
 
 
-    setMessage(
-        "Connexion amin'i Deriv..."
-    );
+    performanceChart.update();
 
+}
+
+
+async function controlBot(endpoint) {
 
     try {
 
         const response =
             await fetch(
-                "/api/connect",
+                endpoint,
                 {
-                    method: "POST",
-
-                    headers: {
-                        "Content-Type":
-                            "application/json"
-                    },
-
-                    body: JSON.stringify({
-                        app_id: appId,
-                        pat_token: patToken,
-                        account_id: accountId,
-                        symbol: symbol
-                    })
+                    method: "POST"
                 }
             );
 
@@ -575,255 +706,38 @@ async function connectDeriv() {
             await response.json();
 
 
-        if (!response.ok) {
+        if (!data.ok) {
 
-            showError(
-                data.message ||
-                "Connection error"
-            );
+            const error =
+                document
+                .getElementById("error");
 
-            return;
+            error.textContent =
+                data.error ||
+                "Bot command failed.";
+
+            error.style.display =
+                "block";
+
         }
 
+        await updateDashboard();
 
-        setMessage(
-            data.message ||
-            "Connexion natomboka..."
-        );
+    } catch (error) {
 
-    } catch(error) {
+        console.error(error);
 
-        showError(
-            error.message
-        );
     }
+
 }
 
 
-/* =====================================================
-   MESSAGE
-===================================================== */
-
-function setMessage(text) {
-
-    document.getElementById(
-        "message"
-    ).textContent = text;
-}
-
-
-function showError(text) {
-
-    const box =
-        document.getElementById(
-            "error"
-        );
-
-    box.textContent = text;
-    box.style.display = "block";
-}
-
-
-function clearError() {
-
-    const box =
-        document.getElementById(
-            "error"
-        );
-
-    box.textContent = "";
-    box.style.display = "none";
-}
-
-
-/* =====================================================
-   UPDATE UI
-===================================================== */
-
-async function updateUI() {
-
-    try {
-
-        const response =
-            await fetch(
-                "/api/stats",
-                {
-                    cache: "no-store"
-                }
-            );
-
-
-        const data =
-            await response.json();
-
-
-        /* STATUS */
-
-        const status =
-            document.getElementById(
-                "status"
-            );
-
-
-        status.className =
-            "status";
-
-
-        if (data.connected) {
-
-            status.classList.add(
-                "connected"
-            );
-
-            status.innerHTML =
-                '<span class="dot"></span>Connected';
-
-        } else if (
-            data.connecting
-        ) {
-
-            status.innerHTML =
-                '<span class="dot"></span>Connecting...';
-
-        } else {
-
-            status.innerHTML =
-                '<span class="dot"></span>Disconnected';
-        }
-
-
-        /* STATS */
-
-        document.getElementById(
-            "balance"
-        ).textContent =
-            Number(
-                data.balance || 0
-            ).toFixed(2)
-            + " "
-            + (data.currency || "USD");
-
-
-        document.getElementById(
-            "price"
-        ).textContent =
-            Number(
-                data.price || 0
-            ).toFixed(5);
-
-
-        document.getElementById(
-            "market"
-        ).textContent =
-            data.symbol || "-";
-
-
-        document.getElementById(
-            "chartTitle"
-        ).textContent =
-            data.symbol || "-";
-
-
-        /* MESSAGE */
-
-        setMessage(
-            data.message || ""
-        );
-
-
-        /* ERROR */
-
-        if (data.error) {
-
-            showError(
-                data.error
-            );
-
-        } else {
-
-            clearError();
-        }
-
-
-        /* CHART */
-
-        if (
-            Array.isArray(data.chart) &&
-            data.chart.length > 0
-        ) {
-
-            candleSeries.setData(
-                data.chart
-            );
-
-            chart.timeScale()
-                .fitContent();
-        }
-
-    } catch(error) {
-
-        console.log(
-            "UI update error:",
-            error
-        );
-    }
-}
-
-
-/* =====================================================
-   POLLING
-===================================================== */
+updateDashboard();
 
 setInterval(
-    updateUI,
+    updateDashboard,
     1000
 );
-
-updateUI();
-
-
-/* =====================================================
-   SYMBOL CHANGE
-===================================================== */
-
-document
-    .getElementById("symbol")
-    .addEventListener(
-        "change",
-        async function() {
-
-            const symbol =
-                this.value;
-
-            document.getElementById(
-                "chartTitle"
-            ).textContent =
-                symbol;
-
-            try {
-
-                await fetch(
-                    "/api/symbol",
-                    {
-                        method: "POST",
-
-                        headers: {
-                            "Content-Type":
-                                "application/json"
-                        },
-
-                        body: JSON.stringify({
-                            symbol: symbol
-                        })
-                    }
-                );
-
-            } catch(error) {
-
-                console.log(error);
-            }
-        }
-    );
 
 </script>
 
