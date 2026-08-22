@@ -424,7 +424,7 @@
                 <div class="info-row"><span>Market</span><strong id="marketName">—</strong></div>
                 <div class="info-row"><span>Live Price</span><strong id="livePrice">—</strong></div>
                 <div class="info-row"><span>Direction</span><strong class="direction">PUT / FALL</strong></div>
-                <div class="info-row"><span>Duration</span><strong>3 seconds</strong></div>
+                <div class="info-row"><span>Duration</span><strong id="durationDisplay">3 seconds</strong></div>
                 <div class="info-row"><span>Bot Status</span><strong id="botStatus">STOPPED</strong></div>
             </div>
         </div>
@@ -435,8 +435,19 @@
         <div class="panel-title">⚙️ BOT SETTINGS</div>
         <div class="settings-grid">
             <div class="setting"><label>Direction</label><div class="setting-value direction">PUT / FALL</div></div>
-            <div class="setting"><label>Duration (seconds)</label><div class="setting-value">3</div></div>
+            
+            <!-- INPUT HO AN'NY DURATION -->
+            <div class="setting">
+                <label>Duration (seconds)</label>
+                <div class="setting-value">
+                    <input id="durationInput" type="number" value="3" min="1" max="60"
+                           style="width:80px;background:#070a19;border:1px solid var(--border);border-radius:6px;color:white;padding:4px 8px;font-size:14px;"
+                           onchange="updateDuration()">
+                </div>
+            </div>
+            
             <div class="setting"><label>Base Stake</label><div id="baseStake" class="setting-value">$0.35</div></div>
+            
             <div class="setting">
                 <label>Trade Interval (seconds)</label>
                 <div class="setting-value">
@@ -445,6 +456,7 @@
                            onchange="updateInterval()">
                 </div>
             </div>
+            
             <div class="setting"><label>Martingale</label><div class="setting-value">OFF</div></div>
             <div class="setting"><label>Account</label><div id="accountType" class="setting-value">—</div></div>
             <div class="setting"><label>Selected Symbol</label><div id="settingSymbol" class="setting-value">—</div></div>
@@ -578,8 +590,14 @@
         const symbol = select.value;
         if (!symbol) return;
 
+        // Fanamarinana: Raha tsy manomboka amin'ny "R_" ny symbol dia miala
+        if (!symbol.startsWith("R_")) {
+            setMessage("Please select a valid BOOM symbol from the list (R_...)", "error");
+            return;
+        }
+
         // Mahazo ny display_name avy amin'ny option
-        const displayName = select.options[select.selectedIndex].text;
+        const displayName = select.options[select.selectedIndex].text.split(" (")[0];
 
         try {
             const response = await fetch("/api/select-symbol", {
@@ -602,8 +620,13 @@
         }
     }
 
+    // UPDATE INTERVAL
     async function updateInterval() {
         const interval = parseInt($("tradeInterval").value) || 5;
+        if (interval < 1) {
+            setMessage("Interval must be at least 1 second.", "error");
+            return;
+        }
         try {
             const response = await fetch("/api/update-interval", {
                 method: "POST",
@@ -613,6 +636,29 @@
             const data = await response.json();
             if (!response.ok || !data.ok) throw new Error(data.error || "Failed to update interval.");
             setMessage("Trade interval updated to " + interval + "s", "ok");
+        } catch (error) {
+            setMessage(error.message, "error");
+        }
+    }
+
+    // UPDATE DURATION (VAOVAO)
+    async function updateDuration() {
+        const duration = parseInt($("durationInput").value) || 3;
+        if (duration < 1) {
+            setMessage("Duration must be at least 1 second.", "error");
+            return;
+        }
+        try {
+            const response = await fetch("/api/update-duration", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ duration: duration })
+            });
+            const data = await response.json();
+            if (!response.ok || !data.ok) throw new Error(data.error || "Failed to update duration.");
+            setMessage("Duration updated to " + duration + "s", "ok");
+            // Manavao ny fampisehoana eo amin'ny interface
+            $("durationDisplay").textContent = duration + " seconds";
         } catch (error) {
             setMessage(error.message, "error");
         }
@@ -751,6 +797,7 @@
             $("connectionInfo").textContent = data.connected ? "ONLINE" : "OFFLINE";
             $("botStatus").textContent = data.running ? "RUNNING" : "STOPPED";
             $("baseStake").textContent = money(data.stake);
+            $("durationDisplay").textContent = (data.duration || 3) + " seconds";
 
             if (data.symbol_display) {
                 const display = data.symbol_display;
