@@ -11,7 +11,7 @@ from flask import Flask, jsonify, render_template, request
 app = Flask(__name__)
 
 # ============================================================
-# CONFIG
+# DERIV CONFIG
 # ============================================================
 
 REST_BASE = "https://api.derivws.com"
@@ -20,6 +20,8 @@ APP_ID = ""
 PAT_TOKEN = ""
 
 ws = None
+ws_thread = None
+
 ws_lock = threading.Lock()
 
 
@@ -51,6 +53,7 @@ state = {
     "total_trades": 0,
     "wins": 0,
     "losses": 0,
+
     "profit": 0.0,
     "loss_streak": 0,
 
@@ -78,7 +81,7 @@ def add_log(message):
         0,
         {
             "time": timestamp,
-            "message": str(message)
+            "message": str(message),
         }
     )
 
@@ -91,7 +94,190 @@ def add_log(message):
 
 
 # ============================================================
-# WEBSOCKET SEND
+# RESET CONNECTION STATE
+# ============================================================
+
+def reset_connection_state():
+
+    state["connected"] = False
+    state["authorized"] = False
+
+    state["balance"] = 0.0
+    state["currency"] = "USD"
+
+    state["account_type"] = ""
+
+    state["last_price"] = None
+
+    state["current_trade"] = None
+
+
+# ============================================================
+# REST ERROR PARSER
+# ============================================================
+
+def parse_rest_error(response):
+
+    try:
+        data = response.json()
+    except Exception:
+        return (
+            f"HTTP {response.status_code}: "
+            f"{response.text[:500]}"
+        )
+
+    errors = data.get("errors")
+
+    if isinstance(errors, list) and errors:
+
+        first = errors[0]
+
+        code = first.get(
+            "code",
+            "UnknownError"
+        )
+
+        message = first.get(
+            "message",
+            "Unknown Deriv error"
+        )
+
+        return (
+            f"HTTP {response.status_code} "
+            f"{code}: {message}"
+        )
+
+    return (
+        f"HTTP {response.status_code}: "
+        f"{json.dumps(data)[:500]}"
+    )
+
+
+# ============================================================
+# REST GET ACCOUNTS
+# ============================================================
+
+def get_accounts(app_id, token):
+
+    url = (
+        REST_BASE
+        + "/trading/v1/options/accounts"
+    )
+
+    headers = {
+        "Deriv-App-ID": app_id,
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/json",
+    }
+
+    response = requests.get(
+        url,
+        headers=headers,
+        timeout=20,
+    )
+
+    if not response.ok:
+
+        raise RuntimeError(
+            parse_rest_error(response)
+        )
+
+    data = response.json()
+
+    accounts = data.get(
+        "data",
+        []
+    )
+
+    # API may return a list.
+    if isinstance(accounts, dict):
+        accounts = [accounts]
+
+    if not isinstance(accounts, list):
+        accounts = []
+
+    return accounts
+
+
+# ============================================================
+# REST GET OTP WEBSOCKET URL
+# ============================================================
+
+def get_otp_url(
+    app_id,
+    token,
+    account_id,
+):
+
+    url = (
+        REST_BASE
+        + "/trading/v1/options/accounts/"
+        + account_id
+        + "/otp"
+    )
+
+    headers = {
+        "Deriv-App-ID": app_id,
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/json",
+    }
+
+    response = requests.post(
+        url,
+        headers=headers,
+        timeout=20,
+    )
+
+    if not response.ok:
+
+        raise RuntimeError(
+            parse_rest_error(response)
+        )
+
+    data = response.json()
+
+    payload = data.get(
+        "data",
+        {}
+    )
+
+    ws_url = payload.get(
+        "url"
+    )
+
+    if not ws_url:
+
+        raise RuntimeError(
+            "Deriv OTP response did not "
+            "contain a WebSocket URL."
+        )
+
+    return ws_url
+
+
+# ============================================================
+# CLOSE OLD WEBSOCKET
+# ============================================================
+
+def close_old_ws():
+
+    global ws
+
+    with ws_lock:
+
+        old_ws = ws
+        ws = None
+
+    if old_ws is not None:
+
+        try:
+            old_ws.close()
+        except Exception:
+            pass
+
+
+# ============================================================
+# SEND WS
 # ============================================================
 
 def send_ws(payload):
@@ -100,13 +286,19 @@ def send_ws(payload):
 
     with ws_lock:
 
-        if ws is None:
-            add_log("WebSocket not initialized.")
+        current_ws = ws
+
+        if current_ws is None:
+
+            add_log(
+                "WS SEND: WebSocket is not initialized."
+            )
+
             return False
 
         try:
 
-            ws.send(
+            current_ws.send(
                 json.dumps(payload)
             )
 
@@ -124,101 +316,7 @@ def send_ws(payload):
 
 
 # ============================================================
-# REST: GET ACCOUNTS
-# ============================================================
-
-def get_accounts(app_id, token):
-
-    url = (
-        REST_BASE
-        + "/trading/v1/options/accounts"
-    )
-
-    headers = {
-        "Deriv-App-ID": app_id,
-        "Authorization": f"Bearer {token}",
-        "Content-Type": "application/json",
-    }
-
-    response = requests.get(
-        url,
-        headers=headers,
-        timeout=20
-    )
-
-    if not response.ok:
-
-        raise RuntimeError(
-            "Account request failed: "
-            f"HTTP {response.status_code} "
-            f"{response.text}"
-        )
-
-    data = response.json()
-
-    return data.get(
-        "data",
-        []
-    )
-
-
-# ============================================================
-# REST: GET OTP / WS URL
-# ============================================================
-
-def get_otp_url(
-    app_id,
-    token,
-    account_id
-):
-
-    url = (
-        REST_BASE
-        + "/trading/v1/options/accounts/"
-        + account_id
-        + "/otp"
-    )
-
-    headers = {
-        "Deriv-App-ID": app_id,
-        "Authorization": f"Bearer {token}",
-        "Content-Type": "application/json",
-    }
-
-    response = requests.post(
-        url,
-        headers=headers,
-        timeout=20
-    )
-
-    if not response.ok:
-
-        raise RuntimeError(
-            "OTP request failed: "
-            f"HTTP {response.status_code} "
-            f"{response.text}"
-        )
-
-    data = response.json()
-
-    ws_url = (
-        data
-        .get("data", {})
-        .get("url")
-    )
-
-    if not ws_url:
-
-        raise RuntimeError(
-            "OTP response did not contain "
-            "a WebSocket URL."
-        )
-
-    return ws_url
-
-
-# ============================================================
-# WEBSOCKET OPEN
+# WS OPEN
 # ============================================================
 
 def on_open(socket):
@@ -227,55 +325,48 @@ def on_open(socket):
     state["last_error"] = ""
 
     add_log(
-        "Deriv WebSocket connected."
+        "WebSocket connected successfully."
     )
 
-    # Balance subscription
+    # Account balance
     send_ws({
         "balance": 1,
         "subscribe": 1,
-        "req_id": 1
+        "req_id": 1,
     })
 
-    # Get all active symbols
+    # Market symbols
     send_ws({
         "active_symbols": "full",
-        "req_id": 2
+        "req_id": 2,
     })
 
 
 # ============================================================
-# WEBSOCKET MESSAGE
+# WS MESSAGE
 # ============================================================
 
-def on_message(
-    socket,
-    message
-):
+def on_message(socket, message):
 
     try:
 
-        data = json.loads(
-            message
-        )
+        data = json.loads(message)
 
     except Exception as exc:
 
         add_log(
-            f"Invalid JSON: {exc}"
+            f"Invalid WebSocket JSON: {exc}"
         )
 
         return
-
 
     msg_type = data.get(
         "msg_type"
     )
 
-
-    # ========================================================
-    # ERROR
-    # ========================================================
+    # --------------------------------------------------------
+    # API ERROR
+    # --------------------------------------------------------
 
     if msg_type == "error":
 
@@ -284,29 +375,34 @@ def on_message(
             {}
         )
 
-        message_text = (
-            error.get("message")
-            or "Unknown Deriv API error"
+        code = error.get(
+            "code",
+            "Unknown"
+        )
+
+        message_text = error.get(
+            "message",
+            "Unknown Deriv error"
         )
 
         state["last_error"] = (
-            message_text
+            f"{code}: {message_text}"
         )
 
         add_log(
-            f"DERIV ERROR: {message_text}"
+            f"DERIV ERROR: {code}: "
+            f"{message_text}"
         )
 
         return
 
-
-    # ========================================================
+    # --------------------------------------------------------
     # BALANCE
-    # ========================================================
+    # --------------------------------------------------------
 
     if msg_type == "balance":
 
-        balance = data.get(
+        balance_data = data.get(
             "balance",
             {}
         )
@@ -314,7 +410,7 @@ def on_message(
         try:
 
             state["balance"] = float(
-                balance.get(
+                balance_data.get(
                     "balance",
                     0
                 )
@@ -322,20 +418,20 @@ def on_message(
 
         except (
             TypeError,
-            ValueError
+            ValueError,
         ):
 
             state["balance"] = 0.0
 
-
         state["currency"] = (
-            balance.get(
+            balance_data.get(
                 "currency"
             )
             or "USD"
         )
 
         state["authorized"] = True
+        state["last_error"] = ""
 
         add_log(
             "Account authorized. "
@@ -346,10 +442,9 @@ def on_message(
 
         return
 
-
-    # ========================================================
+    # --------------------------------------------------------
     # ACTIVE SYMBOLS
-    # ========================================================
+    # --------------------------------------------------------
 
     if msg_type == "active_symbols":
 
@@ -361,6 +456,9 @@ def on_message(
         boom_symbols = []
 
         for item in symbols:
+
+            if not isinstance(item, dict):
+                continue
 
             symbol = str(
                 item.get(
@@ -390,59 +488,51 @@ def on_message(
                 )
             ).strip()
 
-
             search_text = (
                 symbol
                 + " "
                 + name
             ).upper()
 
-
             if "BOOM" in search_text:
 
                 boom_symbols.append({
                     "symbol": symbol,
                     "display_name": (
-                        name
-                        or symbol
+                        name or symbol
                     ),
-                    "symbol_type":
-                        symbol_type,
-                    "market":
-                        market
+                    "symbol_type": symbol_type,
+                    "market": market,
                 })
 
+        # Remove duplicates
+        unique = {}
 
-        state["boom_symbols"] = (
-            boom_symbols
+        for item in boom_symbols:
+
+            unique[
+                item["symbol"]
+            ] = item
+
+        state["boom_symbols"] = list(
+            unique.values()
         )
 
-
         add_log(
-            "Active symbols received: "
+            f"Active symbols received: "
             f"{len(symbols)}"
         )
 
         add_log(
-            "BOOM symbols found: "
-            f"{len(boom_symbols)}"
+            f"BOOM symbols found: "
+            f"{len(state['boom_symbols'])}"
         )
-
-
-        for item in boom_symbols:
-
-            add_log(
-                "BOOM: "
-                f"{item['symbol']} - "
-                f"{item['display_name']}"
-            )
 
         return
 
-
-    # ========================================================
+    # --------------------------------------------------------
     # TICK
-    # ========================================================
+    # --------------------------------------------------------
 
     if msg_type == "tick":
 
@@ -453,27 +543,22 @@ def on_message(
 
         try:
 
-            price = float(
-                tick.get(
-                    "quote"
-                )
+            state["last_price"] = float(
+                tick.get("quote")
             )
-
-            state["last_price"] = price
 
         except (
             TypeError,
-            ValueError
+            ValueError,
         ):
 
             pass
 
         return
 
-
-    # ========================================================
+    # --------------------------------------------------------
     # CONTRACTS FOR
-    # ========================================================
+    # --------------------------------------------------------
 
     if msg_type == "contracts_for":
 
@@ -487,54 +572,27 @@ def on_message(
             []
         )
 
+        if not isinstance(
+            available,
+            list
+        ):
+            available = []
+
         state["available_contracts"] = (
             available
         )
 
-
         add_log(
-            "Contracts received for "
+            f"Contracts received for "
             f"{state['symbol']}: "
             f"{len(available)}"
         )
 
-
-        for contract in available:
-
-            contract_type = (
-                contract.get(
-                    "contract_type",
-                    ""
-                )
-            )
-
-            category = (
-                contract.get(
-                    "contract_category",
-                    ""
-                )
-            )
-
-            expiry = (
-                contract.get(
-                    "expiry_type",
-                    ""
-                )
-            )
-
-            add_log(
-                f"Contract: "
-                f"{contract_type} | "
-                f"{category} | "
-                f"{expiry}"
-            )
-
         return
 
-
-    # ========================================================
+    # --------------------------------------------------------
     # PROPOSAL
-    # ========================================================
+    # --------------------------------------------------------
 
     if msg_type == "proposal":
 
@@ -556,10 +614,9 @@ def on_message(
 
         return
 
-
-    # ========================================================
+    # --------------------------------------------------------
     # BUY
-    # ========================================================
+    # --------------------------------------------------------
 
     if msg_type == "buy":
 
@@ -575,43 +632,30 @@ def on_message(
         if contract_id:
 
             state["current_trade"] = {
-                "contract_id":
-                    contract_id,
-
-                "symbol":
-                    state["symbol"],
-
-                "direction":
-                    state["direction"],
-
-                "stake":
-                    state["stake"],
-
-                "status":
-                    "OPEN"
+                "contract_id": contract_id,
+                "symbol": state["symbol"],
+                "direction": state["direction"],
+                "stake": state["stake"],
+                "status": "OPEN",
             }
 
-
             add_log(
-                "Contract opened: "
+                f"Contract opened: "
                 f"{contract_id}"
             )
 
-
             send_ws({
                 "proposal_open_contract": 1,
-                "contract_id":
-                    contract_id,
+                "contract_id": contract_id,
                 "subscribe": 1,
-                "req_id": 7
+                "req_id": 7,
             })
 
         return
 
-
-    # ========================================================
+    # --------------------------------------------------------
     # OPEN CONTRACT
-    # ========================================================
+    # --------------------------------------------------------
 
     if msg_type == "proposal_open_contract":
 
@@ -628,7 +672,6 @@ def on_message(
             "is_expired"
         )
 
-
         if is_sold or is_expired:
 
             try:
@@ -642,33 +685,25 @@ def on_message(
 
             except (
                 TypeError,
-                ValueError
+                ValueError,
             ):
 
                 profit = 0.0
 
-
             state["profit"] += profit
-
             state["total_trades"] += 1
-
 
             if profit > 0:
 
                 state["wins"] += 1
-
                 state["loss_streak"] = 0
-
                 result = "WIN"
 
             else:
 
                 state["losses"] += 1
-
                 state["loss_streak"] += 1
-
                 result = "LOSS"
-
 
             state["history"].insert(
                 0,
@@ -677,32 +712,24 @@ def on_message(
                         time.strftime(
                             "%H:%M:%S"
                         ),
-
                     "symbol":
                         state["symbol"],
-
                     "direction":
                         state["direction"],
-
                     "stake":
                         state["stake"],
-
                     "result":
                         result,
-
                     "profit":
-                        profit
+                        profit,
                 }
             )
-
 
             state["history"] = (
                 state["history"][:100]
             )
 
-
             state["current_trade"] = None
-
 
             add_log(
                 f"{result}: "
@@ -713,13 +740,10 @@ def on_message(
 
 
 # ============================================================
-# WEBSOCKET ERROR
+# WS ERROR
 # ============================================================
 
-def on_error(
-    socket,
-    error
-):
+def on_error(socket, error):
 
     state["connected"] = False
     state["authorized"] = False
@@ -734,13 +758,13 @@ def on_error(
 
 
 # ============================================================
-# WEBSOCKET CLOSE
+# WS CLOSE
 # ============================================================
 
 def on_close(
     socket,
     code,
-    message
+    message,
 ):
 
     state["connected"] = False
@@ -756,15 +780,13 @@ def on_close(
 # WS THREAD
 # ============================================================
 
-def websocket_thread(
-    ws_url
-):
+def websocket_thread(ws_url):
 
     global ws
 
     try:
 
-        ws = websocket.WebSocketApp(
+        new_ws = websocket.WebSocketApp(
             ws_url,
 
             on_open=on_open,
@@ -773,15 +795,22 @@ def websocket_thread(
 
             on_error=on_error,
 
-            on_close=on_close
+            on_close=on_close,
         )
 
+        with ws_lock:
+            ws = new_ws
 
-        ws.run_forever(
+        add_log(
+            "Opening authenticated "
+            "Deriv WebSocket..."
+        )
+
+        new_ws.run_forever(
             ping_interval=20,
-            ping_timeout=10
+            ping_timeout=10,
+            reconnect=0,
         )
-
 
     except Exception as exc:
 
@@ -796,9 +825,19 @@ def websocket_thread(
             f"WS THREAD ERROR: {exc}"
         )
 
+    finally:
+
+        with ws_lock:
+
+            if ws is not None:
+                ws = None
+
+        state["connected"] = False
+        state["authorized"] = False
+
 
 # ============================================================
-# CONNECT API
+# CONNECT
 # ============================================================
 
 @app.post("/api/connect")
@@ -806,6 +845,7 @@ def api_connect():
 
     global APP_ID
     global PAT_TOKEN
+    global ws_thread
 
     data = (
         request.get_json(
@@ -814,14 +854,12 @@ def api_connect():
         or {}
     )
 
-
     app_id = str(
         data.get(
             "app_id",
             ""
         )
     ).strip()
-
 
     token = str(
         data.get(
@@ -830,7 +868,6 @@ def api_connect():
         )
     ).strip()
 
-
     account_id = str(
         data.get(
             "account_id",
@@ -838,66 +875,104 @@ def api_connect():
         )
     ).strip()
 
-
     if not app_id:
 
         return jsonify({
             "ok": False,
-            "error":
-                "App ID is required."
+            "error": "App ID is required.",
         }), 400
-
 
     if not token:
 
         return jsonify({
             "ok": False,
-            "error":
-                "PAT/API Token is required."
+            "error": "PAT/API Token is required.",
         }), 400
-
 
     if not account_id:
 
         return jsonify({
             "ok": False,
-            "error":
-                "Account ID is required."
+            "error": "Account ID is required.",
         }), 400
 
-
     try:
+
+        add_log(
+            "Checking Deriv account..."
+        )
 
         accounts = get_accounts(
             app_id,
             token
         )
 
-
-        selected_account = None
-
+        selected = None
 
         for account in accounts:
 
-            if (
+            if str(
                 account.get(
-                    "account_id"
+                    "account_id",
+                    ""
                 )
-                == account_id
-            ):
+            ).strip() == account_id:
 
-                selected_account = account
-
+                selected = account
                 break
 
-
-        if selected_account is None:
+        if selected is None:
 
             raise RuntimeError(
-                "The Account ID was not "
-                "found for this PAT."
+                "Account ID not found in "
+                "the Options accounts returned "
+                "for this PAT."
             )
 
+        account_status = str(
+            selected.get(
+                "status",
+                ""
+            )
+        ).lower()
+
+        if account_status and (
+            account_status != "active"
+        ):
+
+            raise RuntimeError(
+                f"Account status is "
+                f"{account_status}."
+            )
+
+        add_log(
+            "Account found: "
+            f"{account_id}"
+        )
+
+        # Close previous connection
+        close_old_ws()
+
+        reset_connection_state()
+
+        APP_ID = app_id
+        PAT_TOKEN = token
+
+        state["account_id"] = account_id
+
+        state["account_type"] = (
+            selected.get(
+                "account_type",
+                ""
+            )
+        )
+
+        # IMPORTANT:
+        # Request OTP and immediately connect.
+        add_log(
+            "Requesting one-time "
+            "WebSocket URL..."
+        )
 
         ws_url = get_otp_url(
             app_id,
@@ -905,65 +980,40 @@ def api_connect():
             account_id
         )
 
-
-        APP_ID = app_id
-        PAT_TOKEN = token
-
-
-        state["account_id"] = (
-            account_id
+        add_log(
+            "OTP WebSocket URL received."
         )
 
-
-        state["account_type"] = (
-            selected_account.get(
-                "account_type",
-                "demo"
-            )
-        )
-
-
-        state["last_error"] = ""
-
-
-        thread = threading.Thread(
+        ws_thread = threading.Thread(
             target=websocket_thread,
             args=(ws_url,),
-            daemon=True
+            daemon=True,
         )
 
-        thread.start()
-
-
-        add_log(
-            "Connection started."
-        )
-
+        ws_thread.start()
 
         return jsonify({
             "ok": True,
             "message":
-                "Connection started."
+                "Connection started. "
+                "Waiting for WebSocket authorization.",
         })
-
 
     except Exception as exc:
 
-        state["connected"] = False
-        state["authorized"] = False
+        reset_connection_state()
 
         state["last_error"] = str(
             exc
         )
 
         add_log(
-            f"Connection failed: {exc}"
+            f"CONNECTION FAILED: {exc}"
         )
-
 
         return jsonify({
             "ok": False,
-            "error": str(exc)
+            "error": str(exc),
         }), 400
 
 
@@ -979,20 +1029,17 @@ def api_markets():
         return jsonify({
             "ok": False,
             "error":
-                "Connect Deriv first."
+                "Connect Deriv first.",
         }), 400
-
 
     send_ws({
         "active_symbols": "full",
-        "req_id": 10
+        "req_id": 10,
     })
-
 
     add_log(
         "Searching for BOOM symbols..."
     )
-
 
     return jsonify({
         "ok": True
@@ -1006,13 +1053,20 @@ def api_markets():
 @app.post("/api/select-symbol")
 def api_select_symbol():
 
+    if not state["connected"]:
+
+        return jsonify({
+            "ok": False,
+            "error":
+                "WebSocket is not connected.",
+        }), 400
+
     data = (
         request.get_json(
             silent=True
         )
         or {}
     )
-
 
     symbol = str(
         data.get(
@@ -1021,45 +1075,38 @@ def api_select_symbol():
         )
     ).strip()
 
-
     if not symbol:
 
         return jsonify({
             "ok": False,
             "error":
-                "Symbol is required."
+                "Symbol is required.",
         }), 400
 
-
     state["symbol"] = symbol
-
+    state["last_price"] = None
     state["available_contracts"] = []
 
-
-    # Tick stream
+    # Tick subscription
     send_ws({
         "ticks": symbol,
         "subscribe": 1,
-        "req_id": 11
+        "req_id": 11,
     })
 
-
-    # Contract checker
+    # Contract information
     send_ws({
         "contracts_for": symbol,
-        "req_id": 12
+        "req_id": 12,
     })
 
-
     add_log(
-        f"Selected BOOM market: "
-        f"{symbol}"
+        f"Selected market: {symbol}"
     )
-
 
     return jsonify({
         "ok": True,
-        "symbol": symbol
+        "symbol": symbol,
     })
 
 
@@ -1076,17 +1123,22 @@ def api_start():
             "ok": False,
             "error":
                 "Connect and authorize "
-                "Deriv first."
+                "Deriv first.",
         }), 400
 
+    if not state["symbol"]:
+
+        return jsonify({
+            "ok": False,
+            "error":
+                "Select a BOOM symbol first.",
+        }), 400
 
     state["running"] = True
-
 
     add_log(
         "BOT STARTED."
     )
-
 
     return jsonify({
         "ok": True
@@ -1102,11 +1154,9 @@ def api_pause():
 
     state["running"] = False
 
-
     add_log(
         "BOT PAUSED."
     )
-
 
     return jsonify({
         "ok": True
@@ -1122,11 +1172,9 @@ def api_stop():
 
     state["running"] = False
 
-
     add_log(
         "BOT STOPPED."
     )
-
 
     return jsonify({
         "ok": True
@@ -1142,7 +1190,6 @@ def api_status():
 
     total = state["total_trades"]
 
-
     if total > 0:
 
         win_rate = (
@@ -1154,7 +1201,6 @@ def api_status():
     else:
 
         win_rate = 0.0
-
 
     return jsonify({
 
@@ -1231,7 +1277,7 @@ def api_status():
             state["logs"],
 
         "last_error":
-            state["last_error"]
+            state["last_error"],
     })
 
 
@@ -1256,5 +1302,5 @@ if __name__ == "__main__":
     app.run(
         host="0.0.0.0",
         port=5000,
-        debug=False
+        debug=False,
     )
