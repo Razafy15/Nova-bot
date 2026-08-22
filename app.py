@@ -50,9 +50,6 @@ state = {
     "trade_interval": 5,
 }
 
-# ============================================================
-# LOGGING
-# ============================================================
 
 def add_log(message):
     timestamp = time.strftime("%H:%M:%S")
@@ -60,10 +57,6 @@ def add_log(message):
     state["logs"] = state["logs"][:100]
     print(f"[{timestamp}] {message}", flush=True)
 
-
-# ============================================================
-# WEBSOCKET SEND
-# ============================================================
 
 def send_ws(payload):
     global ws
@@ -79,10 +72,6 @@ def send_ws(payload):
             add_log(f"WS SEND ERROR: {exc}")
             return False
 
-
-# ============================================================
-# API HELPERS
-# ============================================================
 
 def api_error(response):
     try:
@@ -130,14 +119,7 @@ def get_otp_url(app_id, token, account_id):
     return ws_url
 
 
-# ============================================================
-# STRATEGIE: PUT amin'ny fotoana voafaritra
-# ============================================================
-
 def check_strategy():
-    """
-    Mividy PUT (FALL) isaky ny tonga ny fotoana voafaritra.
-    """
     interval = state.get("trade_interval", 5)
     last_time = state.get("last_trade_time", 0)
     current_time = time.time()
@@ -149,10 +131,6 @@ def check_strategy():
     return False
 
 
-# ============================================================
-# TRADING LOOP
-# ============================================================
-
 def trading_loop():
     add_log("=== TRADING LOOP STARTED ===")
     loop_count = 0
@@ -160,25 +138,20 @@ def trading_loop():
     while state["running"]:
         loop_count += 1
         try:
-            # Log isaky ny 10 loop
             if loop_count % 10 == 0:
                 add_log(f"Trading loop alive (cycle {loop_count})")
 
-            # Tsy mbola voamarina
             if not state["authorized"]:
                 time.sleep(0.5)
                 continue
 
-            # Tsy misy marika voafidy
             if not state["symbol"]:
                 time.sleep(0.5)
                 continue
 
-            # ANTONTANY NY STRATEGIE
             if check_strategy():
-                add_log("Strategy triggered! Sending proposal (PUT)...")
+                add_log(f"Strategy triggered! Sending proposal (PUT) for {state['symbol']}...")
 
-                # Mandefa proposal
                 proposal_payload = {
                     "proposal": 1,
                     "amount": state["stake"],
@@ -186,16 +159,14 @@ def trading_loop():
                     "currency": state["currency"],
                     "duration": state["duration"],
                     "duration_unit": "m",
-                    "symbol": state["symbol"]  # <-- Mampiasa ny symbol marina (R_75, R_100, sns)
+                    "symbol": state["symbol"]  # <-- Mampiasa ny anarana marina avy amin'ny API
                 }
                 add_log(f"Proposal payload: {proposal_payload}")
                 send_ws(proposal_payload)
                 state["last_proposal"] = None
 
-                # Miandry valiny (3 segondra)
                 time.sleep(3)
 
-                # Raha tonga ny proposal dia mividy
                 if state.get("last_proposal") and state["last_proposal"].get("id"):
                     proposal_id = state["last_proposal"]["id"]
                     price = state["last_proposal"]["price"]
@@ -207,13 +178,10 @@ def trading_loop():
                     send_ws(buy_payload)
                     state["last_proposal"] = None
                     state["last_trade_time"] = time.time()
-
-                    # Miandry 5 segondra mba tsy handefa misesy
                     time.sleep(5)
                 else:
                     add_log("Proposal failed or timed out - no proposal received.")
 
-            # Miandry kely alohan'ny hijerena indray
             time.sleep(0.5)
 
         except Exception as e:
@@ -224,10 +192,6 @@ def trading_loop():
 
     add_log("=== TRADING LOOP STOPPED ===")
 
-
-# ============================================================
-# WEBSOCKET EVENTS
-# ============================================================
 
 def on_open(socket):
     state["connected"] = True
@@ -247,9 +211,6 @@ def on_message(socket, message):
 
     msg_type = data.get("msg_type")
 
-    # --------------------------------------------------------
-    # ERROR
-    # --------------------------------------------------------
     if msg_type == "error":
         error = data.get("error", {})
         code = error.get("code", "UNKNOWN")
@@ -258,9 +219,6 @@ def on_message(socket, message):
         add_log(f"DERIV ERROR: {code}: {message_text}")
         return
 
-    # --------------------------------------------------------
-    # BALANCE
-    # --------------------------------------------------------
     if msg_type == "balance":
         balance = data.get("balance", {})
         try:
@@ -273,7 +231,7 @@ def on_message(socket, message):
         return
 
     # --------------------------------------------------------
-    # ACTIVE SYMBOLS (FANITSINA: mampiasa display_name)
+    # ACTIVE SYMBOLS - FANITSINA LEHIBE ETO
     # --------------------------------------------------------
     if msg_type == "active_symbols":
         symbols = data.get("active_symbols", [])
@@ -281,23 +239,23 @@ def on_message(socket, message):
         for item in symbols:
             symbol = str(item.get("underlying_symbol", "")).strip()
             name = str(item.get("display_name", "")).strip()
+            
+            # Mitady ny marika rehetra misy BOOM
             text = (symbol + " " + name).upper()
-            # Mitady BOOM na R_ (ho an'ny Boom Index)
             if "BOOM" in text or "R_" in symbol:
                 boom.append({
-                    "symbol": symbol,      # <-- Izao no ampiasaina amin'ny API (R_75, R_100)
+                    "symbol": symbol,        # <-- Izao no ampiasaina amin'ny API (R_75, R_100, sns)
                     "display_name": name or symbol
                 })
+        
         state["boom_symbols"] = boom
         add_log(f"BOOM symbols found: {len(boom)}")
+        
         # Log ny symbol rehetra mba ho hita
         for b in boom:
-            add_log(f"  - {b['symbol']}: {b['display_name']}")
+            add_log(f"  - {b['symbol']} = {b['display_name']}")
         return
 
-    # --------------------------------------------------------
-    # TICK
-    # --------------------------------------------------------
     if msg_type == "tick":
         tick = data.get("tick", {})
         try:
@@ -310,18 +268,12 @@ def on_message(socket, message):
             pass
         return
 
-    # --------------------------------------------------------
-    # CONTRACTS FOR
-    # --------------------------------------------------------
     if msg_type == "contracts_for":
         result = data.get("contracts_for", {})
         state["available_contracts"] = result.get("available", [])
         add_log("Contract information received.")
         return
 
-    # --------------------------------------------------------
-    # PROPOSAL
-    # --------------------------------------------------------
     if msg_type == "proposal":
         proposal = data.get("proposal", {})
         proposal_id = proposal.get("id")
@@ -333,9 +285,6 @@ def on_message(socket, message):
             add_log(f"Proposal received: {proposal_id} - Price: {proposal.get('price')}")
         return
 
-    # --------------------------------------------------------
-    # BUY
-    # --------------------------------------------------------
     if msg_type == "buy":
         buy = data.get("buy", {})
         contract_id = buy.get("contract_id")
@@ -357,9 +306,6 @@ def on_message(socket, message):
             })
         return
 
-    # --------------------------------------------------------
-    # OPEN CONTRACT
-    # --------------------------------------------------------
     if msg_type == "proposal_open_contract":
         contract = data.get("proposal_open_contract", {})
         if not (contract.get("is_sold") or contract.get("is_expired")):
@@ -408,10 +354,6 @@ def on_close(socket, code, reason):
     state["authorized"] = False
     add_log(f"WebSocket closed: {code} {reason}")
 
-
-# ============================================================
-# WEBSOCKET THREAD
-# ============================================================
 
 def websocket_thread(ws_url):
     global ws
@@ -519,8 +461,9 @@ def api_select_symbol():
 
     send_ws({"ticks": symbol, "subscribe": 1, "req_id": 600})
     send_ws({"contracts_for": symbol, "req_id": 601})
+    
     add_log(f"Selected symbol: {symbol} ({display_name})")
-    return jsonify({"ok": True, "symbol": symbol})
+    return jsonify({"ok": True, "symbol": symbol, "display_name": display_name})
 
 
 @app.post("/api/start")
@@ -586,10 +529,6 @@ def api_status():
 def index():
     return render_template("index.html")
 
-
-# ============================================================
-# MAIN
-# ============================================================
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
