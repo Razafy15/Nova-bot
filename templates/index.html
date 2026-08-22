@@ -535,7 +535,6 @@
         box.className = "connection-message " + type;
     }
 
-    // CONNECT
     async function connectDeriv() {
         const appId = $("appId").value.trim();
         const token = $("apiToken").value.trim();
@@ -561,7 +560,6 @@
         }
     }
 
-    // FIND BOOM
     async function findBoom() {
         setMessage("Searching BOOM symbols...");
         try {
@@ -575,7 +573,6 @@
         }
     }
 
-    // SELECT SYMBOL
     async function selectSymbol() {
         const select = $("symbol");
         const symbol = select.value;
@@ -598,14 +595,13 @@
             $("settingSymbol").textContent = displayName;
             $("tradeSymbol").textContent = displayName;
 
-            setMessage("BOOM selected: " + displayName, "ok");
+            setMessage("BOOM selected: " + displayName + " (" + symbol + ")", "ok");
             setTimeout(updateDashboard, 500);
         } catch (error) {
             setMessage(error.message, "error");
         }
     }
 
-    // UPDATE INTERVAL
     async function updateInterval() {
         const interval = parseInt($("tradeInterval").value) || 5;
         try {
@@ -622,7 +618,6 @@
         }
     }
 
-    // START
     async function startBot() {
         try {
             const response = await fetch("/api/start", { method: "POST" });
@@ -635,7 +630,6 @@
         }
     }
 
-    // PAUSE
     async function pauseBot() {
         try {
             const response = await fetch("/api/pause", { method: "POST" });
@@ -648,7 +642,6 @@
         }
     }
 
-    // STOP
     async function stopBot() {
         try {
             const response = await fetch("/api/stop", { method: "POST" });
@@ -661,7 +654,6 @@
         }
     }
 
-    // UPDATE SYMBOLS
     function updateSymbols(symbols) {
         const select = $("symbol");
         const current = select.value;
@@ -676,13 +668,13 @@
         symbols.forEach(item => {
             const opt = document.createElement("option");
             opt.value = item.symbol;
-            opt.textContent = item.display_name || item.symbol;
+            // Asehoy ny anarana mety ho azon'ny mpampiasa
+            opt.textContent = item.display_name + " (" + item.symbol + ")";
             select.appendChild(opt);
         });
         if (current) select.value = current;
     }
 
-    // UPDATE CONTRACTS
     function updateContracts(contracts) {
         const box = $("contractInfo");
         if (!contracts || contracts.length === 0) {
@@ -696,7 +688,6 @@
         box.innerHTML = html;
     }
 
-    // UPDATE HISTORY
     function updateHistory(history) {
         const body = $("historyBody");
         $("historyCount").textContent = (history || []).length + " trades";
@@ -718,7 +709,6 @@
         }).join("");
     }
 
-    // UPDATE LOGS
     function updateLogs(logs) {
         const box = $("logs");
         if (!logs || logs.length === 0) {
@@ -734,7 +724,6 @@
         return String(v).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;");
     }
 
-    // UPDATE DASHBOARD
     async function updateDashboard() {
         try {
             const response = await fetch("/api/status", { cache: "no-store" });
@@ -807,13 +796,11 @@
         }
     }
 
-    // PRICE HISTORY
     function addPrice(price) {
         priceHistory.push(Number(price));
         if (priceHistory.length > maxPoints) priceHistory.shift();
     }
 
-    // CHART
     function drawChart() {
         const canvas = $("chartCanvas");
         const rect = canvas.parentElement.getBoundingClientRect();
@@ -859,12 +846,10 @@
         ctx.fill();
     }
 
-    // CLEAR LOGS
     function clearLogs() {
         $("logs").innerHTML = '<div class="empty">Logs cleared from screen.</div>';
     }
 
-    // AUTO UPDATE
     setInterval(updateDashboard, 1000);
     window.addEventListener("resize", drawChart);
     updateDashboard();
