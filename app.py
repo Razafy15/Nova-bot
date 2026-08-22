@@ -14,10 +14,7 @@ REST_BASE = "https://api.derivws.com"
 
 ws = None
 ws_thread = None
-trading_thread = None
-
 ws_lock = threading.Lock()
-state_lock = threading.Lock()
 
 APP_ID = ""
 PAT_TOKEN = ""
@@ -25,16 +22,13 @@ PAT_TOKEN = ""
 state = {
     "connected": False,
     "authorized": False,
-
     "balance": 0.0,
     "currency": "USD",
-
     "account_id": "",
     "account_type": "",
 
     "symbol": "",
     "symbol_display": "",
-
     "last_price": None,
     "ticks_buffer": [],
 
@@ -42,8 +36,6 @@ state = {
 
     "stake": 0.35,
     "duration": 3,
-    "duration_unit": "s",
-
     "direction": "PUT",
 
     "total_trades": 0,
@@ -69,58 +61,39 @@ state = {
 }
 
 
-# ============================================================
-# LOG
-# ============================================================
-
 def add_log(message):
     timestamp = time.strftime("%H:%M:%S")
 
-    with state_lock:
-        state["logs"].insert(
-            0,
-            {
-                "time": timestamp,
-                "message": str(message)
-            }
-        )
+    state["logs"].insert(
+        0,
+        {
+            "time": timestamp,
+            "message": str(message)
+        }
+    )
 
-        state["logs"] = state["logs"][:100]
+    state["logs"] = state["logs"][:100]
 
     print(f"[{timestamp}] {message}", flush=True)
 
-
-# ============================================================
-# WEBSOCKET SEND
-# ============================================================
 
 def send_ws(payload):
     global ws
 
     with ws_lock:
-        current_ws = ws
-
-    if current_ws is None:
-        add_log("WS SEND FAILED: WebSocket is not initialized.")
-        return False
-
-    try:
-        if not current_ws.sock or not current_ws.sock.connected:
-            add_log("WS SEND FAILED: WebSocket is not connected.")
+        if ws is None:
+            add_log("WebSocket is not initialized.")
             return False
 
-        current_ws.send(json.dumps(payload))
-        return True
+        try:
+            ws.send(json.dumps(payload))
+            return True
 
-    except Exception as exc:
-        state["last_error"] = str(exc)
-        add_log(f"WS SEND ERROR: {exc}")
-        return False
+        except Exception as exc:
+            state["last_error"] = str(exc)
+            add_log(f"WS SEND ERROR: {exc}")
+            return False
 
-
-# ============================================================
-# REST ERROR
-# ============================================================
 
 def api_error(response):
     try:
@@ -131,19 +104,19 @@ def api_error(response):
     errors = data.get("errors")
 
     if isinstance(errors, list) and errors:
-        err = errors[0]
+        error = errors[0]
 
         return (
             f"HTTP {response.status_code} | "
-            f"{err.get('code', 'ERROR')} | "
-            f"{err.get('message', 'Unknown error')}"
+            f"{error.get('code', 'ERROR')} | "
+            f"{error.get('message', 'Unknown error')}"
         )
 
     return f"HTTP {response.status_code}: {json.dumps(data)[:500]}"
 
 
 # ============================================================
-# GET OPTIONS ACCOUNTS
+# DERIV REST
 # ============================================================
 
 def get_accounts(app_id, token):
@@ -171,15 +144,8 @@ def get_accounts(app_id, token):
     if isinstance(accounts, dict):
         accounts = [accounts]
 
-    if not isinstance(accounts, list):
-        accounts = []
-
     return accounts
 
-
-# ============================================================
-# GET OTP WEBSOCKET URL
-# ============================================================
 
 def get_otp_url(app_id, token, account_id):
     url = (
@@ -206,11 +172,7 @@ def get_otp_url(app_id, token, account_id):
 
     data = response.json()
 
-    ws_url = (
-        data
-        .get("data", {})
-        .get("url")
-    )
+    ws_url = data.get("data", {}).get("url")
 
     if not ws_url:
         raise RuntimeError(
@@ -221,16 +183,275 @@ def get_otp_url(app_id, token, account_id):
 
 
 # ============================================================
+# STRATEGY
+# ============================================================
+
+def check_strategy():
+    interval = state.get("trade_interval", 5)
+
+    last_time = state.get("last_trade_time", 0)
+
+    current_time = time.time()
+
+    if current_time - last_time >= interval:
+
+        # Tazonina PUT/FALL araka ny bot-nao
+        state["direction"] = "PUT"
+
+        return True
+
+    return False
+
+
+# ============================================================
+# TRADING LOOP
+# ============================================================
+
+def trading_loop():
+
+    add_log("=== TRADING LOOP STARTED ===")
+
+    loop_count = 0
+
+    while state["running"]:
+
+        loop_count += 1
+
+        try:
+
+            if loop_count % 10 == 0:
+                add_log(
+                    f"Trading loop alive (cycle {loop_count})"
+                )
+
+            # Tsy mbola authorized
+            if not state["authorized"]:
+                time.sleep(0.5)
+                continue
+
+            # Tsy misy symbol
+            if not state["symbol"]:
+                time.sleep(0.5)
+                continue
+
+            # Mbola misy contract misokatra
+            if state["current_trade"] is not None:
+                time.sleep(0.5)
+                continue
+
+            # Tsy mbola tonga ny interval
+            if not check_strategy():
+                time.sleep(0.5)
+                continue
+
+            symbol = state["symbol"]
+            direction = state["direction"]
+            stake = float(state["stake"])
+            duration = int(state["duration"])
+
+            add_log(
+                f"Strategy triggered: "
+                f"{direction} | "
+                f"{symbol} | "
+                f"{stake} {state['currency']} | "
+                f"{duration}s"
+            )
+
+            # ==================================================
+            # PROPOSAL
+            # ==================================================
+            proposal_payload = {
+                "proposal": 1,
+
+                "amount": stake,
+
+                "basis": "stake",
+
+                "contract_type": direction,
+
+                "currency": state["currency"],
+
+                "duration": duration,
+
+                "duration_unit": "s",
+
+                # IMPORTANT:
+                # API vaovao = underlying_symbol
+                "underlying_symbol": symbol,
+
+                "subscribe": 1,
+
+                "req_id": 700,
+            }
+
+            # Diovina aloha ny proposal taloha
+            state["last_proposal"] = None
+
+            add_log(
+                "Sending PROPOSAL..."
+            )
+
+            add_log(
+                f"Symbol sent: {symbol}"
+            )
+
+            add_log(
+                f"Contract type: {direction}"
+            )
+
+            add_log(
+                f"Duration: {duration}s"
+            )
+
+            add_log(
+                f"Stake: {stake}"
+            )
+
+            ok = send_ws(proposal_payload)
+
+            if not ok:
+                add_log(
+                    "PROPOSAL SEND FAILED."
+                )
+
+                time.sleep(2)
+                continue
+
+            # ==================================================
+            # MIANDRY PROPOSAL RESPONSE
+            # ==================================================
+
+            proposal_wait_start = time.time()
+
+            while (
+                time.time() - proposal_wait_start < 8
+                and state["running"]
+            ):
+
+                proposal = state.get("last_proposal")
+
+                if proposal and proposal.get("id"):
+
+                    break
+
+                time.sleep(0.1)
+
+            proposal = state.get("last_proposal")
+
+            if not proposal or not proposal.get("id"):
+
+                add_log(
+                    "PROPOSAL TIMEOUT: "
+                    "No valid proposal received."
+                )
+
+                continue
+
+            proposal_id = proposal.get("id")
+
+            ask_price = proposal.get("ask_price")
+
+            if ask_price is None:
+
+                add_log(
+                    "PROPOSAL ERROR: ask_price is missing."
+                )
+
+                state["last_proposal"] = None
+
+                continue
+
+            try:
+                ask_price = float(ask_price)
+
+            except Exception:
+
+                add_log(
+                    f"Invalid ask_price: {ask_price}"
+                )
+
+                state["last_proposal"] = None
+
+                continue
+
+            add_log(
+                f"PROPOSAL OK: "
+                f"id={proposal_id} "
+                f"ask_price={ask_price}"
+            )
+
+            # ==================================================
+            # BUY
+            # ==================================================
+
+            buy_payload = {
+                "buy": proposal_id,
+
+                "price": ask_price,
+
+                "req_id": 701,
+            }
+
+            add_log(
+                f"BUY sent: "
+                f"proposal={proposal_id} "
+                f"price={ask_price}"
+            )
+
+            buy_ok = send_ws(buy_payload)
+
+            if not buy_ok:
+
+                add_log(
+                    "BUY SEND FAILED."
+                )
+
+                state["last_proposal"] = None
+
+                time.sleep(2)
+
+                continue
+
+            # Tsy avela handefa proposal hafa avy hatrany
+            state["last_trade_time"] = time.time()
+
+            state["last_proposal"] = None
+
+            # Miandry kely
+            time.sleep(1)
+
+        except Exception as e:
+
+            add_log(
+                f"TRADING LOOP ERROR: {e}"
+            )
+
+            import traceback
+
+            add_log(
+                traceback.format_exc()
+            )
+
+            time.sleep(2)
+
+    add_log(
+        "=== TRADING LOOP STOPPED ==="
+    )
+
+
+# ============================================================
 # WEBSOCKET OPEN
 # ============================================================
 
 def on_open(socket):
+
     state["connected"] = True
+
     state["last_error"] = ""
 
-    add_log("================================")
-    add_log("DERIV WEBSOCKET CONNECTED")
-    add_log("================================")
+    add_log(
+        "WebSocket connected."
+    )
 
     # Balance
     send_ws({
@@ -247,23 +468,28 @@ def on_open(socket):
 
 
 # ============================================================
-# MESSAGE
+# WEBSOCKET MESSAGE
 # ============================================================
 
 def on_message(socket, message):
 
     try:
+
         data = json.loads(message)
 
-    except Exception as exc:
-        add_log(f"Invalid JSON: {exc}")
+    except Exception:
+
+        add_log(
+            "Invalid JSON received."
+        )
+
         return
 
     msg_type = data.get("msg_type")
 
-    # --------------------------------------------------------
+    # ========================================================
     # ERROR
-    # --------------------------------------------------------
+    # ========================================================
 
     if msg_type == "error":
 
@@ -284,14 +510,29 @@ def on_message(socket, message):
         )
 
         add_log(
-            f"DERIV ERROR: {code}: {message_text}"
+            f"DERIV ERROR: "
+            f"{code}: {message_text}"
         )
+
+        # Raha proposal error
+        echo_req = data.get("echo_req", {})
+
+        if echo_req.get("proposal") == 1:
+
+            add_log(
+                "The error came from PROPOSAL."
+            )
+
+            add_log(
+                f"Proposal request: "
+                f"{json.dumps(echo_req)}"
+            )
 
         return
 
-    # --------------------------------------------------------
+    # ========================================================
     # BALANCE
-    # --------------------------------------------------------
+    # ========================================================
 
     if msg_type == "balance":
 
@@ -301,6 +542,7 @@ def on_message(socket, message):
         )
 
         try:
+
             state["balance"] = float(
                 balance.get(
                     "balance",
@@ -309,6 +551,7 @@ def on_message(socket, message):
             )
 
         except Exception:
+
             state["balance"] = 0.0
 
         state["currency"] = (
@@ -319,16 +562,17 @@ def on_message(socket, message):
         state["authorized"] = True
 
         add_log(
-            "AUTHORIZED | "
-            f"Balance: {state['balance']:.2f} "
+            f"Account authorized. "
+            f"Balance: "
+            f"{state['balance']:.2f} "
             f"{state['currency']}"
         )
 
         return
 
-    # --------------------------------------------------------
+    # ========================================================
     # ACTIVE SYMBOLS
-    # --------------------------------------------------------
+    # ========================================================
 
     if msg_type == "active_symbols":
 
@@ -341,6 +585,7 @@ def on_message(socket, message):
 
         for item in symbols:
 
+            # API vaovao
             symbol = str(
                 item.get(
                     "underlying_symbol",
@@ -350,10 +595,13 @@ def on_message(socket, message):
 
             display_name = str(
                 item.get(
-                    "display_name",
+                    "underlying_symbol_name",
                     ""
                 )
             ).strip()
+
+            if not symbol:
+                continue
 
             text = (
                 symbol
@@ -361,31 +609,24 @@ def on_message(socket, message):
                 + display_name
             ).upper()
 
-            # IMPORTANT:
-            # BOOM ihany no raisina.
-            # Tsy R_ rehetra intsony.
-
+            # BOOM ihany
             if "BOOM" in text:
 
                 boom.append({
                     "symbol": symbol,
-                    "display_name": (
-                        display_name
-                        or symbol
-                    )
+                    "display_name":
+                        display_name or symbol
                 })
-
-        boom.sort(
-            key=lambda x: x["symbol"]
-        )
 
         state["boom_symbols"] = boom
 
         add_log(
-            f"BOOM symbols found: {len(boom)}"
+            f"BOOM symbols found: "
+            f"{len(boom)}"
         )
 
         for item in boom:
+
             add_log(
                 f"BOOM: "
                 f"{item['symbol']} = "
@@ -394,9 +635,9 @@ def on_message(socket, message):
 
         return
 
-    # --------------------------------------------------------
+    # ========================================================
     # TICK
-    # --------------------------------------------------------
+    # ========================================================
 
     if msg_type == "tick":
 
@@ -408,9 +649,7 @@ def on_message(socket, message):
         try:
 
             price = float(
-                tick.get(
-                    "quote"
-                )
+                tick.get("quote")
             )
 
             state["last_price"] = price
@@ -421,20 +660,21 @@ def on_message(socket, message):
 
             if len(
                 state["ticks_buffer"]
-            ) > 100:
+            ) > 20:
 
-                state["ticks_buffer"].pop(
-                    0
-                )
+                state[
+                    "ticks_buffer"
+                ].pop(0)
 
         except Exception:
+
             pass
 
         return
 
-    # --------------------------------------------------------
+    # ========================================================
     # CONTRACTS FOR
-    # --------------------------------------------------------
+    # ========================================================
 
     if msg_type == "contracts_for":
 
@@ -443,31 +683,22 @@ def on_message(socket, message):
             {}
         )
 
-        available = result.get(
-            "available",
-            []
-        )
-
-        if not isinstance(
-            available,
-            list
-        ):
-            available = []
-
         state["available_contracts"] = (
-            available
+            result.get(
+                "available",
+                []
+            )
         )
 
         add_log(
-            f"Contracts received: "
-            f"{len(available)}"
+            "Contract information received."
         )
 
         return
 
-    # --------------------------------------------------------
+    # ========================================================
     # PROPOSAL
-    # --------------------------------------------------------
+    # ========================================================
 
     if msg_type == "proposal":
 
@@ -480,46 +711,35 @@ def on_message(socket, message):
             "id"
         )
 
-        if not proposal_id:
-            add_log(
-                "Proposal received without ID."
-            )
-            return
+        if proposal_id:
 
-        ask_price = proposal.get(
-            "ask_price"
-        )
-
-        if ask_price is None:
             ask_price = proposal.get(
-                "price"
+                "ask_price"
             )
 
-        try:
-            ask_price = float(
-                ask_price
+            state["last_proposal"] = {
+                "id": proposal_id,
+                "ask_price": ask_price
+            }
+
+            add_log(
+                f"PROPOSAL RECEIVED: "
+                f"id={proposal_id}, "
+                f"ask_price={ask_price}"
             )
 
-        except Exception:
-            ask_price = None
+        else:
 
-        state["last_proposal"] = {
-            "id": proposal_id,
-            "price": ask_price,
-            "received_at": time.time()
-        }
-
-        add_log(
-            f"PROPOSAL RECEIVED | "
-            f"ID={proposal_id} | "
-            f"ASK={ask_price}"
-        )
+            add_log(
+                "PROPOSAL received "
+                "without proposal id."
+            )
 
         return
 
-    # --------------------------------------------------------
+    # ========================================================
     # BUY
-    # --------------------------------------------------------
+    # ========================================================
 
     if msg_type == "buy":
 
@@ -532,44 +752,58 @@ def on_message(socket, message):
             "contract_id"
         )
 
-        if not contract_id:
+        if contract_id:
+
+            state["current_trade"] = {
+                "contract_id":
+                    contract_id,
+
+                "symbol":
+                    state["symbol"],
+
+                "direction":
+                    state["direction"],
+
+                "stake":
+                    state["stake"],
+
+                "status":
+                    "OPEN",
+            }
+
+            state["last_trade_time"] = (
+                time.time()
+            )
+
+            add_log(
+                f"CONTRACT OPENED: "
+                f"{contract_id}"
+            )
+
+            # Monitor contract
+            send_ws({
+                "proposal_open_contract": 1,
+
+                "contract_id":
+                    contract_id,
+
+                "subscribe": 1,
+
+                "req_id": 300,
+            })
+
+        else:
 
             add_log(
                 "BUY response received "
                 "without contract_id."
             )
 
-            return
-
-        state["current_trade"] = {
-            "contract_id": contract_id,
-            "symbol": state["symbol"],
-            "direction": state["direction"],
-            "stake": state["stake"],
-            "status": "OPEN"
-        }
-
-        state["last_trade_time"] = (
-            time.time()
-        )
-
-        add_log(
-            f"CONTRACT OPENED: "
-            f"{contract_id}"
-        )
-
-        send_ws({
-            "proposal_open_contract": 1,
-            "contract_id": contract_id,
-            "subscribe": 1,
-            "req_id": 300
-        })
-
         return
 
-    # --------------------------------------------------------
+    # ========================================================
     # OPEN CONTRACT
-    # --------------------------------------------------------
+    # ========================================================
 
     if msg_type == "proposal_open_contract":
 
@@ -578,17 +812,15 @@ def on_message(socket, message):
             {}
         )
 
-        contract_id = contract.get(
-            "contract_id"
-        )
-
-        if (
-            not contract.get("is_sold")
-            and not contract.get("is_expired")
+        if not (
+            contract.get("is_sold")
+            or contract.get("is_expired")
         ):
+
             return
 
         try:
+
             profit = float(
                 contract.get(
                     "profit",
@@ -597,14 +829,17 @@ def on_message(socket, message):
             )
 
         except Exception:
+
             profit = 0.0
 
         state["profit"] += profit
+
         state["total_trades"] += 1
 
         if profit > 0:
 
             state["wins"] += 1
+
             state["loss_streak"] = 0
 
             result = "WIN"
@@ -612,6 +847,7 @@ def on_message(socket, message):
         else:
 
             state["losses"] += 1
+
             state["loss_streak"] += 1
 
             result = "LOSS"
@@ -619,24 +855,26 @@ def on_message(socket, message):
         state["history"].insert(
             0,
             {
-                "time": time.strftime(
-                    "%H:%M:%S"
-                ),
+                "time":
+                    time.strftime(
+                        "%H:%M:%S"
+                    ),
 
-                "symbol": (
+                "symbol":
                     state["symbol_display"]
-                    or state["symbol"]
-                ),
+                    or state["symbol"],
 
-                "direction": (
-                    state["direction"]
-                ),
+                "direction":
+                    state["direction"],
 
-                "stake": state["stake"],
+                "stake":
+                    state["stake"],
 
-                "result": result,
+                "result":
+                    result,
 
-                "profit": profit
+                "profit":
+                    profit,
             }
         )
 
@@ -647,46 +885,48 @@ def on_message(socket, message):
         state["current_trade"] = None
 
         add_log(
-            f"TRADE CLOSED | "
-            f"{result} | "
-            f"Profit={profit:+.2f}"
+            f"{result}: "
+            f"{profit:+.2f}"
         )
 
         return
 
 
 # ============================================================
-# WS ERROR
+# WEBSOCKET ERROR
 # ============================================================
 
 def on_error(socket, error):
 
     state["connected"] = False
+
     state["authorized"] = False
+
     state["last_error"] = str(error)
 
     add_log(
-        f"WEBSOCKET ERROR: {error}"
+        f"WebSocket error: {error}"
     )
 
 
 # ============================================================
-# WS CLOSE
+# WEBSOCKET CLOSE
 # ============================================================
 
 def on_close(socket, code, reason):
 
     state["connected"] = False
+
     state["authorized"] = False
 
     add_log(
-        f"WEBSOCKET CLOSED: "
+        f"WebSocket closed: "
         f"{code} {reason}"
     )
 
 
 # ============================================================
-# WS THREAD
+# WEBSOCKET THREAD
 # ============================================================
 
 def websocket_thread(ws_url):
@@ -696,11 +936,10 @@ def websocket_thread(ws_url):
     try:
 
         add_log(
-            "Opening authenticated "
-            "WebSocket..."
+            "Opening authenticated WebSocket..."
         )
 
-        new_ws = websocket.WebSocketApp(
+        ws = websocket.WebSocketApp(
             ws_url,
 
             on_open=on_open,
@@ -709,13 +948,10 @@ def websocket_thread(ws_url):
 
             on_error=on_error,
 
-            on_close=on_close
+            on_close=on_close,
         )
 
-        with ws_lock:
-            ws = new_ws
-
-        new_ws.run_forever(
+        ws.run_forever(
             ping_interval=20,
             ping_timeout=10
         )
@@ -723,245 +959,18 @@ def websocket_thread(ws_url):
     except Exception as exc:
 
         state["connected"] = False
+
         state["authorized"] = False
+
         state["last_error"] = str(exc)
 
         add_log(
             f"WS THREAD ERROR: {exc}"
         )
 
-    finally:
-
-        with ws_lock:
-            ws = None
-
 
 # ============================================================
-# TRADING LOOP
-# ============================================================
-
-def trading_loop():
-
-    add_log(
-        "=== TRADING LOOP STARTED ==="
-    )
-
-    while state["running"]:
-
-        try:
-
-            # Must be connected
-            if not state["connected"]:
-                time.sleep(1)
-                continue
-
-            # Must be authorized
-            if not state["authorized"]:
-                time.sleep(1)
-                continue
-
-            # Must have symbol
-            if not state["symbol"]:
-                time.sleep(1)
-                continue
-
-            # Don't open another trade
-            if state["current_trade"] is not None:
-                time.sleep(0.5)
-                continue
-
-            # Interval
-            now = time.time()
-
-            if (
-                now
-                - state["last_trade_time"]
-                < state["trade_interval"]
-            ):
-                time.sleep(0.25)
-                continue
-
-            # ------------------------------------------------
-            # BASIC ENTRY
-            # ------------------------------------------------
-
-            state["direction"] = "PUT"
-
-            symbol = state["symbol"]
-
-            add_log(
-                f"ENTRY SIGNAL: "
-                f"PUT on {symbol}"
-            )
-
-            # ------------------------------------------------
-            # NEW DERIV API PROPOSAL
-            # IMPORTANT:
-            # underlying_symbol
-            # duration_unit = s
-            # basis = stake
-            # ------------------------------------------------
-
-            proposal_payload = {
-
-                "proposal": 1,
-
-                "amount": float(
-                    state["stake"]
-                ),
-
-                "basis": "stake",
-
-                "contract_type": "PUT",
-
-                "currency": state[
-                    "currency"
-                ],
-
-                "duration": int(
-                    state["duration"]
-                ),
-
-                "duration_unit": state[
-                    "duration_unit"
-                ],
-
-                "underlying_symbol": symbol,
-
-                "subscribe": 1,
-
-                "req_id": int(
-                    time.time() * 1000
-                ) % 100000000
-            }
-
-            state["last_proposal"] = None
-
-            sent = send_ws(
-                proposal_payload
-            )
-
-            if not sent:
-
-                add_log(
-                    "Proposal was not sent."
-                )
-
-                time.sleep(1)
-                continue
-
-            # Wait for proposal
-            started = time.time()
-
-            while (
-                time.time() - started < 5
-            ):
-
-                proposal = (
-                    state["last_proposal"]
-                )
-
-                if proposal:
-
-                    break
-
-                time.sleep(0.1)
-
-            proposal = state[
-                "last_proposal"
-            ]
-
-            if not proposal:
-
-                add_log(
-                    "PROPOSAL TIMEOUT."
-                )
-
-                state[
-                    "last_trade_time"
-                ] = time.time()
-
-                continue
-
-            proposal_id = proposal.get(
-                "id"
-            )
-
-            price = proposal.get(
-                "price"
-            )
-
-            if not proposal_id:
-
-                add_log(
-                    "Proposal ID missing."
-                )
-
-                continue
-
-            if price is None:
-
-                add_log(
-                    "Proposal ask price missing."
-                )
-
-                continue
-
-            # ------------------------------------------------
-            # BUY
-            # ------------------------------------------------
-
-            buy_payload = {
-
-                "buy": proposal_id,
-
-                "price": float(price),
-
-                "req_id": int(
-                    time.time() * 1000
-                ) % 100000000
-            }
-
-            add_log(
-                f"BUYING proposal "
-                f"{proposal_id} "
-                f"price={price}"
-            )
-
-            sent = send_ws(
-                buy_payload
-            )
-
-            if sent:
-
-                state[
-                    "last_trade_time"
-                ] = time.time()
-
-            else:
-
-                add_log(
-                    "BUY SEND FAILED."
-                )
-
-            time.sleep(0.5)
-
-        except Exception as exc:
-
-            add_log(
-                f"TRADING LOOP ERROR: "
-                f"{exc}"
-            )
-
-            time.sleep(2)
-
-    add_log(
-        "=== TRADING LOOP STOPPED ==="
-    )
-
-
-# ============================================================
-# CONNECT
+# FLASK ROUTES
 # ============================================================
 
 @app.post("/api/connect")
@@ -1003,21 +1012,24 @@ def api_connect():
 
         return jsonify({
             "ok": False,
-            "error": "App ID is required."
+            "error":
+                "App ID is required."
         }), 400
 
     if not token:
 
         return jsonify({
             "ok": False,
-            "error": "PAT/API Token is required."
+            "error":
+                "PAT/API Token is required."
         }), 400
 
     if not account_id:
 
         return jsonify({
             "ok": False,
-            "error": "Account ID is required."
+            "error":
+                "Account ID is required."
         }), 400
 
     try:
@@ -1025,10 +1037,6 @@ def api_connect():
         add_log(
             "========== CONNECT =========="
         )
-
-        # --------------------------------------------
-        # CHECK ACCOUNT
-        # --------------------------------------------
 
         accounts = get_accounts(
             app_id,
@@ -1039,16 +1047,18 @@ def api_connect():
 
         for account in accounts:
 
-            aid = str(
-                account.get(
-                    "account_id",
-                    ""
-                )
-            ).strip()
-
-            if aid == account_id:
+            if (
+                str(
+                    account.get(
+                        "account_id",
+                        ""
+                    )
+                ).strip()
+                == account_id
+            ):
 
                 selected = account
+
                 break
 
         if selected is None:
@@ -1058,7 +1068,9 @@ def api_connect():
                 "for this PAT."
             )
 
-        state["account_id"] = account_id
+        state["account_id"] = (
+            account_id
+        )
 
         state["account_type"] = (
             selected.get(
@@ -1067,73 +1079,35 @@ def api_connect():
             )
         )
 
-        state["currency"] = (
-            selected.get(
-                "currency",
-                "USD"
-            )
-        )
-
-        add_log(
-            f"Account found: "
-            f"{account_id}"
-        )
-
-        add_log(
-            f"Account type: "
-            f"{state['account_type']}"
-        )
-
-        # --------------------------------------------
-        # GET OTP
-        # --------------------------------------------
-
         ws_url = get_otp_url(
             app_id,
             token,
             account_id
         )
 
-        if not ws_url:
-
-            raise RuntimeError(
-                "Empty WebSocket URL."
-            )
-
-        add_log(
-            "OTP WebSocket URL received."
-        )
-
         APP_ID = app_id
+
         PAT_TOKEN = token
 
-        # --------------------------------------------
-        # CLOSE OLD WS
-        # --------------------------------------------
+        if (
+            ws_thread
+            and ws_thread.is_alive()
+        ):
 
-        with ws_lock:
-            old_ws = ws
+            add_log(
+                "Closing old "
+                "WebSocket thread..."
+            )
 
-        if old_ws is not None:
+            if ws:
 
-            try:
-                old_ws.close()
+                try:
+                    ws.close()
 
-            except Exception:
-                pass
+                except Exception:
+                    pass
 
-        # --------------------------------------------
-        # RESET STATE
-        # --------------------------------------------
-
-        state["connected"] = False
-        state["authorized"] = False
-        state["last_error"] = ""
-        state["last_proposal"] = None
-
-        # --------------------------------------------
-        # START WS
-        # --------------------------------------------
+            time.sleep(1)
 
         ws_thread = threading.Thread(
             target=websocket_thread,
@@ -1144,21 +1118,22 @@ def api_connect():
         ws_thread.start()
 
         add_log(
-            "Authenticated WebSocket "
-            "thread started."
+            "OTP obtained. "
+            "WebSocket connection started."
         )
 
         return jsonify({
             "ok": True,
-            "message": (
+            "message":
                 "Connection started."
-            )
         })
 
     except Exception as exc:
 
         state["connected"] = False
+
         state["authorized"] = False
+
         state["last_error"] = str(exc)
 
         add_log(
@@ -1172,7 +1147,7 @@ def api_connect():
 
 
 # ============================================================
-# FIND BOOM
+# MARKETS
 # ============================================================
 
 @app.post("/api/markets")
@@ -1182,24 +1157,14 @@ def api_markets():
 
         return jsonify({
             "ok": False,
-            "error": (
+            "error":
                 "Connect Deriv first."
-            )
         }), 400
 
-    ok = send_ws({
+    send_ws({
         "active_symbols": "full",
         "req_id": 500
     })
-
-    if not ok:
-
-        return jsonify({
-            "ok": False,
-            "error": (
-                "WebSocket is not connected."
-            )
-        }), 400
 
     return jsonify({
         "ok": True
@@ -1238,46 +1203,41 @@ def api_select_symbol():
 
         return jsonify({
             "ok": False,
-            "error": "Symbol is required."
+            "error":
+                "Symbol is required."
         }), 400
 
     if not state["connected"]:
 
         return jsonify({
             "ok": False,
-            "error": (
+            "error":
                 "Connect Deriv first."
-            )
         }), 400
 
-    # Validate against returned BOOM list
-    valid = any(
-        item.get("symbol") == symbol
-        for item in state["boom_symbols"]
-    )
-
-    if not valid:
+    # Arovanana ny R_ satria tsy BOOM
+    # BOOM symbol tokony ahitana BOOM
+    if "BOOM" not in (
+        symbol + " " + display_name
+    ).upper():
 
         return jsonify({
             "ok": False,
-            "error": (
-                "This symbol is not "
-                "in the current BOOM list."
-            )
+            "error":
+                "This is not a BOOM symbol."
         }), 400
 
     state["symbol"] = symbol
 
     state["symbol_display"] = (
         display_name
-        or symbol
     )
 
     state["available_contracts"] = []
 
     state["ticks_buffer"] = []
 
-    state["last_price"] = None
+    state["last_proposal"] = None
 
     # Tick subscription
     send_ws({
@@ -1286,14 +1246,14 @@ def api_select_symbol():
         "req_id": 600
     })
 
-    # Contract metadata
+    # Available contracts
     send_ws({
         "contracts_for": symbol,
         "req_id": 601
     })
 
     add_log(
-        f"SELECTED: "
+        f"Selected BOOM symbol: "
         f"{symbol} "
         f"({display_name})"
     )
@@ -1301,7 +1261,8 @@ def api_select_symbol():
     return jsonify({
         "ok": True,
         "symbol": symbol,
-        "display_name": display_name
+        "display_name":
+            display_name
     })
 
 
@@ -1312,38 +1273,33 @@ def api_select_symbol():
 @app.post("/api/start")
 def api_start():
 
-    global trading_thread
-
     add_log(
-        "START BUTTON PRESSED."
+        "START button pressed."
     )
-
-    if not state["connected"]:
-
-        return jsonify({
-            "ok": False,
-            "error": (
-                "WebSocket is not connected."
-            )
-        }), 400
 
     if not state["authorized"]:
 
+        add_log(
+            "ERROR: Not authorized yet."
+        )
+
         return jsonify({
             "ok": False,
-            "error": (
-                "Deriv account is not "
-                "authorized yet."
-            )
+            "error":
+                "Connect and authorize "
+                "Deriv first."
         }), 400
 
     if not state["symbol"]:
 
+        add_log(
+            "ERROR: No BOOM symbol selected."
+        )
+
         return jsonify({
             "ok": False,
-            "error": (
+            "error":
                 "Select a BOOM symbol first."
-            )
         }), 400
 
     state["running"] = True
@@ -1351,19 +1307,32 @@ def api_start():
     state["last_trade_time"] = 0
 
     if (
-        trading_thread is None
-        or not trading_thread.is_alive()
+        not hasattr(
+            app,
+            "trading_thread"
+        )
+        or not app.trading_thread.is_alive()
     ):
 
-        trading_thread = threading.Thread(
+        add_log(
+            "Creating new trading thread..."
+        )
+
+        app.trading_thread = threading.Thread(
             target=trading_loop,
             daemon=True
         )
 
-        trading_thread.start()
+        app.trading_thread.start()
 
         add_log(
             "Trading thread started."
+        )
+
+    else:
+
+        add_log(
+            "Trading thread already running."
         )
 
     add_log(
@@ -1412,7 +1381,7 @@ def api_stop():
 
 
 # ============================================================
-# INTERVAL
+# UPDATE INTERVAL
 # ============================================================
 
 @app.post("/api/update-interval")
@@ -1425,39 +1394,26 @@ def api_update_interval():
         or {}
     )
 
-    try:
-
-        interval = int(
-            data.get(
-                "interval",
-                5
-            )
+    interval = int(
+        data.get(
+            "interval",
+            5
         )
-
-    except Exception:
-
-        return jsonify({
-            "ok": False,
-            "error": "Invalid interval."
-        }), 400
+    )
 
     if interval < 1:
 
         return jsonify({
             "ok": False,
-            "error": (
-                "Interval must be "
-                "at least 1 second."
-            )
+            "error":
+                "Interval must be at least 1 second."
         }), 400
 
-    state["trade_interval"] = (
-        interval
-    )
+    state["trade_interval"] = interval
 
     add_log(
-        f"Trade interval: "
-        f"{interval}s"
+        f"Trade interval updated "
+        f"to {interval} seconds."
     )
 
     return jsonify({
@@ -1467,7 +1423,7 @@ def api_update_interval():
 
 
 # ============================================================
-# DURATION
+# UPDATE DURATION
 # ============================================================
 
 @app.post("/api/update-duration")
@@ -1480,44 +1436,31 @@ def api_update_duration():
         or {}
     )
 
-    try:
-
-        duration = int(
-            data.get(
-                "duration",
-                3
-            )
+    duration = int(
+        data.get(
+            "duration",
+            3
         )
-
-    except Exception:
-
-        return jsonify({
-            "ok": False,
-            "error": "Invalid duration."
-        }), 400
+    )
 
     if duration < 1:
 
         return jsonify({
             "ok": False,
-            "error": (
-                "Duration must be "
-                "at least 1 second."
-            )
+            "error":
+                "Duration must be at least 1 second."
         }), 400
 
     state["duration"] = duration
 
-    state["duration_unit"] = "s"
-
     add_log(
-        f"Duration: {duration}s"
+        f"Duration updated "
+        f"to {duration} seconds."
     )
 
     return jsonify({
         "ok": True,
-        "duration": duration,
-        "duration_unit": "s"
+        "duration": duration
     })
 
 
@@ -1530,17 +1473,13 @@ def api_status():
 
     total = state["total_trades"]
 
-    if total:
-
-        win_rate = (
-            state["wins"]
-            / total
-            * 100
-        )
-
-    else:
-
-        win_rate = 0.0
+    win_rate = (
+        state["wins"]
+        / total
+        * 100
+        if total
+        else 0.0
+    )
 
     return jsonify({
         **state,
@@ -1561,29 +1500,7 @@ def index():
 
 
 # ============================================================
-# HEALTH CHECK
-# ============================================================
-
-@app.get("/health")
-def health():
-
-    return jsonify({
-        "ok": True,
-        "service": "NOVA BOOM/FALL BOT",
-        "websocket_connected": (
-            state["connected"]
-        ),
-        "authorized": (
-            state["authorized"]
-        ),
-        "running": (
-            state["running"]
-        )
-    })
-
-
-# ============================================================
-# RUN
+# MAIN
 # ============================================================
 
 if __name__ == "__main__":
