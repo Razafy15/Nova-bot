@@ -998,11 +998,11 @@
             <div class="setting">
 
                 <label>
-                    Duration
+                    Duration (seconds)
                 </label>
 
                 <div class="setting-value">
-                    3 seconds
+                    3
                 </div>
 
             </div>
@@ -1019,6 +1019,35 @@
                     class="setting-value"
                 >
                     $0.35
+                </div>
+
+            </div>
+
+
+            <div class="setting">
+
+                <label>
+                    Trade Interval (seconds)
+                </label>
+
+                <div class="setting-value">
+                    <input
+                        id="tradeInterval"
+                        type="number"
+                        value="5"
+                        min="1"
+                        max="60"
+                        style="
+                            width: 80px;
+                            background: #070a19;
+                            border: 1px solid var(--border);
+                            border-radius: 6px;
+                            color: white;
+                            padding: 4px 8px;
+                            font-size: 14px;
+                        "
+                        onchange="updateInterval()"
+                    >
                 </div>
 
             </div>
@@ -1380,4 +1409,1506 @@
 
                     <option value="off">
                         OFF
-                   
+                    </option>
+
+                </select>
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <!-- ================================================= -->
+    <!-- TRADE HISTORY -->
+    <!-- ================================================= -->
+
+    <div class="panel">
+
+        <div class="panel-title">
+            📜 TRADE HISTORY
+
+            <span id="historyCount">
+                0 trades
+            </span>
+        </div>
+
+
+        <div class="table-wrap">
+
+            <table>
+
+                <thead>
+
+                    <tr>
+
+                        <th>
+                            Time
+                        </th>
+
+                        <th>
+                            Market
+                        </th>
+
+                        <th>
+                            Type
+                        </th>
+
+                        <th>
+                            Stake
+                        </th>
+
+                        <th>
+                            Result
+                        </th>
+
+                        <th>
+                            Profit
+                        </th>
+
+                    </tr>
+
+                </thead>
+
+
+                <tbody id="historyBody">
+
+                    <tr>
+
+                        <td
+                            colspan="6"
+                            class="empty"
+                        >
+                            No trades yet
+                        </td>
+
+                    </tr>
+
+                </tbody>
+
+            </table>
+
+        </div>
+
+    </div>
+
+
+    <!-- ================================================= -->
+    <!-- SYSTEM LOG -->
+    <!-- ================================================= -->
+
+    <div class="panel">
+
+        <div class="panel-title">
+            🖥️ SYSTEM LOG
+
+            <button
+                class="btn btn-blue"
+                style="
+                    height:30px;
+                    padding:0 10px;
+                    font-size:9px;
+                "
+                onclick="clearLogs()"
+            >
+                CLEAR
+            </button>
+
+        </div>
+
+
+        <div
+            id="logs"
+            class="logs"
+        >
+
+            <div class="empty">
+                Waiting for system activity...
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<script>
+
+    /* =====================================================
+       GLOBAL
+    ===================================================== */
+
+    let priceHistory = [];
+
+    const maxPoints = 70;
+
+
+    /* =====================================================
+       HELPERS
+    ===================================================== */
+
+    function $(id) {
+        return document.getElementById(id);
+    }
+
+
+    function money(value) {
+
+        const n =
+            Number(value || 0);
+
+        return (
+            "$" +
+            n.toFixed(2)
+        );
+    }
+
+
+    function signedMoney(value) {
+
+        const n =
+            Number(value || 0);
+
+        return (
+            (n >= 0 ? "+" : "") +
+            "$" +
+            n.toFixed(2)
+        );
+    }
+
+
+    function setMessage(
+        text,
+        type = ""
+    ) {
+
+        const box =
+            $("connectionMessage");
+
+        box.textContent = text;
+
+        box.className =
+            "connection-message " +
+            type;
+    }
+
+
+    /* =====================================================
+       CONNECT DERIV
+       ===================================================== */
+
+    async function connectDeriv() {
+
+        const appId =
+            $("appId").value.trim();
+
+        const token =
+            $("apiToken").value.trim();
+
+        const accountId =
+            $("accountId").value.trim();
+
+
+        if (!appId) {
+
+            setMessage(
+                "App ID is required.",
+                "error"
+            );
+
+            return;
+        }
+
+
+        if (!token) {
+
+            setMessage(
+                "PAT/API Token is required.",
+                "error"
+            );
+
+            return;
+        }
+
+
+        if (!accountId) {
+
+            setMessage(
+                "Account ID is required.",
+                "error"
+            );
+
+            return;
+        }
+
+
+        setMessage(
+            "Connecting to Deriv..."
+        );
+
+
+        try {
+
+            const response =
+                await fetch(
+                    "/api/connect",
+                    {
+                        method: "POST",
+
+                        headers: {
+                            "Content-Type":
+                                "application/json"
+                        },
+
+                        body: JSON.stringify({
+                            app_id: appId,
+                            token: token,
+                            account_id:
+                                accountId
+                        })
+                    }
+                );
+
+
+            const data =
+                await response.json();
+
+
+            if (!response.ok ||
+                !data.ok) {
+
+                throw new Error(
+                    data.error ||
+                    "Connection failed."
+                );
+            }
+
+
+            setMessage(
+                "Connection started. Waiting for authorization...",
+                "ok"
+            );
+
+
+            setTimeout(
+                updateDashboard,
+                500
+            );
+
+
+        } catch (error) {
+
+            setMessage(
+                error.message,
+                "error"
+            );
+        }
+
+    }
+
+
+    /* =====================================================
+       FIND BOOM
+       ===================================================== */
+
+    async function findBoom() {
+
+        setMessage(
+            "Searching BOOM symbols..."
+        );
+
+
+        try {
+
+            const response =
+                await fetch(
+                    "/api/markets",
+                    {
+                        method: "POST"
+                    }
+                );
+
+
+            const data =
+                await response.json();
+
+
+            if (!response.ok ||
+                !data.ok) {
+
+                throw new Error(
+                    data.error ||
+                    "Unable to find BOOM."
+                );
+            }
+
+
+            setMessage(
+                "BOOM market search started.",
+                "ok"
+            );
+
+
+            setTimeout(
+                updateDashboard,
+                700
+            );
+
+
+        } catch (error) {
+
+            setMessage(
+                error.message,
+                "error"
+            );
+        }
+
+    }
+
+
+    /* =====================================================
+       SELECT SYMBOL
+       ===================================================== */
+
+    async function selectSymbol() {
+
+        const symbol =
+            $("symbol").value;
+
+
+        if (!symbol) {
+            return;
+        }
+
+
+        try {
+
+            const response =
+                await fetch(
+                    "/api/select-symbol",
+                    {
+                        method: "POST",
+
+                        headers: {
+                            "Content-Type":
+                                "application/json"
+                        },
+
+                        body: JSON.stringify({
+                            symbol: symbol
+                        })
+                    }
+                );
+
+
+            const data =
+                await response.json();
+
+
+            if (!response.ok ||
+                !data.ok) {
+
+                throw new Error(
+                    data.error ||
+                    "Symbol selection failed."
+                );
+            }
+
+
+            $("selectedMarket")
+                .textContent =
+                symbol;
+
+            $("marketName")
+                .textContent =
+                symbol;
+
+            $("settingSymbol")
+                .textContent =
+                symbol;
+
+            $("tradeSymbol")
+                .textContent =
+                symbol;
+
+
+            setMessage(
+                "BOOM selected: " +
+                symbol,
+                "ok"
+            );
+
+
+            setTimeout(
+                updateDashboard,
+                500
+            );
+
+
+        } catch (error) {
+
+            setMessage(
+                error.message,
+                "error"
+            );
+        }
+
+    }
+
+
+    /* =====================================================
+       UPDATE INTERVAL
+       ===================================================== */
+
+    async function updateInterval() {
+
+        const interval =
+            parseInt(
+                $("tradeInterval").value
+            ) || 5;
+
+
+        try {
+
+            const response =
+                await fetch(
+                    "/api/update-interval",
+                    {
+                        method: "POST",
+
+                        headers: {
+                            "Content-Type":
+                                "application/json"
+                        },
+
+                        body: JSON.stringify({
+                            interval: interval
+                        })
+                    }
+                );
+
+
+            const data =
+                await response.json();
+
+
+            if (!response.ok ||
+                !data.ok) {
+
+                throw new Error(
+                    data.error ||
+                    "Failed to update interval."
+                );
+            }
+
+
+            setMessage(
+                "Trade interval updated to " +
+                interval +
+                "s",
+                "ok"
+            );
+
+
+        } catch (error) {
+
+            setMessage(
+                error.message,
+                "error"
+            );
+        }
+
+    }
+
+
+    /* =====================================================
+       START
+       ===================================================== */
+
+    async function startBot() {
+
+        try {
+
+            const response =
+                await fetch(
+                    "/api/start",
+                    {
+                        method: "POST"
+                    }
+                );
+
+
+            const data =
+                await response.json();
+
+
+            if (!response.ok ||
+                !data.ok) {
+
+                throw new Error(
+                    data.error ||
+                    "Cannot start bot."
+                );
+            }
+
+
+            setMessage(
+                "Bot started.",
+                "ok"
+            );
+
+
+            updateDashboard();
+
+
+        } catch (error) {
+
+            setMessage(
+                error.message,
+                "error"
+            );
+        }
+
+    }
+
+
+    /* =====================================================
+       PAUSE
+       ===================================================== */
+
+    async function pauseBot() {
+
+        try {
+
+            const response =
+                await fetch(
+                    "/api/pause",
+                    {
+                        method: "POST"
+                    }
+                );
+
+
+            const data =
+                await response.json();
+
+
+            if (!response.ok ||
+                !data.ok) {
+
+                throw new Error(
+                    data.error ||
+                    "Cannot pause bot."
+                );
+            }
+
+
+            setMessage(
+                "Bot paused."
+            );
+
+
+            updateDashboard();
+
+
+        } catch (error) {
+
+            setMessage(
+                error.message,
+                "error"
+            );
+        }
+
+    }
+
+
+    /* =====================================================
+       STOP
+       ===================================================== */
+
+    async function stopBot() {
+
+        try {
+
+            const response =
+                await fetch(
+                    "/api/stop",
+                    {
+                        method: "POST"
+                    }
+                );
+
+
+            const data =
+                await response.json();
+
+
+            if (!response.ok ||
+                !data.ok) {
+
+                throw new Error(
+                    data.error ||
+                    "Cannot stop bot."
+                );
+            }
+
+
+            setMessage(
+                "Bot stopped."
+            );
+
+
+            updateDashboard();
+
+
+        } catch (error) {
+
+            setMessage(
+                error.message,
+                "error"
+            );
+        }
+
+    }
+
+
+    /* =====================================================
+       UPDATE SYMBOLS
+       ===================================================== */
+
+    function updateSymbols(symbols) {
+
+        const select =
+            $("symbol");
+
+
+        const current =
+            select.value;
+
+
+        select.innerHTML = "";
+
+
+        if (!symbols ||
+            symbols.length === 0) {
+
+            const option =
+                document.createElement(
+                    "option"
+                );
+
+            option.value = "";
+
+            option.textContent =
+                "No BOOM symbols found";
+
+            select.appendChild(
+                option
+            );
+
+            return;
+        }
+
+
+        symbols.forEach(
+            item => {
+
+                const option =
+                    document.createElement(
+                        "option"
+                    );
+
+                option.value =
+                    item.symbol;
+
+                option.textContent =
+                    item.display_name ||
+                    item.symbol;
+
+                select.appendChild(
+                    option
+                );
+
+            }
+        );
+
+
+        if (current) {
+
+            select.value =
+                current;
+
+        }
+
+    }
+
+
+    /* =====================================================
+       UPDATE CONTRACTS
+       ===================================================== */
+
+    function updateContracts(
+        contracts
+    ) {
+
+        const box =
+            $("contractInfo");
+
+
+        if (!contracts ||
+            contracts.length === 0) {
+
+            box.innerHTML =
+                "No contract data returned.";
+
+            return;
+        }
+
+
+        let html =
+            "<b>Available contracts:</b><br>";
+
+
+        contracts.forEach(
+            contract => {
+
+                const type =
+                    contract.contract_type ||
+                    "UNKNOWN";
+
+                const category =
+                    contract.contract_category ||
+                    "";
+
+                const expiry =
+                    contract.expiry_type ||
+                    "";
+
+
+                html +=
+                    "• " +
+                    type +
+                    " | " +
+                    category +
+                    " | " +
+                    expiry +
+                    "<br>";
+            }
+        );
+
+
+        box.innerHTML =
+            html;
+
+    }
+
+
+    /* =====================================================
+       UPDATE HISTORY
+       ===================================================== */
+
+    function updateHistory(
+        history
+    ) {
+
+        const body =
+            $("historyBody");
+
+
+        $("historyCount")
+            .textContent =
+            (history || []).length +
+            " trades";
+
+
+        if (!history ||
+            history.length === 0) {
+
+            body.innerHTML = `
+                <tr>
+                    <td
+                        colspan="6"
+                        class="empty"
+                    >
+                        No trades yet
+                    </td>
+                </tr>
+            `;
+
+            return;
+        }
+
+
+        body.innerHTML =
+            history.map(
+                item => {
+
+                    const profit =
+                        Number(
+                            item.profit || 0
+                        );
+
+                    const result =
+                        item.result ||
+                        "—";
+
+
+                    return `
+                        <tr>
+
+                            <td>
+                                ${item.time || "—"}
+                            </td>
+
+                            <td>
+                                ${item.symbol || "—"}
+                            </td>
+
+                            <td class="direction">
+                                ${item.direction || "PUT/FALL"}
+                            </td>
+
+                            <td>
+                                $${Number(
+                                    item.stake || 0
+                                ).toFixed(2)}
+                            </td>
+
+                            <td class="${
+                                result === "WIN"
+                                    ? "win"
+                                    : "loss"
+                            }">
+                                ${result}
+                            </td>
+
+                            <td class="${
+                                profit >= 0
+                                    ? "win"
+                                    : "loss"
+                            }">
+                                ${signedMoney(profit)}
+                            </td>
+
+                        </tr>
+                    `;
+                }
+            )
+            .join("");
+
+    }
+
+
+    /* =====================================================
+       UPDATE LOGS
+       ===================================================== */
+
+    function updateLogs(
+        logs
+    ) {
+
+        const box =
+            $("logs");
+
+
+        if (!logs ||
+            logs.length === 0) {
+
+            box.innerHTML =
+                '<div class="empty">Waiting for system activity...</div>';
+
+            return;
+        }
+
+
+        box.innerHTML =
+            logs.map(
+                log => {
+
+                    return `
+                        <div class="log-line">
+                            <span class="log-time">
+                                [${log.time}]
+                            </span>
+
+                            ${escapeHtml(
+                                log.message
+                            )}
+                        </div>
+                    `;
+                }
+            )
+            .join("");
+
+    }
+
+
+    function escapeHtml(
+        value
+    ) {
+
+        return String(value)
+            .replaceAll("&", "&amp;")
+            .replaceAll("<", "&lt;")
+            .replaceAll(">", "&gt;")
+            .replaceAll('"', "&quot;")
+            .replaceAll("'", "&#039;");
+
+    }
+
+
+    /* =====================================================
+       UPDATE DASHBOARD
+       ===================================================== */
+
+    async function updateDashboard() {
+
+        try {
+
+            const response =
+                await fetch(
+                    "/api/status",
+                    {
+                        cache: "no-store"
+                    }
+                );
+
+
+            const data =
+                await response.json();
+
+
+            /* STATUS */
+
+            const status =
+                $("connectionStatus");
+
+
+            if (
+                data.connected &&
+                data.authorized
+            ) {
+
+                status.textContent =
+                    "● CONNECTED";
+
+                status.className =
+                    "status connected";
+
+            } else {
+
+                status.textContent =
+                    "● DISCONNECTED";
+
+                status.className =
+                    "status disconnected";
+            }
+
+
+            /* STATS */
+
+            $("balance")
+                .textContent =
+                money(data.balance);
+
+
+            $("profit")
+                .textContent =
+                signedMoney(data.profit);
+
+
+            $("profit").className =
+                "stat-value " +
+                (
+                    Number(data.profit || 0) >= 0
+                        ? "green"
+                        : "red"
+                );
+
+
+            $("winRate")
+                .textContent =
+                Number(
+                    data.win_rate || 0
+                ).toFixed(2) +
+                "%";
+
+
+            $("totalTrades")
+                .textContent =
+                data.total_trades || 0;
+
+
+            $("winsLosses")
+                .innerHTML = `
+                    <span class="green">
+                        ${data.wins || 0}
+                    </span>
+                    /
+                    <span class="red">
+                        ${data.losses || 0}
+                    </span>
+                `;
+
+
+            $("lossStreak")
+                .textContent =
+                data.loss_streak || 0;
+
+
+            /* CONNECTION */
+
+            $("accountType")
+                .textContent =
+                data.account_type ||
+                "—";
+
+
+            $("authorization")
+                .textContent =
+                data.authorized
+                    ? "AUTHORIZED"
+                    : "WAITING";
+
+
+            $("connectionInfo")
+                .textContent =
+                data.connected
+                    ? "ONLINE"
+                    : "OFFLINE";
+
+
+            /* BOT */
+
+            $("botStatus")
+                .textContent =
+                data.running
+                    ? "RUNNING"
+                    : "STOPPED";
+
+
+            $("baseStake")
+                .textContent =
+                money(data.stake);
+
+
+            /* MARKET */
+
+            if (data.symbol) {
+
+                $("marketName")
+                    .textContent =
+                    data.symbol;
+
+                $("selectedMarket")
+                    .textContent =
+                    data.symbol;
+
+                $("settingSymbol")
+                    .textContent =
+                    data.symbol;
+
+                $("tradeSymbol")
+                    .textContent =
+                    data.symbol;
+            }
+
+
+            if (
+                data.last_price !== null &&
+                data.last_price !== undefined
+            ) {
+
+                const price =
+                    Number(
+                        data.last_price
+                    );
+
+
+                $("livePrice")
+                    .textContent =
+                    price.toFixed(4);
+
+
+                $("finderPrice")
+                    .textContent =
+                    price.toFixed(4);
+
+
+                $("chartPrice")
+                    .textContent =
+                    price.toFixed(4);
+
+
+                addPrice(
+                    price
+                );
+            }
+
+
+            /* BOOM */
+
+            updateSymbols(
+                data.boom_symbols
+            );
+
+
+            updateContracts(
+                data.available_contracts
+            );
+
+
+            /* CURRENT TRADE */
+
+            if (data.current_trade) {
+
+                $("tradeSymbol")
+                    .textContent =
+                    data.current_trade.symbol ||
+                    "—";
+
+
+                $("tradeStake")
+                    .textContent =
+                    money(
+                        data.current_trade.stake
+                    );
+
+
+                $("contractId")
+                    .textContent =
+                    data.current_trade.contract_id ||
+                    "—";
+
+
+                $("tradeStatus")
+                    .textContent =
+                    data.current_trade.status ||
+                    "OPEN";
+
+            } else {
+
+                $("contractId")
+                    .textContent =
+                    "—";
+
+                $("tradeStatus")
+                    .textContent =
+                    "WAITING";
+
+            }
+
+
+            /* HISTORY */
+
+            updateHistory(
+                data.history
+            );
+
+
+            /* LOGS */
+
+            updateLogs(
+                data.logs
+            );
+
+
+            /* ERROR */
+
+            if (data.last_error) {
+
+                setMessage(
+                    data.last_error,
+                    "error"
+                );
+            }
+
+
+            drawChart();
+
+
+        } catch (error) {
+
+            console.log(
+                "Dashboard update error:",
+                error
+            );
+        }
+
+    }
+
+
+    /* =====================================================
+       PRICE HISTORY
+       ===================================================== */
+
+    function addPrice(
+        price
+    ) {
+
+        priceHistory.push(
+            Number(price)
+        );
+
+
+        if (
+            priceHistory.length >
+            maxPoints
+        ) {
+
+            priceHistory.shift();
+
+        }
+
+    }
+
+
+    /* =====================================================
+       CHART
+       ===================================================== */
+
+    function drawChart() {
+
+        const canvas =
+            $("chartCanvas");
+
+
+        const rect =
+            canvas.parentElement
+                .getBoundingClientRect();
+
+
+        const dpr =
+            window.devicePixelRatio || 1;
+
+
+        canvas.width =
+            rect.width * dpr;
+
+
+        canvas.height =
+            rect.height * dpr;
+
+
+        const ctx =
+            canvas.getContext("2d");
+
+
+        ctx.scale(
+            dpr,
+            dpr
+        );
+
+
+        const width =
+            rect.width;
+
+
+        const height =
+            rect.height;
+
+
+        ctx.clearRect(
+            0,
+            0,
+            width,
+            height
+        );
+
+
+        if (
+            priceHistory.length < 2
+        ) {
+
+            ctx.fillStyle =
+                "#8991ad";
+
+            ctx.font =
+                "12px Arial";
+
+            ctx.fillText(
+                "Waiting for live price...",
+                20,
+                30
+            );
+
+            return;
+        }
+
+
+        let min =
+            Math.min(
+                ...priceHistory
+            );
+
+        let max =
+            Math.max(
+                ...priceHistory
+            );
+
+
+        if (min === max) {
+
+            min -= 1;
+            max += 1;
+
+        }
+
+
+        const padding =
+            20;
+
+
+        const range =
+            max - min;
+
+
+        ctx.beginPath();
+
+
+        priceHistory.forEach(
+            (price, index) => {
+
+                const x =
+                    padding +
+                    (
+                        index /
+                        (priceHistory.length - 1)
+                    ) *
+                    (
+                        width -
+                        padding * 2
+                    );
+
+
+                const y =
+                    height -
+                    padding -
+                    (
+                        (price - min) /
+                        range
+                    ) *
+                    (
+                        height -
+                        padding * 2
+                    );
+
+
+                if (index === 0) {
+
+                    ctx.moveTo(
+                        x,
+                        y
+                    );
+
+                } else {
+
+                    ctx.lineTo(
+                        x,
+                        y
+                    );
+
+                }
+
+            }
+        );
+
+
+        ctx.strokeStyle =
+            "#7654ff";
+
+        ctx.lineWidth =
+            2;
+
+        ctx.stroke();
+
+
+        const last =
+            priceHistory[
+                priceHistory.length - 1
+            ];
+
+
+        const lastX =
+            padding +
+            (
+                (priceHistory.length - 1) /
+                (priceHistory.length - 1)
+            ) *
+            (
+                width -
+                padding * 2
+            );
+
+
+        const lastY =
+            height -
+            padding -
+            (
+                (last - min) /
+                range
+            ) *
+            (
+                height -
+                padding * 2
+            );
+
+
+        ctx.beginPath();
+
+        ctx.arc(
+            lastX,
+            lastY,
+            4,
+            0,
+            Math.PI * 2
+        );
+
+        ctx.fillStyle =
+            "#19c477";
+
+        ctx.fill();
+
+    }
+
+
+    /* =====================================================
+       CLEAR LOGS
+       ===================================================== */
+
+    function clearLogs() {
+
+        $("logs").innerHTML =
+            '<div class="empty">Logs cleared from screen.</div>';
+
+    }
+
+
+    /* =====================================================
+       AUTO UPDATE
+       ===================================================== */
+
+    setInterval(
+        updateDashboard,
+        1000
+    );
+
+
+    window.addEventListener(
+        "resize",
+        drawChart
+    );
+
+
+    /* =====================================================
+       INITIAL LOAD
+       ===================================================== */
+
+    updateDashboard();
+
+</script>
+
+</body>
+</html>
