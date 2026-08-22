@@ -2,7 +2,10 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
 
     <title>NOVA BOOM/FALL BOT</title>
 
@@ -11,319 +14,454 @@
             box-sizing: border-box;
         }
 
-        body {
-            margin: 0;
-            background: #070914;
-            color: #ffffff;
-            font-family: Arial, sans-serif;
+        :root {
+            --bg: #060817;
+            --panel: #101326;
+            --panel2: #0b0e20;
+            --border: #1c2340;
+            --text: #f4f6ff;
+            --muted: #8991ad;
+            --green: #19c477;
+            --red: #ed4665;
+            --yellow: #e0a51b;
+            --purple: #7654ff;
+            --blue: #32a8ff;
         }
 
-        header {
-            background: #0d1020;
-            border-bottom: 1px solid #252a43;
-            padding: 16px 20px;
+        body {
+            margin: 0;
+            background:
+                radial-gradient(
+                    circle at top,
+                    #10152d 0,
+                    #060817 45%,
+                    #040510 100%
+                );
+            color: var(--text);
+            font-family:
+                Inter,
+                Arial,
+                sans-serif;
+        }
+
+        button,
+        input,
+        select {
+            font: inherit;
+        }
+
+        .container {
+            width: min(1180px, 96%);
+            margin: auto;
+            padding: 16px 0 50px;
+        }
+
+        /* HEADER */
+
+        .header {
             display: flex;
-            justify-content: space-between;
             align-items: center;
-            position: sticky;
-            top: 0;
-            z-index: 10;
+            justify-content: space-between;
+            margin-bottom: 16px;
+            gap: 10px;
         }
 
         .brand {
-            font-size: 21px;
-            font-weight: 900;
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
 
-        .brand small {
-            display: block;
-            color: #7e86a5;
-            font-size: 10px;
-            margin-top: 4px;
+        .brand-icon {
+            width: 42px;
+            height: 42px;
+            border-radius: 12px;
+            display: grid;
+            place-items: center;
+            background:
+                linear-gradient(
+                    135deg,
+                    #7654ff,
+                    #3020a0
+                );
+            box-shadow:
+                0 0 25px
+                rgba(118, 84, 255, .25);
+            font-size: 21px;
+        }
+
+        .brand h1 {
+            margin: 0;
+            font-size: 18px;
+        }
+
+        .brand p {
+            margin: 3px 0 0;
+            color: var(--muted);
+            font-size: 11px;
         }
 
         .status {
-            padding: 8px 13px;
+            padding: 8px 12px;
             border-radius: 20px;
             font-size: 11px;
+            font-weight: 700;
+            border: 1px solid var(--border);
+            background: #0b0e1d;
+        }
+
+        .status.connected {
+            color: var(--green);
+            border-color:
+                rgba(25,196,119,.35);
+        }
+
+        .status.disconnected {
+            color: var(--red);
+        }
+
+        /* PANELS */
+
+        .panel {
+            background:
+                linear-gradient(
+                    145deg,
+                    rgba(17,20,39,.98),
+                    rgba(9,12,29,.98)
+                );
+            border: 1px solid var(--border);
+            border-radius: 15px;
+            padding: 16px;
+            margin-bottom: 14px;
+            box-shadow:
+                0 10px 35px
+                rgba(0,0,0,.15);
+        }
+
+        .panel-title {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 13px;
+            font-size: 13px;
             font-weight: 800;
         }
 
-        .offline {
-            background: #401722;
-            color: #ff7182;
+        .panel-title span {
+            color: var(--muted);
+            font-size: 10px;
+            font-weight: 500;
         }
 
-        .online {
-            background: #123b2b;
-            color: #45f39b;
-        }
+        /* API */
 
-        main {
-            max-width: 1450px;
-            margin: auto;
-            padding: 18px;
-        }
-
-        .panel {
-            background: #101426;
-            border: 1px solid #252a43;
-            border-radius: 15px;
-            padding: 17px;
-            margin-bottom: 16px;
-        }
-
-        .title {
-            font-size: 15px;
-            font-weight: 900;
-            margin-bottom: 15px;
-        }
-
-        /* CONNECTION */
-
-        .connection-grid {
+        .api-grid {
             display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 12px;
+            grid-template-columns:
+                1fr 1.3fr 1fr auto;
+            gap: 10px;
+            align-items: end;
         }
 
-        label {
+        .field label {
             display: block;
-            color: #8e96b5;
-            font-size: 11px;
-            margin-bottom: 7px;
+            color: var(--muted);
+            font-size: 9px;
+            margin-bottom: 6px;
+            text-transform: uppercase;
         }
 
         input,
         select {
             width: 100%;
-            padding: 12px;
+            height: 40px;
             border-radius: 9px;
-            border: 1px solid #30364f;
-            background: #080b17;
-            color: white;
+            border: 1px solid var(--border);
+            background: #070a19;
+            color: var(--text);
             outline: none;
+            padding: 0 11px;
         }
 
         input:focus,
         select:focus {
-            border-color: #7257ff;
+            border-color: var(--purple);
         }
 
-        button {
+        .btn {
             border: 0;
             border-radius: 9px;
-            padding: 12px 15px;
+            height: 40px;
+            padding: 0 17px;
+            cursor: pointer;
             color: white;
             font-weight: 800;
-            cursor: pointer;
+            font-size: 11px;
         }
 
-        button:hover {
-            opacity: .88;
+        .btn-purple {
+            background: var(--purple);
         }
 
-        .connect {
-            background: #7257ff;
-            margin-top: 13px;
+        .btn-green {
+            background: var(--green);
         }
 
-        .message {
-            color: #8e96b5;
-            font-size: 12px;
+        .btn-red {
+            background: var(--red);
+        }
+
+        .btn-yellow {
+            background: var(--yellow);
+        }
+
+        .btn-blue {
+            background: var(--blue);
+        }
+
+        .btn:disabled {
+            opacity: .45;
+            cursor: not-allowed;
+        }
+
+        .connection-message {
             margin-top: 10px;
+            color: var(--muted);
+            font-size: 11px;
         }
 
-        .error {
-            display: none;
-            margin-top: 10px;
-            padding: 10px;
-            border-radius: 9px;
-            background: #391722;
-            color: #ff8998;
-            font-size: 12px;
+        .connection-message.ok {
+            color: var(--green);
         }
 
-        /* STAT CARDS */
+        .connection-message.error {
+            color: var(--red);
+        }
 
-        .cards {
+        /* STATS */
+
+        .stats {
             display: grid;
             grid-template-columns:
-                repeat(6, minmax(130px, 1fr));
-            gap: 12px;
-            margin-bottom: 16px;
+                repeat(6, 1fr);
+            gap: 10px;
+            margin-bottom: 14px;
         }
 
-        .card {
-            background: #101426;
-            border: 1px solid #252a43;
-            border-radius: 14px;
-            padding: 15px;
+        .stat {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 13px;
+            padding: 13px;
+            min-height: 77px;
         }
 
-        .card-label {
-            color: #8e96b5;
-            font-size: 10px;
-            font-weight: 700;
+        .stat-label {
+            color: var(--muted);
+            font-size: 9px;
+            text-transform: uppercase;
+            margin-bottom: 8px;
         }
 
-        .card-value {
-            margin-top: 7px;
-            font-size: 20px;
+        .stat-value {
+            font-size: 18px;
             font-weight: 900;
         }
 
         .green {
-            color: #45f39b;
+            color: var(--green);
         }
 
         .red {
-            color: #ff6577;
+            color: var(--red);
         }
 
         .purple {
-            color: #a48cff;
+            color: #a28dff;
         }
 
-        /* TOP GRID */
+        .yellow {
+            color: #ffd45c;
+        }
 
-        .top-grid {
+        /* MARKET */
+
+        .market-grid {
             display: grid;
-            grid-template-columns: 2fr 1fr;
-            gap: 16px;
+            grid-template-columns:
+                1.5fr .8fr;
+            gap: 14px;
         }
-
-        /* CHART */
 
         .chart {
             height: 360px;
-            background: #080b17;
-            border-radius: 11px;
-            border: 1px solid #202640;
+            background: #060917;
+            border: 1px solid var(--border);
+            border-radius: 12px;
             position: relative;
             overflow: hidden;
         }
 
-        canvas {
+        .chart-grid {
+            position: absolute;
+            inset: 0;
+            background-image:
+                linear-gradient(
+                    rgba(70,80,120,.08) 1px,
+                    transparent 1px
+                ),
+                linear-gradient(
+                    90deg,
+                    rgba(70,80,120,.08) 1px,
+                    transparent 1px
+                );
+            background-size:
+                45px 45px;
+        }
+
+        .chart-content {
+            position: absolute;
+            inset: 0;
+            padding: 20px;
+        }
+
+        #chartCanvas {
             width: 100%;
             height: 100%;
         }
 
         .price-box {
             position: absolute;
-            right: 12px;
-            top: 12px;
-            background: #151a2d;
-            border: 1px solid #30364f;
+            right: 14px;
+            top: 14px;
+            background: #10162c;
+            border: 1px solid var(--border);
             padding: 9px 12px;
             border-radius: 8px;
-            font-size: 13px;
-            font-weight: 900;
+            font-size: 12px;
+        }
+
+        .market-side {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px;
+            border-radius: 9px;
+            background: #080b1b;
+            border: 1px solid #141a32;
+            font-size: 11px;
+        }
+
+        .info-row span:first-child {
+            color: var(--muted);
+        }
+
+        .info-row strong {
+            text-align: right;
         }
 
         /* SETTINGS */
 
-        .settings {
+        .settings-grid {
             display: grid;
-            gap: 9px;
-        }
-
-        .row {
-            background: #080b17;
-            border-radius: 9px;
-            padding: 11px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+            grid-template-columns:
+                repeat(4, 1fr);
             gap: 10px;
         }
 
-        .muted {
-            color: #8e96b5;
-            font-size: 12px;
+        .setting {
+            background: #080b1b;
+            border: 1px solid #141a32;
+            padding: 12px;
+            border-radius: 10px;
         }
 
-        .fall {
-            color: #ff6577;
+        .setting label {
+            display: block;
+            color: var(--muted);
+            font-size: 9px;
+            margin-bottom: 6px;
+        }
+
+        .setting-value {
+            font-size: 12px;
+            font-weight: 800;
+        }
+
+        .direction {
+            color: var(--red);
         }
 
         .buttons {
             display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 8px;
-            margin-top: 14px;
+            grid-template-columns:
+                repeat(3, 1fr);
+            gap: 10px;
+            margin-top: 12px;
         }
 
-        .start {
-            background: #16a765;
+        .buttons .btn {
+            height: 43px;
         }
 
-        .pause {
-            background: #b98218;
-        }
+        /* FINDER */
 
-        .stop {
-            background: #c83249;
-        }
-
-        /* MARKET */
-
-        .market-row {
+        .finder-grid {
             display: grid;
-            grid-template-columns: 2fr 1fr 1fr;
+            grid-template-columns:
+                1.5fr .8fr auto;
             gap: 10px;
             align-items: end;
         }
 
-        .market-btn {
-            background: #7257ff;
+        .live-price {
+            height: 40px;
+            display: flex;
+            align-items: center;
+            padding: 0 12px;
+            border-radius: 9px;
+            background: #070a19;
+            border: 1px solid var(--border);
+            font-weight: 800;
         }
 
-        .price {
-            font-size: 24px;
-            font-weight: 900;
+        .contract-box {
+            margin-top: 12px;
+            padding: 12px;
+            background: #070a19;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            color: var(--muted);
+            font-size: 11px;
+            line-height: 1.8;
+            min-height: 45px;
         }
 
         /* CURRENT TRADE */
 
-        .trade-box {
+        .trade-grid {
             display: grid;
-            grid-template-columns: repeat(4, 1fr);
+            grid-template-columns:
+                repeat(5, 1fr);
             gap: 10px;
-        }
-
-        .trade-item {
-            background: #080b17;
-            border-radius: 9px;
-            padding: 13px;
-        }
-
-        .trade-item span {
-            display: block;
-            color: #8e96b5;
-            font-size: 10px;
-            margin-bottom: 6px;
-        }
-
-        .trade-item strong {
-            font-size: 14px;
         }
 
         /* RISK */
 
         .risk-grid {
             display: grid;
-            grid-template-columns: repeat(4, 1fr);
+            grid-template-columns:
+                repeat(4, 1fr);
             gap: 10px;
         }
 
-        .risk-item {
-            background: #080b17;
-            padding: 10px;
-            border-radius: 9px;
-        }
-
-        /* HISTORY */
+        /* TABLE */
 
         .table-wrap {
             overflow-x: auto;
@@ -332,89 +470,82 @@
         table {
             width: 100%;
             border-collapse: collapse;
-            font-size: 12px;
+            min-width: 650px;
         }
 
         th,
         td {
             padding: 11px 8px;
-            border-bottom: 1px solid #242a42;
             text-align: left;
+            border-bottom: 1px solid #171c35;
+            font-size: 10px;
         }
 
         th {
-            color: #8e96b5;
+            color: var(--muted);
+            font-size: 9px;
+            text-transform: uppercase;
         }
 
         .win {
-            color: #45f39b;
-            font-weight: 900;
+            color: var(--green);
+            font-weight: 800;
         }
 
         .loss {
-            color: #ff6577;
-            font-weight: 900;
+            color: var(--red);
+            font-weight: 800;
         }
 
         /* LOG */
 
         .logs {
-            max-height: 220px;
+            height: 180px;
             overflow-y: auto;
-            background: #080b17;
-            border-radius: 9px;
+            background: #050713;
+            border: 1px solid var(--border);
+            border-radius: 10px;
             padding: 10px;
+            font-family: monospace;
+            font-size: 10px;
         }
 
-        .log {
-            padding: 8px 4px;
-            border-bottom: 1px solid #1c2136;
-            font-family: monospace;
-            font-size: 11px;
+        .log-line {
+            padding: 5px 0;
+            border-bottom: 1px solid #11162a;
         }
 
         .log-time {
-            color: #7257ff;
+            color: #7654ff;
             margin-right: 8px;
+        }
+
+        .empty {
+            color: var(--muted);
+            text-align: center;
+            padding: 25px;
+            font-size: 11px;
         }
 
         /* RESPONSIVE */
 
-        @media (max-width: 1100px) {
+        @media (max-width: 900px) {
 
-            .cards {
+            .stats {
                 grid-template-columns:
                     repeat(3, 1fr);
             }
 
-            .top-grid {
-                grid-template-columns: 1fr;
-            }
-
-        }
-
-        @media (max-width: 750px) {
-
-            header {
-                flex-direction: column;
-                align-items: flex-start;
-                gap: 10px;
-            }
-
-            .connection-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .cards {
+            .api-grid {
                 grid-template-columns:
-                    repeat(2, 1fr);
+                    1fr 1fr;
             }
 
-            .market-row {
+            .market-grid {
                 grid-template-columns: 1fr;
             }
 
-            .trade-box {
+            .settings-grid {
                 grid-template-columns:
                     repeat(2, 1fr);
             }
@@ -424,195 +555,333 @@
                     repeat(2, 1fr);
             }
 
+            .trade-grid {
+                grid-template-columns:
+                    repeat(3, 1fr);
+            }
+        }
+
+        @media (max-width: 600px) {
+
+            .container {
+                width: 94%;
+                padding-top: 10px;
+            }
+
+            .header {
+                align-items: flex-start;
+            }
+
+            .brand h1 {
+                font-size: 15px;
+            }
+
+            .api-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .stats {
+                grid-template-columns:
+                    repeat(2, 1fr);
+            }
+
+            .stat {
+                min-height: 70px;
+            }
+
+            .stat-value {
+                font-size: 16px;
+            }
+
+            .chart {
+                height: 300px;
+            }
+
+            .finder-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .settings-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            .risk-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            .trade-grid {
+                grid-template-columns:
+                    1fr 1fr;
+            }
+
             .buttons {
                 grid-template-columns: 1fr;
             }
 
+            .btn {
+                width: 100%;
+            }
         }
     </style>
 </head>
 
 <body>
 
-<header>
+<div class="container">
 
-    <div class="brand">
-        🤖 NOVA BOOM/FALL BOT
-        <small>Deriv Synthetic Trading Dashboard</small>
-    </div>
+    <!-- ================================================= -->
+    <!-- HEADER -->
+    <!-- ================================================= -->
 
-    <div
-        id="connectionStatus"
-        class="status offline"
-    >
-        ● DISCONNECTED
-    </div>
+    <div class="header">
 
-</header>
+        <div class="brand">
 
-
-<main>
-
-    <!-- API CONNECTION -->
-
-    <section class="panel">
-
-        <div class="title">
-            🔐 DERIV API CONNECTION
-        </div>
-
-        <div class="connection-grid">
+            <div class="brand-icon">
+                🤖
+            </div>
 
             <div>
-                <label>APP ID</label>
+                <h1>NOVA BOOM/FALL BOT</h1>
+
+                <p>
+                    Deriv Synthetic Trading Dashboard
+                </p>
+            </div>
+
+        </div>
+
+        <div
+            id="connectionStatus"
+            class="status disconnected"
+        >
+            ● DISCONNECTED
+        </div>
+
+    </div>
+
+
+    <!-- ================================================= -->
+    <!-- API CONNECTION -->
+    <!-- ================================================= -->
+
+    <div class="panel">
+
+        <div class="panel-title">
+            🔐 DERIV API CONNECTION
+
+            <span>
+                PAT / API Token
+            </span>
+        </div>
+
+        <div class="api-grid">
+
+            <div class="field">
+
+                <label>
+                    App ID
+                </label>
 
                 <input
                     id="appId"
                     type="text"
-                    placeholder="Enter App ID"
+                    placeholder="Deriv App ID"
+                    autocomplete="off"
                 >
+
             </div>
 
-            <div>
-                <label>PAT / API TOKEN</label>
+
+            <div class="field">
+
+                <label>
+                    PAT / API Token
+                </label>
 
                 <input
-                    id="token"
+                    id="apiToken"
                     type="password"
-                    placeholder="Enter PAT"
+                    placeholder="PAT / API Token"
+                    autocomplete="off"
                 >
+
             </div>
 
-            <div>
-                <label>ACCOUNT ID</label>
+
+            <div class="field">
+
+                <label>
+                    Account ID
+                </label>
 
                 <input
                     id="accountId"
                     type="text"
-                    placeholder="DOT..."
+                    placeholder="CR / DOT..."
+                    autocomplete="off"
                 >
+
             </div>
 
+
+            <button
+                class="btn btn-purple"
+                onclick="connectDeriv()"
+            >
+                🔌 CONNECT DERIV
+            </button>
+
         </div>
 
-        <button
-            class="connect"
-            onclick="connectDeriv()"
-        >
-            🔌 CONNECT DERIV
-        </button>
 
         <div
-            id="message"
-            class="message"
+            id="connectionMessage"
+            class="connection-message"
         >
-            Not connected
+            Enter your Deriv credentials and connect.
         </div>
 
-        <div
-            id="error"
-            class="error"
-        ></div>
-
-    </section>
+    </div>
 
 
-    <!-- STATISTICS -->
+    <!-- ================================================= -->
+    <!-- STATS -->
+    <!-- ================================================= -->
 
-    <section class="cards">
+    <div class="stats">
 
-        <div class="card">
-            <div class="card-label">BALANCE</div>
+        <div class="stat">
+
+            <div class="stat-label">
+                Balance
+            </div>
 
             <div
                 id="balance"
-                class="card-value"
+                class="stat-value"
             >
                 $0.00
             </div>
+
         </div>
 
-        <div class="card">
-            <div class="card-label">PROFIT / LOSS</div>
+
+        <div class="stat">
+
+            <div class="stat-label">
+                Profit / Loss
+            </div>
 
             <div
                 id="profit"
-                class="card-value green"
+                class="stat-value green"
             >
-                $0.00
+                +$0.00
             </div>
+
         </div>
 
-        <div class="card">
-            <div class="card-label">WIN RATE</div>
+
+        <div class="stat">
+
+            <div class="stat-label">
+                Win Rate
+            </div>
 
             <div
                 id="winRate"
-                class="card-value purple"
+                class="stat-value purple"
             >
                 0.00%
             </div>
+
         </div>
 
-        <div class="card">
-            <div class="card-label">TRADES</div>
+
+        <div class="stat">
+
+            <div class="stat-label">
+                Trades
+            </div>
 
             <div
-                id="trades"
-                class="card-value"
+                id="totalTrades"
+                class="stat-value"
             >
                 0
             </div>
+
         </div>
 
-        <div class="card">
-            <div class="card-label">WINS / LOSSES</div>
 
-            <div class="card-value">
-                <span
-                    id="wins"
-                    class="green"
-                >0</span>
-                /
-                <span
-                    id="losses"
-                    class="red"
-                >0</span>
+        <div class="stat">
+
+            <div class="stat-label">
+                Wins / Losses
             </div>
+
+            <div
+                id="winsLosses"
+                class="stat-value"
+            >
+                <span class="green">0</span>
+                /
+                <span class="red">0</span>
+            </div>
+
         </div>
 
-        <div class="card">
-            <div class="card-label">LOSS STREAK</div>
+
+        <div class="stat">
+
+            <div class="stat-label">
+                Loss Streak
+            </div>
 
             <div
                 id="lossStreak"
-                class="card-value red"
+                class="stat-value red"
             >
                 0
             </div>
+
         </div>
 
-    </section>
+    </div>
 
 
-    <!-- CHART + SETTINGS -->
+    <!-- ================================================= -->
+    <!-- LIVE MARKET -->
+    <!-- ================================================= -->
 
-    <section class="top-grid">
+    <div class="panel">
 
-        <div class="panel">
+        <div class="panel-title">
+            📊 LIVE BOOM MARKET
 
-            <div class="title">
-                📊 LIVE BOOM MARKET
-            </div>
+            <span id="selectedMarket">
+                No market selected
+            </span>
+        </div>
+
+
+        <div class="market-grid">
 
             <div class="chart">
 
-                <canvas
-                    id="chart"
-                ></canvas>
+                <div class="chart-grid"></div>
+
+                <div class="chart-content">
+
+                    <canvas
+                        id="chartCanvas"
+                    ></canvas>
+
+                </div>
 
                 <div
-                    id="livePrice"
+                    id="chartPrice"
                     class="price-box"
                 >
                     —
@@ -620,246 +889,455 @@
 
             </div>
 
-        </div>
+
+            <div class="market-side">
+
+                <div class="info-row">
+
+                    <span>
+                        Market
+                    </span>
+
+                    <strong
+                        id="marketName"
+                    >
+                        —
+                    </strong>
+
+                </div>
 
 
-        <div class="panel">
+                <div class="info-row">
 
-            <div class="title">
-                ⚙️ BOT SETTINGS
-            </div>
+                    <span>
+                        Live Price
+                    </span>
 
-            <div class="settings">
+                    <strong
+                        id="livePrice"
+                    >
+                        —
+                    </strong>
 
-                <div class="row">
-                    <span class="muted">
+                </div>
+
+
+                <div class="info-row">
+
+                    <span>
                         Direction
                     </span>
 
-                    <strong class="fall">
+                    <strong class="direction">
                         PUT / FALL
                     </strong>
+
                 </div>
 
-                <div class="row">
-                    <span class="muted">
+
+                <div class="info-row">
+
+                    <span>
                         Duration
                     </span>
 
                     <strong>
-                        3 sec
+                        3 seconds
                     </strong>
+
                 </div>
 
-                <div class="row">
-                    <span class="muted">
-                        Base Stake
+
+                <div class="info-row">
+
+                    <span>
+                        Bot Status
                     </span>
 
-                    <strong>
-                        $0.35
-                    </strong>
-                </div>
-
-                <div class="row">
-                    <span class="muted">
-                        Martingale
-                    </span>
-
-                    <strong>
-                        OFF
-                    </strong>
-                </div>
-
-                <div class="row">
-                    <span class="muted">
-                        Account
-                    </span>
-
-                    <strong id="accountType">
-                        DEMO
-                    </strong>
-                </div>
-
-                <div class="row">
-                    <span class="muted">
-                        Bot
-                    </span>
-
-                    <strong id="botStatus">
+                    <strong
+                        id="botStatus"
+                    >
                         STOPPED
                     </strong>
+
                 </div>
 
             </div>
 
-            <div class="buttons">
+        </div>
 
-                <button
-                    class="start"
-                    onclick="command('/api/start')"
-                >
-                    ▶ START
-                </button>
+    </div>
 
-                <button
-                    class="pause"
-                    onclick="command('/api/pause')"
-                >
-                    ⏸ PAUSE
-                </button>
 
-                <button
-                    class="stop"
-                    onclick="command('/api/stop')"
+    <!-- ================================================= -->
+    <!-- BOT SETTINGS -->
+    <!-- ================================================= -->
+
+    <div class="panel">
+
+        <div class="panel-title">
+            ⚙️ BOT SETTINGS
+        </div>
+
+
+        <div class="settings-grid">
+
+            <div class="setting">
+
+                <label>
+                    Direction
+                </label>
+
+                <div class="setting-value direction">
+                    PUT / FALL
+                </div>
+
+            </div>
+
+
+            <div class="setting">
+
+                <label>
+                    Duration
+                </label>
+
+                <div class="setting-value">
+                    3 seconds
+                </div>
+
+            </div>
+
+
+            <div class="setting">
+
+                <label>
+                    Base Stake
+                </label>
+
+                <div
+                    id="baseStake"
+                    class="setting-value"
                 >
-                    ⛔ STOP
-                </button>
+                    $0.35
+                </div>
+
+            </div>
+
+
+            <div class="setting">
+
+                <label>
+                    Martingale
+                </label>
+
+                <div class="setting-value">
+                    OFF
+                </div>
+
+            </div>
+
+
+            <div class="setting">
+
+                <label>
+                    Account
+                </label>
+
+                <div
+                    id="accountType"
+                    class="setting-value"
+                >
+                    —
+                </div>
+
+            </div>
+
+
+            <div class="setting">
+
+                <label>
+                    Selected Symbol
+                </label>
+
+                <div
+                    id="settingSymbol"
+                    class="setting-value"
+                >
+                    —
+                </div>
+
+            </div>
+
+
+            <div class="setting">
+
+                <label>
+                    Authorization
+                </label>
+
+                <div
+                    id="authorization"
+                    class="setting-value"
+                >
+                    WAITING
+                </div>
+
+            </div>
+
+
+            <div class="setting">
+
+                <label>
+                    Connection
+                </label>
+
+                <div
+                    id="connectionInfo"
+                    class="setting-value"
+                >
+                    OFFLINE
+                </div>
 
             </div>
 
         </div>
 
-    </section>
 
+        <div class="buttons">
 
-    <!-- MARKET SELECTOR -->
+            <button
+                class="btn btn-green"
+                onclick="startBot()"
+            >
+                ▶ START
+            </button>
 
-    <section class="panel">
+            <button
+                class="btn btn-yellow"
+                onclick="pauseBot()"
+            >
+                ⏸ PAUSE
+            </button>
 
-        <div class="title">
-            🎯 BOOM MARKET / CONTRACT CHECKER
+            <button
+                class="btn btn-red"
+                onclick="stopBot()"
+            >
+                ⛔ STOP
+            </button>
+
         </div>
 
-        <div class="market-row">
+    </div>
 
-            <div>
+
+    <!-- ================================================= -->
+    <!-- BOOM FINDER -->
+    <!-- ================================================= -->
+
+    <div class="panel">
+
+        <div class="panel-title">
+            🔴 BOOM MARKET / CONTRACT CHECKER
+
+            <span>
+                Deriv API
+            </span>
+        </div>
+
+
+        <div class="finder-grid">
+
+            <div class="field">
 
                 <label>
-                    BOOM SYMBOL
+                    BOOM Symbol
                 </label>
 
                 <select
                     id="symbol"
+                    onchange="selectSymbol()"
                 >
+
                     <option value="">
-                        Connect first...
+                        Connect and find BOOM
                     </option>
+
                 </select>
 
             </div>
 
+
             <div>
 
-                <label>
+                <label
+                    style="
+                        display:block;
+                        color:#8991ad;
+                        font-size:9px;
+                        margin-bottom:6px;
+                    "
+                >
                     LIVE PRICE
                 </label>
 
                 <div
-                    id="marketPrice"
-                    class="price"
+                    id="finderPrice"
+                    class="live-price"
                 >
                     —
                 </div>
 
             </div>
 
-            <div>
 
-                <button
-                    class="market-btn"
-                    onclick="loadMarkets()"
-                >
-                    🔄 FIND BOOM
-                </button>
-
-            </div>
+            <button
+                class="btn btn-purple"
+                onclick="findBoom()"
+            >
+                🔄 FIND BOOM
+            </button>
 
         </div>
 
+
         <div
             id="contractInfo"
-            class="message"
+            class="contract-box"
         >
             Select a BOOM symbol to check available contracts.
         </div>
 
-    </section>
+    </div>
 
 
+    <!-- ================================================= -->
     <!-- CURRENT TRADE -->
+    <!-- ================================================= -->
 
-    <section class="panel">
+    <div class="panel">
 
-        <div class="title">
+        <div class="panel-title">
             🎯 CURRENT TRADE
         </div>
 
-        <div class="trade-box">
 
-            <div class="trade-item">
-                <span>SYMBOL</span>
-                <strong id="currentSymbol">
+        <div class="trade-grid">
+
+            <div class="setting">
+
+                <label>
+                    Symbol
+                </label>
+
+                <div
+                    id="tradeSymbol"
+                    class="setting-value"
+                >
                     —
-                </strong>
+                </div>
+
             </div>
 
-            <div class="trade-item">
-                <span>DIRECTION</span>
-                <strong class="fall">
+
+            <div class="setting">
+
+                <label>
+                    Direction
+                </label>
+
+                <div class="setting-value direction">
                     PUT / FALL
-                </strong>
+                </div>
+
             </div>
 
-            <div class="trade-item">
-                <span>STAKE</span>
-                <strong id="currentStake">
+
+            <div class="setting">
+
+                <label>
+                    Stake
+                </label>
+
+                <div
+                    id="tradeStake"
+                    class="setting-value"
+                >
                     $0.35
-                </strong>
+                </div>
+
             </div>
 
-            <div class="trade-item">
-                <span>STATUS</span>
-                <strong id="currentStatus">
+
+            <div class="setting">
+
+                <label>
+                    Contract
+                </label>
+
+                <div
+                    id="contractId"
+                    class="setting-value"
+                >
+                    —
+                </div>
+
+            </div>
+
+
+            <div class="setting">
+
+                <label>
+                    Status
+                </label>
+
+                <div
+                    id="tradeStatus"
+                    class="setting-value"
+                >
                     WAITING
-                </strong>
+                </div>
+
             </div>
 
         </div>
 
-    </section>
+    </div>
 
 
+    <!-- ================================================= -->
     <!-- RISK MANAGEMENT -->
+    <!-- ================================================= -->
 
-    <section class="panel">
+    <div class="panel">
 
-        <div class="title">
+        <div class="panel-title">
             🛡️ RISK MANAGEMENT
         </div>
 
+
         <div class="risk-grid">
 
-            <div class="risk-item">
+            <div class="field">
 
                 <label>
-                    MAX DAILY LOSS
+                    Max Daily Loss
                 </label>
 
                 <input
-                    id="maxLoss"
+                    id="maxDailyLoss"
                     type="number"
                     value="20"
                     min="0"
-                    step="0.01"
                 >
 
             </div>
 
-            <div class="risk-item">
+
+            <div class="field">
 
                 <label>
-                    TAKE PROFIT
+                    Take Profit
                 </label>
 
                 <input
@@ -867,15 +1345,15 @@
                     type="number"
                     value="20"
                     min="0"
-                    step="0.01"
                 >
 
             </div>
 
-            <div class="risk-item">
+
+            <div class="field">
 
                 <label>
-                    MAX TRADES
+                    Max Trades
                 </label>
 
                 <input
@@ -887,1104 +1365,19 @@
 
             </div>
 
-            <div class="risk-item">
+
+            <div class="field">
 
                 <label>
-                    AUTO STOP
+                    Auto Stop
                 </label>
 
                 <select id="autoStop">
+
                     <option value="on">
                         ON
                     </option>
 
                     <option value="off">
                         OFF
-                    </option>
-                </select>
-
-            </div>
-
-        </div>
-
-    </section>
-
-
-    <!-- TRADE HISTORY -->
-
-    <section class="panel">
-
-        <div class="title">
-            📋 TRADE HISTORY
-        </div>
-
-        <div class="table-wrap">
-
-            <table>
-
-                <thead>
-
-                    <tr>
-                        <th>TIME</th>
-                        <th>SYMBOL</th>
-                        <th>TYPE</th>
-                        <th>STAKE</th>
-                        <th>RESULT</th>
-                        <th>PROFIT</th>
-                    </tr>
-
-                </thead>
-
-                <tbody id="history">
-
-                    <tr>
-                        <td
-                            colspan="6"
-                            style="
-                                text-align:center;
-                                color:#707895;
-                            "
-                        >
-                            No trades yet
-                        </td>
-                    </tr>
-
-                </tbody>
-
-            </table>
-
-        </div>
-
-    </section>
-
-
-    <!-- BOT LOG -->
-
-    <section class="panel">
-
-        <div class="title">
-            📡 BOT LOG
-        </div>
-
-        <div
-            id="logs"
-            class="logs"
-        >
-            <div class="log">
-                <span class="log-time">
-                    SYSTEM
-                </span>
-                Waiting for connection...
-            </div>
-        </div>
-
-    </section>
-
-</main>
-
-
-<script>
-
-let prices = [];
-let labels = [];
-
-const canvas =
-    document.getElementById("chart");
-
-const ctx =
-    canvas.getContext("2d");
-
-
-function resizeCanvas() {
-
-    const rect =
-        canvas.parentElement
-        .getBoundingClientRect();
-
-    canvas.width =
-        rect.width;
-
-    canvas.height =
-        rect.height;
-
-    drawChart();
-}
-
-
-function drawChart() {
-
-    const width =
-        canvas.width;
-
-    const height =
-        canvas.height;
-
-    ctx.clearRect(
-        0,
-        0,
-        width,
-        height
-    );
-
-    if (prices.length < 2) {
-        return;
-    }
-
-
-    let min =
-        Math.min(...prices);
-
-    let max =
-        Math.max(...prices);
-
-
-    if (max === min) {
-        max += 1;
-        min -= 1;
-    }
-
-
-    const padding = 35;
-
-    const chartWidth =
-        width - padding * 2;
-
-    const chartHeight =
-        height - padding * 2;
-
-
-    ctx.beginPath();
-
-
-    prices.forEach(
-        (price, index) => {
-
-            const x =
-                padding +
-                (
-                    index /
-                    (prices.length - 1)
-                ) *
-                chartWidth;
-
-
-            const y =
-                height -
-                padding -
-                (
-                    (price - min) /
-                    (max - min)
-                ) *
-                chartHeight;
-
-
-            if (index === 0) {
-                ctx.moveTo(x, y);
-            } else {
-                ctx.lineTo(x, y);
-            }
-
-        }
-    );
-
-
-    ctx.strokeStyle =
-        "#7257ff";
-
-    ctx.lineWidth = 2;
-
-    ctx.stroke();
-
-
-    ctx.fillStyle =
-        "#8e96b5";
-
-    ctx.font =
-        "10px Arial";
-
-    ctx.fillText(
-        max.toFixed(2),
-        5,
-        18
-    );
-
-    ctx.fillText(
-        min.toFixed(2),
-        5,
-        height - 10
-    );
-}
-
-
-window.addEventListener(
-    "resize",
-    resizeCanvas
-);
-
-resizeCanvas();
-
-
-async function connectDeriv() {
-
-    const appId =
-        document
-        .getElementById("appId")
-        .value
-        .trim();
-
-    const token =
-        document
-        .getElementById("token")
-        .value
-        .trim();
-
-    const accountId =
-        document
-        .getElementById("accountId")
-        .value
-        .trim();
-
-
-    if (
-        !appId ||
-        !token ||
-        !accountId
-    ) {
-
-        showError(
-            "App ID, PAT and Account ID are required."
-        );
-
-        return;
-    }
-
-
-    setMessage(
-        "Connecting to Deriv..."
-    );
-
-
-    try {
-
-        const response =
-            await fetch(
-                "/api/connect",
-                {
-                    method: "POST",
-
-                    headers: {
-                        "Content-Type":
-                            "application/json"
-                    },
-
-                    body:
-                        JSON.stringify({
-                            app_id:
-                                appId,
-
-                            token:
-                                token,
-
-                            account_id:
-                                accountId
-                        })
-                }
-            );
-
-
-        const data =
-            await response.json();
-
-
-        if (!data.ok) {
-
-            showError(
-                data.error ||
-                "Connection failed."
-            );
-
-            return;
-        }
-
-
-        setMessage(
-            "Connection started. Waiting for authorization..."
-        );
-
-
-    } catch (error) {
-
-        showError(
-            error.message
-        );
-
-    }
-
-}
-
-
-async function loadMarkets() {
-
-    try {
-
-        const response =
-            await fetch(
-                "/api/markets",
-                {
-                    method: "POST"
-                }
-            );
-
-
-        const data =
-            await response.json();
-
-
-        if (!data.ok) {
-
-            showError(
-                data.error
-            );
-
-        }
-
-    } catch (error) {
-
-        showError(
-            error.message
-        );
-
-    }
-
-}
-
-
-async function selectSymbol() {
-
-    const symbol =
-        document
-        .getElementById("symbol")
-        .value;
-
-
-    if (!symbol) {
-        return;
-    }
-
-
-    try {
-
-        const response =
-            await fetch(
-                "/api/select-symbol",
-                {
-                    method: "POST",
-
-                    headers: {
-                        "Content-Type":
-                            "application/json"
-                    },
-
-                    body:
-                        JSON.stringify({
-                            symbol:
-                                symbol
-                        })
-                }
-            );
-
-
-        const data =
-            await response.json();
-
-
-        if (!data.ok) {
-
-            showError(
-                data.error
-            );
-
-            return;
-        }
-
-
-        document
-            .getElementById(
-                "currentSymbol"
-            )
-            .textContent =
-            symbol;
-
-
-        document
-            .getElementById(
-                "contractInfo"
-            )
-            .textContent =
-            "Checking available contract types...";
-
-
-    } catch (error) {
-
-        showError(
-            error.message
-        );
-
-    }
-
-}
-
-
-document
-    .getElementById("symbol")
-    .addEventListener(
-        "change",
-        selectSymbol
-    );
-
-
-async function command(endpoint) {
-
-    try {
-
-        const response =
-            await fetch(
-                endpoint,
-                {
-                    method: "POST"
-                }
-            );
-
-
-        const data =
-            await response.json();
-
-
-        if (!data.ok) {
-
-            showError(
-                data.error ||
-                "Command failed."
-            );
-
-        }
-
-        updateDashboard();
-
-    } catch (error) {
-
-        showError(
-            error.message
-        );
-
-    }
-
-}
-
-
-function updateSymbols(contracts) {
-
-    const select =
-        document
-        .getElementById("symbol");
-
-
-    const current =
-        select.value;
-
-
-    select.innerHTML = "";
-
-
-    if (
-        !contracts ||
-        contracts.length === 0
-    ) {
-
-        const option =
-            document.createElement(
-                "option"
-            );
-
-        option.value = "";
-
-        option.textContent =
-            "No BOOM symbols found";
-
-        select.appendChild(
-            option
-        );
-
-        return;
-    }
-
-
-    contracts.forEach(
-        item => {
-
-            const option =
-                document.createElement(
-                    "option"
-                );
-
-
-            const symbol =
-                item.symbol ||
-                item.contract_type ||
-                "";
-
-
-            const name =
-                item.display_name ||
-                item.contract_display ||
-                symbol;
-
-
-            option.value =
-                symbol;
-
-
-            option.textContent =
-                name;
-
-
-            select.appendChild(
-                option
-            );
-
-        }
-    );
-
-
-    if (current) {
-        select.value =
-            current;
-    }
-
-}
-
-
-function updateContracts(contracts) {
-
-    const box =
-        document
-        .getElementById(
-            "contractInfo"
-        );
-
-
-    if (
-        !contracts ||
-        contracts.length === 0
-    ) {
-
-        box.textContent =
-            "No contract data received.";
-
-        return;
-    }
-
-
-    const names =
-        contracts.map(
-            item =>
-                item.contract_type ||
-                item.contract_display ||
-                item.display_name ||
-                ""
-        )
-        .filter(Boolean);
-
-
-    box.textContent =
-        "Available contracts: " +
-        names.join(", ");
-
-}
-
-
-function updateHistory(history) {
-
-    const tbody =
-        document
-        .getElementById(
-            "history"
-        );
-
-
-    tbody.innerHTML = "";
-
-
-    if (
-        !history ||
-        history.length === 0
-    ) {
-
-        tbody.innerHTML =
-            `
-            <tr>
-                <td
-                    colspan="6"
-                    style="
-                        text-align:center;
-                        color:#707895;
-                    "
-                >
-                    No trades yet
-                </td>
-            </tr>
-            `;
-
-        return;
-    }
-
-
-    history.forEach(
-        trade => {
-
-            const row =
-                document.createElement(
-                    "tr"
-                );
-
-
-            const result =
-                trade.result ||
-                "";
-
-
-            const resultClass =
-                result === "WIN"
-                ? "win"
-                : "loss";
-
-
-            row.innerHTML =
-                `
-                <td>
-                    ${trade.time || "-"}
-                </td>
-
-                <td>
-                    ${trade.symbol || "-"}
-                </td>
-
-                <td>
-                    PUT/FALL
-                </td>
-
-                <td>
-                    $${Number(
-                        trade.stake || 0
-                    ).toFixed(2)}
-                </td>
-
-                <td class="${resultClass}">
-                    ${result}
-                </td>
-
-                <td class="${resultClass}">
-                    ${
-                        Number(
-                            trade.profit || 0
-                        ).toFixed(2)
-                    }
-                </td>
-                `;
-
-
-            tbody.appendChild(row);
-
-        }
-    );
-
-}
-
-
-function updateLogs(logs) {
-
-    const box =
-        document
-        .getElementById(
-            "logs"
-        );
-
-
-    if (
-        !logs ||
-        logs.length === 0
-    ) {
-
-        box.innerHTML =
-            `
-            <div class="log">
-                No logs yet.
-            </div>
-            `;
-
-        return;
-    }
-
-
-    box.innerHTML =
-        logs.map(
-            log =>
-                `
-                <div class="log">
-                    <span class="log-time">
-                        ${log.time}
-                    </span>
-                    ${escapeHtml(
-                        log.message
-                    )}
-                </div>
-                `
-        ).join("");
-
-}
-
-
-function escapeHtml(text) {
-
-    const div =
-        document.createElement(
-            "div"
-        );
-
-    div.textContent =
-        text;
-
-    return div.innerHTML;
-
-}
-
-
-async function updateDashboard() {
-
-    try {
-
-        const response =
-            await fetch(
-                "/api/status"
-            );
-
-
-        const data =
-            await response.json();
-
-
-        const status =
-            document
-            .getElementById(
-                "connectionStatus"
-            );
-
-
-        if (
-            data.connected &&
-            data.authorized
-        ) {
-
-            status.textContent =
-                "● CONNECTED";
-
-            status.className =
-                "status online";
-
-        } else {
-
-            status.textContent =
-                "● DISCONNECTED";
-
-            status.className =
-                "status offline";
-
-        }
-
-
-        document
-            .getElementById(
-                "balance"
-            )
-            .textContent =
-            Number(
-                data.balance || 0
-            ).toFixed(2)
-            + " "
-            + (
-                data.currency ||
-                "USD"
-            );
-
-
-        const profit =
-            Number(
-                data.profit || 0
-            );
-
-
-        const profitElement =
-            document
-            .getElementById(
-                "profit"
-            );
-
-
-        profitElement.textContent =
-            (
-                profit >= 0
-                ? "+"
-                : ""
-            )
-            +
-            profit.toFixed(2);
-
-
-        profitElement.className =
-            profit >= 0
-            ? "card-value green"
-            : "card-value red";
-
-
-        document
-            .getElementById(
-                "winRate"
-            )
-            .textContent =
-            Number(
-                data.win_rate || 0
-            ).toFixed(2)
-            + "%";
-
-
-        document
-            .getElementById(
-                "trades"
-            )
-            .textContent =
-            data.total_trades || 0;
-
-
-        document
-            .getElementById(
-                "wins"
-            )
-            .textContent =
-            data.wins || 0;
-
-
-        document
-            .getElementById(
-                "losses"
-            )
-            .textContent =
-            data.losses || 0;
-
-
-        document
-            .getElementById(
-                "lossStreak"
-            )
-            .textContent =
-            data.loss_streak || 0;
-
-
-        document
-            .getElementById(
-                "accountType"
-            )
-            .textContent =
-            data.account_type ||
-            "DEMO";
-
-
-        document
-            .getElementById(
-                "botStatus"
-            )
-            .textContent =
-            data.running
-            ? "RUNNING"
-            : "STOPPED";
-
-
-        const price =
-            data.last_price;
-
-
-        if (
-            price !== null &&
-            price !== undefined
-        ) {
-
-            document
-                .getElementById(
-                    "livePrice"
-                )
-                .textContent =
-                Number(price).toFixed(2);
-
-
-            document
-                .getElementById(
-                    "marketPrice"
-                )
-                .textContent =
-                Number(price).toFixed(2);
-
-
-            prices.push(
-                Number(price)
-            );
-
-
-            labels.push(
-                new Date()
-                .toLocaleTimeString()
-            );
-
-
-            if (prices.length > 100) {
-
-                prices.shift();
-                labels.shift();
-
-            }
-
-
-            drawChart();
-
-        }
-
-
-        const current =
-            data.current_trade;
-
-
-        if (current) {
-
-            document
-                .getElementById(
-                    "currentStatus"
-                )
-                .textContent =
-                current.status ||
-                "OPEN";
-
-            document
-                .getElementById(
-                    "currentStake"
-                )
-                .textContent =
-                "$" +
-                Number(
-                    current.stake || 0
-                ).toFixed(2);
-
-        } else {
-
-            document
-                .getElementById(
-                    "currentStatus"
-                )
-                .textContent =
-                "WAITING";
-
-        }
-
-
-        updateSymbols(
-            data.contracts
-        );
-
-
-        if (
-            data.contracts &&
-            data.contracts.length > 0
-        ) {
-
-            const hasContractTypes =
-                data.contracts.some(
-                    item =>
-                        item.contract_type
-                );
-
-
-            if (hasContractTypes) {
-
-                updateContracts(
-                    data.contracts
-                );
-
-            }
-
-        }
-
-
-        updateHistory(
-            data.history
-        );
-
-
-        updateLogs(
-            data.logs
-        );
-
-
-        if (data.last_error) {
-
-            showError(
-                data.last_error
-            );
-
-        }
-
-    } catch (error) {
-
-        console.error(error);
-
-    }
-
-}
-
-
-function setMessage(text) {
-
-    document
-        .getElementById(
-            "message"
-        )
-        .textContent =
-        text;
-
-}
-
-
-function showError(text) {
-
-    const box =
-        document
-        .getElementById(
-            "error"
-        );
-
-    box.textContent =
-        text;
-
-    box.style.display =
-        "block";
-
-}
-
-
-updateDashboard();
-
-setInterval(
-    updateDashboard,
-    1000
-);
-
-</script>
-
-</body>
-</html>
+                   
