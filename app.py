@@ -159,7 +159,7 @@ def trading_loop():
                     "currency": state["currency"],
                     "duration": state["duration"],
                     "duration_unit": "m",
-                    "symbol": state["symbol"]  # <-- Mampiasa ny anarana marina avy amin'ny API
+                    "symbol": state["symbol"]
                 }
                 add_log(f"Proposal payload: {proposal_payload}")
                 send_ws(proposal_payload)
@@ -231,7 +231,7 @@ def on_message(socket, message):
         return
 
     # --------------------------------------------------------
-    # ACTIVE SYMBOLS - FANITSINA LEHIBE ETO
+    # ACTIVE SYMBOLS - FANITSINA LEHIBE: Mampiasa ny anarana marina
     # --------------------------------------------------------
     if msg_type == "active_symbols":
         symbols = data.get("active_symbols", [])
@@ -240,7 +240,7 @@ def on_message(socket, message):
             symbol = str(item.get("underlying_symbol", "")).strip()
             name = str(item.get("display_name", "")).strip()
             
-            # Mitady ny marika rehetra misy BOOM
+            # Mitady ny marika rehetra misy BOOM na R_
             text = (symbol + " " + name).upper()
             if "BOOM" in text or "R_" in symbol:
                 boom.append({
@@ -516,6 +516,20 @@ def api_update_interval():
     state["trade_interval"] = interval
     add_log(f"Trade interval updated to {interval} seconds.")
     return jsonify({"ok": True, "interval": interval})
+
+
+# ============================================================
+# ROUTE VAOVAO HO AN'NY DURATION
+# ============================================================
+@app.post("/api/update-duration")
+def api_update_duration():
+    data = request.get_json(silent=True) or {}
+    duration = int(data.get("duration", 3))
+    if duration < 1:
+        return jsonify({"ok": False, "error": "Duration must be at least 1 second."}), 400
+    state["duration"] = duration
+    add_log(f"Duration updated to {duration} seconds.")
+    return jsonify({"ok": True, "duration": duration})
 
 
 @app.get("/api/status")
