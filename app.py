@@ -257,14 +257,14 @@ def trading_loop():
             )
 
             # ==================================================
-            # PROPOSAL - FANITSINA: AMPIANA NY "basis"
+            # PROPOSAL
             # ==================================================
             proposal_payload = {
                 "proposal": 1,
 
                 "amount": stake,
 
-                "basis": "stake",  # <-- FANITSINA: ILaina mandrakariva
+                "basis": "stake",  # <-- ILaina mandrakariva
 
                 "contract_type": direction,
 
@@ -549,7 +549,7 @@ def on_message(socket, message):
         return
 
     # ========================================================
-    # ACTIVE SYMBOLS - FANITSINA: BOOM ihany
+    # ACTIVE SYMBOLS - BOOM ihany
     # ========================================================
 
     if msg_type == "active_symbols":
@@ -580,8 +580,7 @@ def on_message(socket, message):
             if not symbol:
                 continue
 
-            # FANITSINA: BOOM ihany no alaina
-            # Ny Volatility (R_75, R_100) dia tsy tafiditra
+            # BOOM ihany no alaina (tsy R_)
             if "BOOM" in display_name.upper():
 
                 boom.append({
@@ -669,7 +668,7 @@ def on_message(socket, message):
         return
 
     # ========================================================
-    # PROPOSAL
+    # PROPOSAL - FANITSINA: Mijery ny valiny feno
     # ========================================================
 
     if msg_type == "proposal":
@@ -702,10 +701,30 @@ def on_message(socket, message):
 
         else:
 
+            # ⚠️ Tsy misy id → mety misy error
             add_log(
-                "PROPOSAL received "
-                "without proposal id."
+                "⚠️ PROPOSAL received WITHOUT proposal id."
             )
+
+            # 🔍 Aseho ny valiny feno mba hahitana ny error
+            add_log(
+                f"📦 Full proposal response: {json.dumps(data)}"
+            )
+
+            # Jereo raha misy error ao anaty valiny
+            if "error" in data:
+                add_log(
+                    f"❌ Error in proposal: {data.get('error')}"
+                )
+
+            # Jereo raha misy echo_req (hahafantarana izay nalefa)
+            if "echo_req" in data:
+                add_log(
+                    f"📤 Echo request: {data.get('echo_req')}"
+                )
+
+            # Atao azo antoka fa tsy hisy proposal miandry
+            state["last_proposal"] = None
 
         return
 
