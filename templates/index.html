@@ -589,7 +589,6 @@
         const symbol = select.value;
         if (!symbol) return;
 
-        // Tsy maintsy BOOM ny symbol (manomboka amin'ny BOOM)
         if (!symbol.toUpperCase().startsWith("BOOM")) {
             setMessage("Please select a valid BOOM symbol from the list (starts with BOOM)", "error");
             return;
