@@ -4,10 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>NOVA BOOM/FALL BOT</title>
-
     <style>
         * { box-sizing: border-box; }
-
         :root {
             --bg: #060817;
             --panel: #101326;
@@ -20,24 +18,14 @@
             --purple: #7654ff;
             --blue: #32a8ff;
         }
-
         body {
             margin: 0;
-            background:
-                radial-gradient(circle at top, #10152d 0, #060817 45%, #040510 100%);
+            background: radial-gradient(circle at top, #10152d 0, #060817 45%, #040510 100%);
             color: var(--text);
             font-family: Inter, Arial, sans-serif;
         }
-
-        button, input, select {
-            font: inherit;
-        }
-
-        .container {
-            width: min(1180px, 96%);
-            margin: auto;
-            padding: 16px 0 50px;
-        }
+        button, input, select { font: inherit; }
+        .container { width: min(1180px, 96%); margin: auto; padding: 16px 0 50px; }
 
         .header {
             display: flex;
@@ -46,13 +34,11 @@
             margin-bottom: 16px;
             gap: 10px;
         }
-
         .brand {
             display: flex;
             align-items: center;
             gap: 10px;
         }
-
         .brand-icon {
             width: 42px;
             height: 42px;
@@ -63,17 +49,8 @@
             box-shadow: 0 0 25px rgba(118,84,255,.25);
             font-size: 21px;
         }
-
-        .brand h1 {
-            margin: 0;
-            font-size: 18px;
-        }
-
-        .brand p {
-            margin: 3px 0 0;
-            color: var(--muted);
-            font-size: 11px;
-        }
+        .brand h1 { margin: 0; font-size: 18px; }
+        .brand p { margin: 3px 0 0; color: var(--muted); font-size: 11px; }
 
         .status {
             padding: 8px 12px;
@@ -83,26 +60,17 @@
             border: 1px solid var(--border);
             background: #0b0e1d;
         }
-
-        .status.connected {
-            color: var(--green);
-            border-color: rgba(25,196,119,.35);
-        }
-
-        .status.disconnected {
-            color: var(--red);
-        }
+        .status.connected { color: var(--green); border-color: rgba(25,196,119,.35); }
+        .status.disconnected { color: var(--red); }
 
         .panel {
-            background:
-                linear-gradient(145deg, rgba(17,20,39,.98), rgba(9,12,29,.98));
+            background: linear-gradient(145deg, rgba(17,20,39,.98), rgba(9,12,29,.98));
             border: 1px solid var(--border);
             border-radius: 15px;
             padding: 16px;
             margin-bottom: 14px;
             box-shadow: 0 10px 35px rgba(0,0,0,.15);
         }
-
         .panel-title {
             display: flex;
             align-items: center;
@@ -111,12 +79,7 @@
             font-size: 13px;
             font-weight: 800;
         }
-
-        .panel-title span {
-            color: var(--muted);
-            font-size: 10px;
-            font-weight: 500;
-        }
+        .panel-title span { color: var(--muted); font-size: 10px; font-weight: 500; }
 
         .api-grid {
             display: grid;
@@ -124,7 +87,6 @@
             gap: 10px;
             align-items: end;
         }
-
         .field label {
             display: block;
             color: var(--muted);
@@ -132,9 +94,7 @@
             margin-bottom: 6px;
             text-transform: uppercase;
         }
-
-        input,
-        select {
+        input, select {
             width: 100%;
             height: 40px;
             border-radius: 9px;
@@ -144,11 +104,7 @@
             outline: none;
             padding: 0 11px;
         }
-
-        input:focus,
-        select:focus {
-            border-color: var(--purple);
-        }
+        input:focus, select:focus { border-color: var(--purple); }
 
         .btn {
             border: 0;
@@ -160,31 +116,20 @@
             font-weight: 800;
             font-size: 11px;
         }
-
         .btn-purple { background: var(--purple); }
         .btn-green { background: var(--green); }
         .btn-red { background: var(--red); }
         .btn-yellow { background: var(--yellow); }
         .btn-blue { background: var(--blue); }
-
-        .btn:disabled {
-            opacity: .45;
-            cursor: not-allowed;
-        }
+        .btn:disabled { opacity: .45; cursor: not-allowed; }
 
         .connection-message {
             margin-top: 10px;
             color: var(--muted);
             font-size: 11px;
         }
-
-        .connection-message.ok {
-            color: var(--green);
-        }
-
-        .connection-message.error {
-            color: var(--red);
-        }
+        .connection-message.ok { color: var(--green); }
+        .connection-message.error { color: var(--red); }
 
         .stats {
             display: grid;
@@ -192,7 +137,6 @@
             gap: 10px;
             margin-bottom: 14px;
         }
-
         .stat {
             background: var(--panel);
             border: 1px solid var(--border);
@@ -200,19 +144,13 @@
             padding: 13px;
             min-height: 77px;
         }
-
         .stat-label {
             color: var(--muted);
             font-size: 9px;
             text-transform: uppercase;
             margin-bottom: 8px;
         }
-
-        .stat-value {
-            font-size: 18px;
-            font-weight: 900;
-        }
-
+        .stat-value { font-size: 18px; font-weight: 900; }
         .green { color: var(--green); }
         .red { color: var(--red); }
         .purple { color: #a28dff; }
@@ -223,7 +161,6 @@
             grid-template-columns: 1.5fr .8fr;
             gap: 14px;
         }
-
         .chart {
             height: 360px;
             background: #060917;
@@ -232,27 +169,19 @@
             position: relative;
             overflow: hidden;
         }
-
         .chart-grid {
             position: absolute;
             inset: 0;
-            background-image:
-                linear-gradient(rgba(70,80,120,.08) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(70,80,120,.08) 1px, transparent 1px);
+            background-image: linear-gradient(rgba(70,80,120,.08) 1px, transparent 1px),
+                              linear-gradient(90deg, rgba(70,80,120,.08) 1px, transparent 1px);
             background-size: 45px 45px;
         }
-
         .chart-content {
             position: absolute;
             inset: 0;
             padding: 20px;
         }
-
-        #chartCanvas {
-            width: 100%;
-            height: 100%;
-        }
-
+        #chartCanvas { width: 100%; height: 100%; }
         .price-box {
             position: absolute;
             right: 14px;
@@ -263,13 +192,11 @@
             border-radius: 8px;
             font-size: 12px;
         }
-
         .market-side {
             display: flex;
             flex-direction: column;
             gap: 10px;
         }
-
         .info-row {
             display: flex;
             justify-content: space-between;
@@ -280,43 +207,28 @@
             border: 1px solid #141a32;
             font-size: 11px;
         }
-
-        .info-row span:first-child {
-            color: var(--muted);
-        }
-
-        .info-row strong {
-            text-align: right;
-        }
+        .info-row span:first-child { color: var(--muted); }
+        .info-row strong { text-align: right; }
 
         .settings-grid {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
             gap: 10px;
         }
-
         .setting {
             background: #080b1b;
             border: 1px solid #141a32;
             padding: 12px;
             border-radius: 10px;
         }
-
         .setting label {
             display: block;
             color: var(--muted);
             font-size: 9px;
             margin-bottom: 6px;
         }
-
-        .setting-value {
-            font-size: 12px;
-            font-weight: 800;
-        }
-
-        .direction {
-            color: var(--red);
-        }
+        .setting-value { font-size: 12px; font-weight: 800; }
+        .direction { color: var(--red); }
 
         .buttons {
             display: grid;
@@ -324,10 +236,7 @@
             gap: 10px;
             margin-top: 12px;
         }
-
-        .buttons .btn {
-            height: 43px;
-        }
+        .buttons .btn { height: 43px; }
 
         .finder-grid {
             display: grid;
@@ -335,7 +244,6 @@
             gap: 10px;
             align-items: end;
         }
-
         .live-price {
             height: 40px;
             display: flex;
@@ -346,7 +254,6 @@
             border: 1px solid var(--border);
             font-weight: 800;
         }
-
         .contract-box {
             margin-top: 12px;
             padding: 12px;
@@ -364,46 +271,31 @@
             grid-template-columns: repeat(5, 1fr);
             gap: 10px;
         }
-
         .risk-grid {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
             gap: 10px;
         }
 
-        .table-wrap {
-            overflow-x: auto;
-        }
-
+        .table-wrap { overflow-x: auto; }
         table {
             width: 100%;
             border-collapse: collapse;
             min-width: 650px;
         }
-
-        th,
-        td {
+        th, td {
             padding: 11px 8px;
             text-align: left;
             border-bottom: 1px solid #171c35;
             font-size: 10px;
         }
-
         th {
             color: var(--muted);
             font-size: 9px;
             text-transform: uppercase;
         }
-
-        .win {
-            color: var(--green);
-            font-weight: 800;
-        }
-
-        .loss {
-            color: var(--red);
-            font-weight: 800;
-        }
+        .win { color: var(--green); font-weight: 800; }
+        .loss { color: var(--red); font-weight: 800; }
 
         .logs {
             height: 180px;
@@ -415,17 +307,11 @@
             font-family: monospace;
             font-size: 10px;
         }
-
         .log-line {
             padding: 5px 0;
             border-bottom: 1px solid #11162a;
         }
-
-        .log-time {
-            color: #7654ff;
-            margin-right: 8px;
-        }
-
+        .log-time { color: #7654ff; margin-right: 8px; }
         .empty {
             color: var(--muted);
             text-align: center;
@@ -433,1829 +319,581 @@
             font-size: 11px;
         }
 
-        .connection-dot {
-            display: inline-block;
-            width: 7px;
-            height: 7px;
-            border-radius: 50%;
-            margin-right: 5px;
-            background: var(--red);
-        }
-
-        .connection-dot.ok {
-            background: var(--green);
-            box-shadow: 0 0 8px var(--green);
-        }
-
         @media (max-width: 900px) {
-            .stats {
-                grid-template-columns: repeat(3, 1fr);
-            }
-
-            .api-grid {
-                grid-template-columns: 1fr 1fr;
-            }
-
-            .market-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .settings-grid {
-                grid-template-columns: repeat(2, 1fr);
-            }
-
-            .risk-grid {
-                grid-template-columns: repeat(2, 1fr);
-            }
-
-            .trade-grid {
-                grid-template-columns: repeat(3, 1fr);
-            }
+            .stats { grid-template-columns: repeat(3, 1fr); }
+            .api-grid { grid-template-columns: 1fr 1fr; }
+            .market-grid { grid-template-columns: 1fr; }
+            .settings-grid { grid-template-columns: repeat(2, 1fr); }
+            .risk-grid { grid-template-columns: repeat(2, 1fr); }
+            .trade-grid { grid-template-columns: repeat(3, 1fr); }
         }
-
         @media (max-width: 600px) {
-            .container {
-                width: 94%;
-                padding-top: 10px;
-            }
-
-            .header {
-                align-items: flex-start;
-            }
-
-            .brand h1 {
-                font-size: 15px;
-            }
-
-            .api-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .stats {
-                grid-template-columns: repeat(2, 1fr);
-            }
-
-            .stat {
-                min-height: 70px;
-            }
-
-            .stat-value {
-                font-size: 16px;
-            }
-
-            .chart {
-                height: 300px;
-            }
-
-            .finder-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .settings-grid {
-                grid-template-columns: 1fr 1fr;
-            }
-
-            .risk-grid {
-                grid-template-columns: 1fr 1fr;
-            }
-
-            .trade-grid {
-                grid-template-columns: 1fr 1fr;
-            }
-
-            .buttons {
-                grid-template-columns: 1fr;
-            }
-
-            .btn {
-                width: 100%;
-            }
+            .container { width: 94%; padding-top: 10px; }
+            .header { align-items: flex-start; }
+            .brand h1 { font-size: 15px; }
+            .api-grid { grid-template-columns: 1fr; }
+            .stats { grid-template-columns: repeat(2, 1fr); }
+            .stat { min-height: 70px; }
+            .stat-value { font-size: 16px; }
+            .chart { height: 300px; }
+            .finder-grid { grid-template-columns: 1fr; }
+            .settings-grid { grid-template-columns: 1fr 1fr; }
+            .risk-grid { grid-template-columns: 1fr 1fr; }
+            .trade-grid { grid-template-columns: 1fr 1fr; }
+            .buttons { grid-template-columns: 1fr; }
+            .btn { width: 100%; }
         }
     </style>
 </head>
-
 <body>
-
 <div class="container">
 
     <!-- HEADER -->
     <div class="header">
-
         <div class="brand">
-
             <div class="brand-icon">🤖</div>
-
             <div>
                 <h1>NOVA BOOM/FALL BOT</h1>
                 <p>Deriv Synthetic Trading Dashboard</p>
             </div>
-
         </div>
-
-        <div id="connectionStatus"
-             class="status disconnected">
-            <span id="connectionDot"
-                  class="connection-dot"></span>
-            DISCONNECTED
-        </div>
-
+        <div id="connectionStatus" class="status disconnected">● DISCONNECTED</div>
     </div>
 
-
-    <!-- CONNECTION -->
-
+    <!-- API CONNECTION -->
     <div class="panel">
-
-        <div class="panel-title">
-            🔐 DERIV API CONNECTION
-            <span>PAT / API Token</span>
-        </div>
-
+        <div class="panel-title">🔐 DERIV API CONNECTION <span>PAT / API Token</span></div>
         <div class="api-grid">
-
             <div class="field">
-
                 <label>App ID</label>
-
-                <input
-                    id="appId"
-                    type="text"
-                    placeholder="Deriv App ID"
-                    autocomplete="off">
-
+                <input id="appId" type="text" placeholder="Deriv App ID" autocomplete="off">
             </div>
-
-
             <div class="field">
-
                 <label>PAT / API Token</label>
-
-                <input
-                    id="apiToken"
-                    type="password"
-                    placeholder="PAT / API Token"
-                    autocomplete="off">
-
+                <input id="apiToken" type="password" placeholder="PAT / API Token" autocomplete="off">
             </div>
-
-
             <div class="field">
-
                 <label>Account ID</label>
-
-                <input
-                    id="accountId"
-                    type="text"
-                    placeholder="CR / DOT..."
-                    autocomplete="off">
-
+                <input id="accountId" type="text" placeholder="CR / DOT..." autocomplete="off">
             </div>
-
-
-            <button
-                class="btn btn-purple"
-                onclick="connectDeriv()">
-
-                🔌 CONNECT DERIV
-
-            </button>
-
+            <button class="btn btn-purple" onclick="connectDeriv()">🔌 CONNECT DERIV</button>
         </div>
-
-        <div
-            id="connectionMessage"
-            class="connection-message">
-
-            Enter your Deriv credentials and connect.
-
-        </div>
-
+        <div id="connectionMessage" class="connection-message">Enter your Deriv credentials and connect.</div>
     </div>
-
 
     <!-- STATS -->
-
     <div class="stats">
-
         <div class="stat">
             <div class="stat-label">Balance</div>
             <div id="balance" class="stat-value">$0.00</div>
         </div>
-
         <div class="stat">
             <div class="stat-label">Profit / Loss</div>
             <div id="profit" class="stat-value green">+$0.00</div>
         </div>
-
         <div class="stat">
             <div class="stat-label">Win Rate</div>
             <div id="winRate" class="stat-value purple">0.00%</div>
         </div>
-
         <div class="stat">
             <div class="stat-label">Trades</div>
             <div id="totalTrades" class="stat-value">0</div>
         </div>
-
         <div class="stat">
             <div class="stat-label">Wins / Losses</div>
-            <div id="winsLosses" class="stat-value">
-                <span class="green">0</span> /
-                <span class="red">0</span>
-            </div>
+            <div id="winsLosses" class="stat-value"><span class="green">0</span> / <span class="red">0</span></div>
         </div>
-
         <div class="stat">
             <div class="stat-label">Loss Streak</div>
             <div id="lossStreak" class="stat-value red">0</div>
         </div>
-
     </div>
 
-
-    <!-- MARKET -->
-
+    <!-- LIVE MARKET -->
     <div class="panel">
-
-        <div class="panel-title">
-
-            📊 LIVE BOOM MARKET
-
-            <span id="selectedMarket">
-                No market selected
-            </span>
-
-        </div>
-
+        <div class="panel-title">📊 LIVE BOOM MARKET <span id="selectedMarket">No market selected</span></div>
         <div class="market-grid">
-
             <div class="chart">
-
                 <div class="chart-grid"></div>
-
                 <div class="chart-content">
                     <canvas id="chartCanvas"></canvas>
                 </div>
-
-                <div id="chartPrice"
-                     class="price-box">
-                    —
-                </div>
-
+                <div id="chartPrice" class="price-box">—</div>
             </div>
-
-
             <div class="market-side">
-
-                <div class="info-row">
-                    <span>Market</span>
-                    <strong id="marketName">—</strong>
-                </div>
-
-                <div class="info-row">
-                    <span>Live Price</span>
-                    <strong id="livePrice">—</strong>
-                </div>
-
-                <div class="info-row">
-                    <span>Direction</span>
-                    <strong class="direction">
-                        PUT / FALL
-                    </strong>
-                </div>
-
-                <div class="info-row">
-                    <span>Duration</span>
-                    <strong id="durationDisplay">
-                        3 seconds
-                    </strong>
-                </div>
-
-                <div class="info-row">
-                    <span>Bot Status</span>
-                    <strong id="botStatus">
-                        STOPPED
-                    </strong>
-                </div>
-
+                <div class="info-row"><span>Market</span><strong id="marketName">—</strong></div>
+                <div class="info-row"><span>Live Price</span><strong id="livePrice">—</strong></div>
+                <div class="info-row"><span>Direction</span><strong class="direction">PUT / FALL</strong></div>
+                <div class="info-row"><span>Duration</span><strong id="durationDisplay">3 seconds</strong></div>
+                <div class="info-row"><span>Bot Status</span><strong id="botStatus">STOPPED</strong></div>
             </div>
-
         </div>
-
     </div>
-
 
     <!-- BOT SETTINGS -->
-
     <div class="panel">
-
-        <div class="panel-title">
-            ⚙️ BOT SETTINGS
-        </div>
-
+        <div class="panel-title">⚙️ BOT SETTINGS</div>
         <div class="settings-grid">
-
+            <div class="setting"><label>Direction</label><div class="setting-value direction">PUT / FALL</div></div>
+            
             <div class="setting">
-                <label>Direction</label>
-                <div class="setting-value direction">
-                    PUT / FALL
-                </div>
-            </div>
-
-
-            <div class="setting">
-
                 <label>Duration (seconds)</label>
-
                 <div class="setting-value">
-
-                    <input
-                        id="durationInput"
-                        type="number"
-                        value="3"
-                        min="1"
-                        max="60"
-                        style="
-                        width:80px;
-                        background:#070a19;
-                        border:1px solid var(--border);
-                        border-radius:6px;
-                        color:white;
-                        padding:4px 8px;
-                        font-size:14px;
-                        "
-                        onchange="updateDuration()">
-
+                    <input id="durationInput" type="number" value="3" min="1" max="60"
+                           style="width:80px;background:#070a19;border:1px solid var(--border);border-radius:6px;color:white;padding:4px 8px;font-size:14px;"
+                           onchange="updateDuration()">
                 </div>
-
             </div>
-
-
+            
+            <div class="setting"><label>Base Stake</label><div id="baseStake" class="setting-value">$0.35</div></div>
+            
             <div class="setting">
-
-                <label>Base Stake</label>
-
-                <div id="baseStake"
-                     class="setting-value">
-                    $0.35
-                </div>
-
-            </div>
-
-
-            <div class="setting">
-
                 <label>Trade Interval (seconds)</label>
-
                 <div class="setting-value">
-
-                    <input
-                        id="tradeInterval"
-                        type="number"
-                        value="5"
-                        min="1"
-                        max="60"
-                        style="
-                        width:80px;
-                        background:#070a19;
-                        border:1px solid var(--border);
-                        border-radius:6px;
-                        color:white;
-                        padding:4px 8px;
-                        font-size:14px;
-                        "
-                        onchange="updateInterval()">
-
-                </div>
-
-            </div>
-
-
-            <div class="setting">
-                <label>Martingale</label>
-                <div class="setting-value">OFF</div>
-            </div>
-
-
-            <div class="setting">
-                <label>Account</label>
-                <div id="accountType"
-                     class="setting-value">
-                    —
+                    <input id="tradeInterval" type="number" value="5" min="1" max="60"
+                           style="width:80px;background:#070a19;border:1px solid var(--border);border-radius:6px;color:white;padding:4px 8px;font-size:14px;"
+                           onchange="updateInterval()">
                 </div>
             </div>
-
-
-            <div class="setting">
-                <label>Selected Symbol</label>
-                <div id="settingSymbol"
-                     class="setting-value">
-                    —
-                </div>
-            </div>
-
-
-            <div class="setting">
-                <label>Authorization</label>
-                <div id="authorization"
-                     class="setting-value">
-                    WAITING
-                </div>
-            </div>
-
-
-            <div class="setting">
-                <label>Connection</label>
-                <div id="connectionInfo"
-                     class="setting-value">
-                    OFFLINE
-                </div>
-            </div>
-
+            
+            <div class="setting"><label>Martingale</label><div class="setting-value">OFF</div></div>
+            <div class="setting"><label>Account</label><div id="accountType" class="setting-value">—</div></div>
+            <div class="setting"><label>Selected Symbol</label><div id="settingSymbol" class="setting-value">—</div></div>
+            <div class="setting"><label>Authorization</label><div id="authorization" class="setting-value">WAITING</div></div>
+            <div class="setting"><label>Connection</label><div id="connectionInfo" class="setting-value">OFFLINE</div></div>
         </div>
-
-
         <div class="buttons">
-
-            <button
-                class="btn btn-green"
-                onclick="startBot()">
-                ▶ START
-            </button>
-
-            <button
-                class="btn btn-yellow"
-                onclick="pauseBot()">
-                ⏸ PAUSE
-            </button>
-
-            <button
-                class="btn btn-red"
-                onclick="stopBot()">
-                ⛔ STOP
-            </button>
-
+            <button class="btn btn-green" onclick="startBot()">▶ START</button>
+            <button class="btn btn-yellow" onclick="pauseBot()">⏸ PAUSE</button>
+            <button class="btn btn-red" onclick="stopBot()">⛔ STOP</button>
         </div>
-
     </div>
-
 
     <!-- BOOM FINDER -->
-
     <div class="panel">
-
-        <div class="panel-title">
-
-            🔴 BOOM MARKET / CONTRACT CHECKER
-
-            <span>Deriv API</span>
-
-        </div>
-
-
+        <div class="panel-title">🔴 BOOM MARKET / CONTRACT CHECKER <span>Deriv API</span></div>
         <div class="finder-grid">
-
             <div class="field">
-
                 <label>BOOM Symbol</label>
-
-                <select
-                    id="symbol"
-                    onchange="selectSymbol()">
-
-                    <option value="">
-                        Connect and find BOOM
-                    </option>
-
+                <select id="symbol" onchange="selectSymbol()">
+                    <option value="">Connect and find BOOM</option>
                 </select>
-
             </div>
-
-
             <div>
-
-                <label
-                    style="
-                    display:block;
-                    color:#8991ad;
-                    font-size:9px;
-                    margin-bottom:6px;
-                    ">
-
-                    LIVE PRICE
-
-                </label>
-
-                <div
-                    id="finderPrice"
-                    class="live-price">
-
-                    —
-
-                </div>
-
+                <label style="display:block;color:#8991ad;font-size:9px;margin-bottom:6px;">LIVE PRICE</label>
+                <div id="finderPrice" class="live-price">—</div>
             </div>
-
-
-            <button
-                class="btn btn-purple"
-                onclick="findBoom()">
-
-                🔄 FIND BOOM
-
-            </button>
-
+            <button class="btn btn-purple" onclick="findBoom()">🔄 FIND BOOM</button>
         </div>
-
-
-        <div
-            id="contractInfo"
-            class="contract-box">
-
-            Select a BOOM symbol to check available contracts.
-
-        </div>
-
+        <div id="contractInfo" class="contract-box">Select a BOOM symbol to check available contracts.</div>
     </div>
-
 
     <!-- CURRENT TRADE -->
-
     <div class="panel">
-
-        <div class="panel-title">
-            🎯 CURRENT TRADE
-        </div>
-
+        <div class="panel-title">🎯 CURRENT TRADE</div>
         <div class="trade-grid">
-
-            <div class="setting">
-                <label>Symbol</label>
-                <div id="tradeSymbol"
-                     class="setting-value">
-                    —
-                </div>
-            </div>
-
-            <div class="setting">
-                <label>Direction</label>
-                <div class="setting-value direction">
-                    PUT / FALL
-                </div>
-            </div>
-
-            <div class="setting">
-                <label>Stake</label>
-                <div id="tradeStake"
-                     class="setting-value">
-                    $0.35
-                </div>
-            </div>
-
-            <div class="setting">
-                <label>Contract</label>
-                <div id="contractId"
-                     class="setting-value">
-                    —
-                </div>
-            </div>
-
-            <div class="setting">
-                <label>Status</label>
-                <div id="tradeStatus"
-                     class="setting-value">
-                    WAITING
-                </div>
-            </div>
-
+            <div class="setting"><label>Symbol</label><div id="tradeSymbol" class="setting-value">—</div></div>
+            <div class="setting"><label>Direction</label><div class="setting-value direction">PUT / FALL</div></div>
+            <div class="setting"><label>Stake</label><div id="tradeStake" class="setting-value">$0.35</div></div>
+            <div class="setting"><label>Contract</label><div id="contractId" class="setting-value">—</div></div>
+            <div class="setting"><label>Status</label><div id="tradeStatus" class="setting-value">WAITING</div></div>
         </div>
-
     </div>
 
-
-    <!-- RISK -->
-
+    <!-- RISK MANAGEMENT -->
     <div class="panel">
-
-        <div class="panel-title">
-            🛡️ RISK MANAGEMENT
-        </div>
-
+        <div class="panel-title">🛡️ RISK MANAGEMENT</div>
         <div class="risk-grid">
-
+            <div class="field"><label>Max Daily Loss</label><input id="maxDailyLoss" type="number" value="20" min="0"></div>
+            <div class="field"><label>Take Profit</label><input id="takeProfit" type="number" value="20" min="0"></div>
+            <div class="field"><label>Max Trades</label><input id="maxTrades" type="number" value="100" min="1"></div>
             <div class="field">
-                <label>Max Daily Loss</label>
-
-                <input
-                    id="maxDailyLoss"
-                    type="number"
-                    value="20"
-                    min="0">
-            </div>
-
-
-            <div class="field">
-                <label>Take Profit</label>
-
-                <input
-                    id="takeProfit"
-                    type="number"
-                    value="20"
-                    min="0">
-            </div>
-
-
-            <div class="field">
-                <label>Max Trades</label>
-
-                <input
-                    id="maxTrades"
-                    type="number"
-                    value="100"
-                    min="1">
-            </div>
-
-
-            <div class="field">
-
                 <label>Auto Stop</label>
-
-                <select id="autoStop">
-
-                    <option value="on">
-                        ON
-                    </option>
-
-                    <option value="off">
-                        OFF
-                    </option>
-
-                </select>
-
+                <select id="autoStop"><option value="on">ON</option><option value="off">OFF</option></select>
             </div>
-
         </div>
-
     </div>
 
-
-    <!-- HISTORY -->
-
+    <!-- TRADE HISTORY -->
     <div class="panel">
-
-        <div class="panel-title">
-
-            📜 TRADE HISTORY
-
-            <span id="historyCount">
-                0 trades
-            </span>
-
-        </div>
-
-
+        <div class="panel-title">📜 TRADE HISTORY <span id="historyCount">0 trades</span></div>
         <div class="table-wrap">
-
             <table>
-
-                <thead>
-
-                    <tr>
-                        <th>Time</th>
-                        <th>Market</th>
-                        <th>Type</th>
-                        <th>Stake</th>
-                        <th>Result</th>
-                        <th>Profit</th>
-                    </tr>
-
-                </thead>
-
-
-                <tbody id="historyBody">
-
-                    <tr>
-                        <td colspan="6"
-                            class="empty">
-                            No trades yet
-                        </td>
-                    </tr>
-
-                </tbody>
-
+                <thead><tr><th>Time</th><th>Market</th><th>Type</th><th>Stake</th><th>Result</th><th>Profit</th></tr></thead>
+                <tbody id="historyBody"><tr><td colspan="6" class="empty">No trades yet</td></tr></tbody>
             </table>
-
         </div>
-
     </div>
 
-
-    <!-- LOGS -->
-
+    <!-- SYSTEM LOG -->
     <div class="panel">
-
-        <div class="panel-title">
-
-            🖥️ SYSTEM LOG
-
-            <button
-                class="btn btn-blue"
-                style="
-                height:30px;
-                padding:0 10px;
-                font-size:9px;
-                "
-                onclick="clearLogs()">
-
-                CLEAR
-
-            </button>
-
-        </div>
-
-
-        <div
-            id="logs"
-            class="logs">
-
-            <div class="empty">
-                Waiting for system activity...
-            </div>
-
-        </div>
-
+        <div class="panel-title">🖥️ SYSTEM LOG <button class="btn btn-blue" style="height:30px;padding:0 10px;font-size:9px;" onclick="clearLogs()">CLEAR</button></div>
+        <div id="logs" class="logs"><div class="empty">Waiting for system activity...</div></div>
     </div>
 
 </div>
 
-
 <script>
+    let priceHistory = [];
+    const maxPoints = 70;
 
-let priceHistory = [];
-
-const maxPoints = 70;
-
-
-function $(id) {
-    return document.getElementById(id);
-}
-
-
-function money(v) {
-
-    const n = Number(v || 0);
-
-    return "$" + n.toFixed(2);
-
-}
-
-
-function signedMoney(v) {
-
-    const n = Number(v || 0);
-
-    return (n >= 0 ? "+" : "-")
-        + "$"
-        + Math.abs(n).toFixed(2);
-
-}
-
-
-function setMessage(text, type = "") {
-
-    const box = $("connectionMessage");
-
-    box.textContent = text;
-
-    box.className =
-        "connection-message " + type;
-
-}
-
-
-/* =========================================================
-   CONNECT
-   Tsy ovaina ny endpoint connexion
-========================================================= */
-
-async function connectDeriv() {
-
-    const appId =
-        $("appId").value.trim();
-
-    const token =
-        $("apiToken").value.trim();
-
-    const accountId =
-        $("accountId").value.trim();
-
-
-    if (!appId) {
-
-        setMessage(
-            "App ID is required.",
-            "error"
-        );
-
-        return;
+    function $(id) { return document.getElementById(id); }
+    function money(v) { return "$" + Number(v || 0).toFixed(2); }
+    function signedMoney(v) { const n = Number(v || 0); return (n >= 0 ? "+" : "") + "$" + n.toFixed(2); }
+    function setMessage(text, type = "") {
+        const box = $("connectionMessage");
+        box.textContent = text;
+        box.className = "connection-message " + type;
     }
 
+    async function connectDeriv() {
+        const appId = $("appId").value.trim();
+        const token = $("apiToken").value.trim();
+        const accountId = $("accountId").value.trim();
 
-    if (!token) {
+        if (!appId) { setMessage("App ID is required.", "error"); return; }
+        if (!token) { setMessage("PAT/API Token is required.", "error"); return; }
+        if (!accountId) { setMessage("Account ID is required.", "error"); return; }
 
-        setMessage(
-            "PAT/API Token is required.",
-            "error"
-        );
-
-        return;
-    }
-
-
-    if (!accountId) {
-
-        setMessage(
-            "Account ID is required.",
-            "error"
-        );
-
-        return;
-    }
-
-
-    setMessage(
-        "Connecting to Deriv..."
-    );
-
-
-    try {
-
-        const response =
-            await fetch(
-                "/api/connect",
-                {
-                    method: "POST",
-
-                    headers: {
-                        "Content-Type":
-                            "application/json"
-                    },
-
-                    body: JSON.stringify({
-                        app_id: appId,
-                        token: token,
-                        account_id: accountId
-                    })
-                }
-            );
-
-
-        const data =
-            await response.json();
-
-
-        if (!response.ok || !data.ok) {
-
-            throw new Error(
-                data.error ||
-                "Connection failed."
-            );
-
+        setMessage("Connecting to Deriv...");
+        try {
+            const response = await fetch("/api/connect", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ app_id: appId, token: token, account_id: accountId })
+            });
+            const data = await response.json();
+            if (!response.ok || !data.ok) throw new Error(data.error || "Connection failed.");
+            setMessage("Connection started. Waiting for authorization...", "ok");
+            setTimeout(updateDashboard, 500);
+        } catch (error) {
+            setMessage(error.message, "error");
         }
-
-
-        setMessage(
-            "Connection started. Waiting for authorization...",
-            "ok"
-        );
-
-
-        setTimeout(
-            updateDashboard,
-            500
-        );
-
-
-    } catch (error) {
-
-        setMessage(
-            error.message,
-            "error"
-        );
-
     }
 
-}
-
-
-/* =========================================================
-   FIND BOOM
-========================================================= */
-
-async function findBoom() {
-
-    if (
-        $("connectionStatus")
-            .classList
-            .contains("disconnected")
-    ) {
-
-        setMessage(
-            "Connect Deriv first.",
-            "error"
-        );
-
-        return;
-    }
-
-
-    setMessage(
-        "Searching BOOM symbols..."
-    );
-
-
-    try {
-
-        const response =
-            await fetch(
-                "/api/markets",
-                {
-                    method: "POST"
-                }
-            );
-
-
-        const data =
-            await response.json();
-
-
-        if (!response.ok || !data.ok) {
-
-            throw new Error(
-                data.error ||
-                "Unable to find BOOM."
-            );
-
+    async function findBoom() {
+        setMessage("Searching BOOM symbols...");
+        try {
+            const response = await fetch("/api/markets", { method: "POST" });
+            const data = await response.json();
+            if (!response.ok || !data.ok) throw new Error(data.error || "Unable to find BOOM.");
+            setMessage("BOOM market search started.", "ok");
+            setTimeout(updateDashboard, 700);
+        } catch (error) {
+            setMessage(error.message, "error");
         }
-
-
-        setMessage(
-            "BOOM market search requested.",
-            "ok"
-        );
-
-
-        setTimeout(
-            updateDashboard,
-            700
-        );
-
-
-    } catch (error) {
-
-        setMessage(
-            error.message,
-            "error"
-        );
-
     }
 
-}
-
-
-/* =========================================================
-   SELECT SYMBOL
-   IMPORTANT:
-   Tsy manao startsWith("R_") intsony.
-   Ilay symbol avy amin'i Deriv ihany no alefa.
-========================================================= */
-
-async function selectSymbol() {
-
-    const select =
-        $("symbol");
-
-    const symbol =
-        select.value.trim();
-
-
-    if (!symbol) {
-        return;
-    }
-
-
-    const option =
-        select.options[
-            select.selectedIndex
-        ];
-
-
-    const displayName =
-        option.dataset.name ||
-        option.textContent
-            .replace(/\s+[^)]*\s*$/, "")
-            .trim() ||
-        symbol;
-
-
-    setMessage(
-        "Selecting " +
-        displayName +
-        "..."
-    );
-
-
-    try {
-
-        const response =
-            await fetch(
-                "/api/select-symbol",
-                {
-                    method: "POST",
-
-                    headers: {
-                        "Content-Type":
-                            "application/json"
-                    },
-
-                    body: JSON.stringify({
-                        symbol: symbol,
-                        display_name:
-                            displayName
-                    })
-                }
-            );
-
-
-        const data =
-            await response.json();
-
-
-        if (!response.ok || !data.ok) {
-
-            throw new Error(
-                data.error ||
-                "Symbol selection failed."
-            );
-
-        }
-
-
-        $("selectedMarket")
-            .textContent =
-            displayName;
-
-        $("marketName")
-            .textContent =
-            displayName;
-
-        $("settingSymbol")
-            .textContent =
-            displayName;
-
-        $("tradeSymbol")
-            .textContent =
-            displayName;
-
-
-        $("contractInfo").textContent =
-            "Loading contracts for " +
-            symbol +
-            "...";
-
-
-        setMessage(
-            "Selected " +
-            displayName +
-            " (" +
-            symbol +
-            ")",
-            "ok"
-        );
-
-
-        setTimeout(
-            updateDashboard,
-            300
-        );
-
-
-    } catch (error) {
-
-        setMessage(
-            error.message,
-            "error"
-        );
-
-    }
-
-}
-
-
-/* =========================================================
-   INTERVAL
-========================================================= */
-
-async function updateInterval() {
-
-    const interval =
-        parseInt(
-            $("tradeInterval").value
-        ) || 5;
-
-
-    if (interval < 1) {
-
-        setMessage(
-            "Interval must be at least 1 second.",
-            "error"
-        );
-
-        return;
-    }
-
-
-    try {
-
-        const response =
-            await fetch(
-                "/api/update-interval",
-                {
-                    method: "POST",
-
-                    headers: {
-                        "Content-Type":
-                            "application/json"
-                    },
-
-                    body: JSON.stringify({
-                        interval:
-                            interval
-                    })
-                }
-            );
-
-
-        const data =
-            await response.json();
-
-
-        if (!response.ok || !data.ok) {
-
-            throw new Error(
-                data.error ||
-                "Failed to update interval."
-            );
-
-        }
-
-
-        setMessage(
-            "Trade interval updated to " +
-            interval +
-            "s",
-            "ok"
-        );
-
-
-    } catch (error) {
-
-        setMessage(
-            error.message,
-            "error"
-        );
-
-    }
-
-}
-
-
-/* =========================================================
-   DURATION
-========================================================= */
-
-async function updateDuration() {
-
-    const duration =
-        parseInt(
-            $("durationInput").value
-        ) || 3;
-
-
-    if (duration < 1) {
-
-        setMessage(
-            "Duration must be at least 1 second.",
-            "error"
-        );
-
-        return;
-    }
-
-
-    try {
-
-        const response =
-            await fetch(
-                "/api/update-duration",
-                {
-                    method: "POST",
-
-                    headers: {
-                        "Content-Type":
-                            "application/json"
-                    },
-
-                    body: JSON.stringify({
-                        duration:
-                            duration
-                    })
-                }
-            );
-
-
-        const data =
-            await response.json();
-
-
-        if (!response.ok || !data.ok) {
-
-            throw new Error(
-                data.error ||
-                "Failed to update duration."
-            );
-
-        }
-
-
-        $("durationDisplay")
-            .textContent =
-            duration +
-            " seconds";
-
-
-        setMessage(
-            "Duration updated to " +
-            duration +
-            " seconds",
-            "ok"
-        );
-
-
-    } catch (error) {
-
-        setMessage(
-            error.message,
-            "error"
-        );
-
-    }
-
-}
-
-
-/* =========================================================
-   START
-========================================================= */
-
-async function startBot() {
-
-    try {
-
-        const response =
-            await fetch(
-                "/api/start",
-                {
-                    method: "POST"
-                }
-            );
-
-
-        const data =
-            await response.json();
-
-
-        if (!response.ok || !data.ok) {
-
-            throw new Error(
-                data.error ||
-                "Cannot start bot."
-            );
-
-        }
-
-
-        setMessage(
-            "Bot started.",
-            "ok"
-        );
-
-
-        updateDashboard();
-
-
-    } catch (error) {
-
-        setMessage(
-            error.message,
-            "error"
-        );
-
-    }
-
-}
-
-
-/* =========================================================
-   PAUSE
-========================================================= */
-
-async function pauseBot() {
-
-    try {
-
-        const response =
-            await fetch(
-                "/api/pause",
-                {
-                    method: "POST"
-                }
-            );
-
-
-        const data =
-            await response.json();
-
-
-        if (!response.ok || !data.ok) {
-
-            throw new Error(
-                data.error ||
-                "Cannot pause bot."
-            );
-
-        }
-
-
-        setMessage(
-            "Bot paused."
-        );
-
-
-        updateDashboard();
-
-
-    } catch (error) {
-
-        setMessage(
-            error.message,
-            "error"
-        );
-
-    }
-
-}
-
-
-/* =========================================================
-   STOP
-========================================================= */
-
-async function stopBot() {
-
-    try {
-
-        const response =
-            await fetch(
-                "/api/stop",
-                {
-                    method: "POST"
-                }
-            );
-
-
-        const data =
-            await response.json();
-
-
-        if (!response.ok || !data.ok) {
-
-            throw new Error(
-                data.error ||
-                "Cannot stop bot."
-            );
-
-        }
-
-
-        setMessage(
-            "Bot stopped."
-        );
-
-
-        updateDashboard();
-
-
-    } catch (error) {
-
-        setMessage(
-            error.message,
-            "error"
-        );
-
-    }
-
-}
-
-
-/* =========================================================
-   SYMBOL LIST
-   Manaiky:
-   - underlying_symbol
-   - symbol
-   - underlying_symbol_name
-   - display_name
-========================================================= */
-
-function updateSymbols(symbols) {
-
-    const select =
-        $("symbol");
-
-
-    const current =
-        select.value;
-
-
-    select.innerHTML = "";
-
-
-    if (
-        !Array.isArray(symbols) ||
-        symbols.length === 0
-    ) {
-
-        const opt =
-            document.createElement("option");
-
-        opt.value = "";
-
-        opt.textContent =
-            "No BOOM symbols found";
-
-        select.appendChild(opt);
-
-        return;
-    }
-
-
-    symbols.forEach(item => {
-
-        if (!item) return;
-
-
-        const symbol =
-            String(
-                item.underlying_symbol ||
-                item.symbol ||
-                ""
-            ).trim();
-
-
+    async function selectSymbol() {
+        const select = $("symbol");
+        const symbol = select.value;
         if (!symbol) return;
 
-
-        const name =
-            String(
-                item.underlying_symbol_name ||
-                item.display_name ||
-                symbol
-            ).trim();
-
-
-        const opt =
-            document.createElement("option");
-
-
-        opt.value =
-            symbol;
-
-
-        opt.dataset.name =
-            name;
-
-
-        opt.textContent =
-            name +
-            " (" +
-            symbol +
-            ")";
-
-
-        select.appendChild(opt);
-
-    });
-
-
-    if (current) {
-
-        const exists =
-            [...select.options]
-                .some(
-                    option =>
-                        option.value === current
-                );
-
-
-        if (exists) {
-
-            select.value =
-                current;
-
-        }
-
-    }
-
-}
-
-
-/* =========================================================
-   CONTRACTS
-========================================================= */
-
-function updateContracts(contracts) {
-
-    const box =
-        $("contractInfo");
-
-
-    if (
-        !Array.isArray(contracts) ||
-        contracts.length === 0
-    ) {
-
-        box.innerHTML =
-            "No contract data returned.";
-
-        return;
-    }
-
-
-    let html =
-        "<b>Available contracts:</b><br>";
-
-
-    contracts.forEach(c => {
-
-        const type =
-            c.contract_type ||
-            "UNKNOWN";
-
-
-        const category =
-            c.contract_category ||
-            "";
-
-
-        const expiry =
-            c.expiry_type ||
-            "";
-
-
-        html +=
-            "• " +
-            type +
-            " | " +
-            category +
-            " | " +
-            expiry +
-            "<br>";
-
-    });
-
-
-    box.innerHTML =
-        html;
-
-}
-
-
-/* =========================================================
-   HISTORY
-========================================================= */
-
-function updateHistory(history) {
-
-    const body =
-        $("historyBody");
-
-
-    const list =
-        Array.isArray(history)
-            ? history
-            : [];
-
-
-    $("historyCount")
-        .textContent =
-        list.length +
-        " trades";
-
-
-    if (list.length === 0) {
-
-        body.innerHTML =
-            '<tr>' +
-            '<td colspan="6" class="empty">' +
-            'No trades yet' +
-            '</td>' +
-            '</tr>';
-
-        return;
-    }
-
-
-    body.innerHTML =
-        list.map(item => {
-
-            const profit =
-                Number(
-                    item.profit || 0
-                );
-
-
-            const result =
-                item.result ||
-                "—";
-
-
-            const resultClass =
-                result === "WIN"
-                    ? "win"
-                    : "loss";
-
-
-            const profitClass =
-                profit >= 0
-                    ? "win"
-                    : "loss";
-
-
-            return `
-                <tr>
-
-                    <td>
-                        ${escapeHtml(item.time || "—")}
-                    </td>
-
-                    <td>
-                        ${escapeHtml(item.symbol || "—")}
-                    </td>
-
-                    <td class="direction">
-                        ${escapeHtml(item.direction || "PUT")}
-                    </td>
-
-                    <td>
-                        ${money(item.stake)}
-                    </td>
-
-                    <td class="${resultClass}">
-                        ${escapeHtml(result)}
-                    </td>
-
-                    <td class="${profitClass}">
-                        ${signedMoney(profit)}
-                    </td>
-
-                </tr>
-            `;
-
-        }).join("");
-
-}
-
-
-/* =========================================================
-   LOGS
-========================================================= */
-
-function updateLogs(logs) {
-
-    const box =
-        $("logs");
-
-
-    const list =
-        Array.isArray(logs)
-            ? logs
-            : [];
-
-
-    if (list.length === 0) {
-
-        box.innerHTML =
-            '<div class="empty">' +
-            'Waiting for system activity...' +
-            '</div>';
-
-        return;
-    }
-
-
-    box.innerHTML =
-        list.map(log => {
-
-            return `
-                <div class="log-line">
-
-                    <span class="log-time">
-                        [${escapeHtml(log.time || "")}]
-                    </span>
-
-                    ${escapeHtml(log.message || "")}
-
-                </div>
-            `;
-
-        }).join("");
-
-}
-
-
-/* =========================================================
-   HTML ESCAPE
-========================================================= */
-
-function escapeHtml(value) {
-
-    return String(value)
-
-        .replaceAll(
-            "&",
-            "&amp;"
-        )
-
-        .replaceAll(
-            "<",
-            "&lt;"
-        )
-
-        .replaceAll(
-            ">",
-            "&gt;"
-        )
-
-        .replaceAll(
-            '"',
-            "&quot;"
-        )
-
-        .replaceAll(
-            "'",
-            "&#039;"
-        );
-
-}
-
-
-/* =========================================================
-   DASHBOARD
-========================================================= */
-
-async function updateDashboard() {
-
-    try {
-
-        const response =
-            await fetch(
-                "/api/status",
-                {
-                    cache: "no-store"
-                }
-            );
-
-
-        if (!response.ok) {
+        // Tsy maintsy BOOM ny symbol (manomboka amin'ny BOOM)
+        if (!symbol.toUpperCase().startsWith("BOOM")) {
+            setMessage("Please select a valid BOOM symbol from the list (starts with BOOM)", "error");
             return;
         }
 
+        const displayName = select.options[select.selectedIndex].text.split(" (")[0];
 
-        const data =
-            await response.json();
+        try {
+            const response = await fetch("/api/select-symbol", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ symbol: symbol, display_name: displayName })
+            });
+            const data = await response.json();
+            if (!response.ok || !data.ok) throw new Error(data.error || "Symbol selection failed.");
 
+            $("selectedMarket").textContent = displayName;
+            $("marketName").textContent = displayName;
+            $("settingSymbol").textContent = displayName;
+            $("tradeSymbol").textContent = displayName;
 
-        const status =
-            $("connectionStatus");
+            setMessage("BOOM selected: " + displayName + " (" + symbol + ")", "ok");
+            setTimeout(updateDashboard, 500);
+        } catch (error) {
+            setMessage(error.message, "error");
+        }
+    }
 
+    async function updateInterval() {
+        const interval = parseInt($("tradeInterval").value) || 5;
+        if (interval < 1) {
+            setMessage("Interval must be at least 1 second.", "error");
+            return;
+        }
+        try {
+            const response = await fetch("/api/update-interval", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ interval: interval })
+            });
+            const data = await response.json();
+            if (!response.ok || !data.ok) throw new Error(data.error || "Failed to update interval.");
+            setMessage("Trade interval updated to " + interval + "s", "ok");
+        } catch (error) {
+            setMessage(error.message, "error");
+        }
+    }
 
-        const dot =
-            $("connectionDot");
+    async function updateDuration() {
+        const duration = parseInt($("durationInput").value) || 3;
+        if (duration < 1) {
+            setMessage("Duration must be at least 1 second.", "error");
+            return;
+        }
+        try {
+            const response = await fetch("/api/update-duration", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ duration: duration })
+            });
+            const data = await response.json();
+            if (!response.ok || !data.ok) throw new Error(data.error || "Failed to update duration.");
+            setMessage("Duration updated to " + duration + "s", "ok");
+            $("durationDisplay").textContent = duration + " seconds";
+        } catch (error) {
+            setMessage(error.message, "error");
+        }
+    }
 
+    async function startBot() {
+        try {
+            const response = await fetch("/api/start", { method: "POST" });
+            const data = await response.json();
+            if (!response.ok || !data.ok) throw new Error(data.error || "Cannot start bot.");
+            setMessage("Bot started.", "ok");
+            updateDashboard();
+        } catch (error) {
+            setMessage(error.message, "error");
+        }
+    }
 
-        if (
-            data.connected &&
-            data.authorized
-        ) {
+    async function pauseBot() {
+        try {
+            const response = await fetch("/api/pause", { method: "POST" });
+            const data = await response.json();
+            if (!response.ok || !data.ok) throw new Error(data.error || "Cannot pause bot.");
+            setMessage("Bot paused.");
+            updateDashboard();
+        } catch (error) {
+            setMessage(error.message, "error");
+        }
+    }
 
-            status.textContent =
+    async function stopBot() {
+        try {
+            const response = await fetch("/api/stop", { method: "POST" });
+            const data = await response.json();
+            if (!response.ok || !data.ok) throw new Error(data.error || "Cannot stop bot.");
+            setMessage("Bot stopped.");
+            updateDashboard();
+        } catch (error) {
+            setMessage(error.message, "error");
+        }
+    }
+
+    function updateSymbols(symbols) {
+        const select = $("symbol");
+        const current = select.value;
+        select.innerHTML = "";
+        if (!symbols || symbols.length === 0) {
+            const opt = document.createElement("option");
+            opt.value = "";
+            opt.textContent = "No BOOM symbols found";
+            select.appendChild(opt);
+            return;
+        }
+        symbols.forEach(item => {
+            const opt = document.createElement("option");
+            opt.value = item.symbol;
+            opt.textContent = item.display_name + " (" + item.symbol + ")";
+            select.appendChild(opt);
+        });
+        if (current) select.value = current;
+    }
+
+    function updateContracts(contracts) {
+        const box = $("contractInfo");
+        if (!contracts || contracts.length === 0) {
+            box.innerHTML = "No contract data returned.";
+            return;
+        }
+        let html = "<b>Available contracts:</b><br>";
+        contracts.forEach(c => {
+            html += "• " + (c.contract_type || "UNKNOWN") + " | " + (c.contract_category || "") + " | " + (c.expiry_type || "") + "<br>";
+        });
+        box.innerHTML = html;
+    }
+
+    function updateHistory(history) {
+        const body = $("historyBody");
+        $("historyCount").textContent = (history || []).length + " trades";
+        if (!history || history.length === 0) {
+            body.innerHTML = '<tr><td colspan="6" class="empty">No trades yet</td></tr>';
+            return;
+        }
+        body.innerHTML = history.map(item => {
+            const profit = Number(item.profit || 0);
+            const result = item.result || "—";
+            return `<tr>
+                <td>${item.time || "—"}</td>
+                <td>${item.symbol || "—"}</td>
+                <td class="direction">${item.direction || "PUT/FALL"}</td>
+                <td>${money(item.stake)}</td>
+                <td class="${result === "WIN" ? "win" : "loss"}">${result}</td>
+                <td class="${profit >= 0 ? "win" : "loss"}">${signedMoney(profit)}</td>
+            </tr>`;
+        }).join("");
+    }
+
+    function updateLogs(logs) {
+        const box = $("logs");
+        if (!logs || logs.length === 0) {
+            box.innerHTML = '<div class="empty">Waiting for system activity...</div>';
+            return;
+        }
+        box.innerHTML = logs.map(log =>
+            `<div class="log-line"><span class="log-time">[${log.time}]</span>${escapeHtml(log.message)}</div>`
+        ).join("");
+    }
+
+    function escapeHtml(v) {
+        return String(v).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;");
+    }
+
+    async function updateDashboard() {
+        try {
+            const response = await fetch("/api/status", { cache: "no-store" });
+            const data = await response.json();
+
+            const status = $("connectionStatus");
+            if (data.connected && data.authorized) {
+                status.textContent = "● CONNECTED";
+                status.className = "status connected";
+            } else {
+                status.textContent = "● DISCONNECTED";
+                status.className = "status disconnected";
+            }
+
+            $("balance").textContent = money(data.balance);
+            $("profit").textContent = signedMoney(data.profit);
+            $("profit").className = "stat-value " + (Number(data.profit || 0) >= 0 ? "green" : "red");
+            $("winRate").textContent = Number(data.win_rate || 0).toFixed(2) + "%";
+            $("totalTrades").textContent = data.total_trades || 0;
+            $("winsLosses").innerHTML = `<span class="green">${data.wins || 0}</span> / <span class="red">${data.losses || 0}</span>`;
+            $("lossStreak").textContent = data.loss_streak || 0;
+
+            $("accountType").textContent = data.account_type || "—";
+            $("authorization").textContent = data.authorized ? "AUTHORIZED" : "WAITING";
+            $("connectionInfo").textContent = data.connected ? "ONLINE" : "OFFLINE";
+            $("botStatus").textContent = data.running ? "RUNNING" : "STOPPED";
+            $("baseStake").textContent = money(data.stake);
+            $("durationDisplay").textContent = (data.duration || 3) + " seconds";
+
+            if (data.symbol_display) {
+                const display = data.symbol_display;
+                $("marketName").textContent = display;
+                $("selectedMarket").textContent = display;
+                $("settingSymbol").textContent = display;
+                $("tradeSymbol").textContent = display;
+            } else if (data.symbol) {
+                $("marketName").textContent = data.symbol;
+                $("selectedMarket").textContent = data.symbol;
+                $("settingSymbol").textContent = data.symbol;
+                $("tradeSymbol").textContent = data.symbol;
+            }
+
+            if (data.last_price !== null && data.last_price !== undefined) {
+                const price = Number(data.last_price);
+                $("livePrice").textContent = price.toFixed(4);
+                $("finderPrice").textContent = price.toFixed(4);
+                $("chartPrice").textContent = price.toFixed(4);
+                addPrice(price);
+            }
+
+            updateSymbols(data.boom_symbols);
+            updateContracts(data.available_contracts);
+
+            if (data.current_trade) {
+                $("tradeSymbol").textContent = data.current_trade.symbol || "—";
+                $("tradeStake").textContent = money(data.current_trade.stake);
+                $("contractId").textContent = data.current_trade.contract_id || "—";
+                $("tradeStatus").textContent = data.current_trade.status || "OPEN";
+            } else {
+                $("contractId").textContent = "—";
+                $("tradeStatus").textContent = "WAITING";
+            }
+
+            updateHistory(data.history);
+            updateLogs(data.logs);
+
+            if (data.last_error) setMessage(data.last_error, "error");
+            drawChart();
+        } catch (error) {
+            console.log("Dashboard update error:", error);
+        }
+    }
+
+    function addPrice(price) {
+        priceHistory.push(Number(price));
+        if (priceHistory.length > maxPoints) priceHistory.shift();
+    }
+
+    function drawChart() {
+        const canvas = $("chartCanvas");
+        const rect = canvas.parentElement.getBoundingClientRect();
+        const dpr = window.devicePixelRatio || 1;
+        canvas.width = rect.width * dpr;
+        canvas.height = rect.height * dpr;
+        const ctx = canvas.getContext("2d");
+        ctx.scale(dpr, dpr);
+        const width = rect.width;
+        const height = rect.height;
+        ctx.clearRect(0, 0, width, height);
+
+        if (priceHistory.length < 2) {
+            ctx.fillStyle = "#8991ad";
+            ctx.font = "12px Arial";
+            ctx.fillText("Waiting for live price...", 20, 30);
+            return;
+        }
+
+        let min = Math.min(...priceHistory);
+        let max = Math.max(...priceHistory);
+        if (min === max) { min -= 1; max += 1; }
+        const padding = 20;
+        const range = max - min;
+
+        ctx.beginPath();
+        priceHistory.forEach((price, index) => {
+            const x = padding + (index / (priceHistory.length - 1)) * (width - padding * 2);
+            const y = height - padding - ((price - min) / range) * (height - padding * 2);
+            if (index === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        });
+        ctx.strokeStyle = "#7654ff";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        const last = priceHistory[priceHistory.length - 1];
+        const lastX = padding + ((priceHistory.length - 1) / (priceHistory.length - 1)) * (width - padding * 2);
+        const lastY = height - padding - ((last - min) / range) * (height - padding * 2);
+        ctx.beginPath();
+        ctx.arc(lastX, lastY, 4, 0, Math.PI * 2);
+        ctx.fillStyle = "#19c477";
+        ctx.fill();
+    }
+
+    function clearLogs() {
+        $("logs").innerHTML = '<div class="empty">Logs cleared from screen.</div>';
+    }
+
+    setInterval(updateDashboard, 1000);
+    window.addEventListener("resize", drawChart);
+    updateDashboard();
+</script>
+</body>
+</html>
