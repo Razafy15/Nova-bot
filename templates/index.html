@@ -424,7 +424,7 @@
                 <div class="info-row"><span>Market</span><strong id="marketName">—</strong></div>
                 <div class="info-row"><span>Live Price</span><strong id="livePrice">—</strong></div>
                 <div class="info-row"><span>Direction</span><strong class="direction">PUT / FALL</strong></div>
-                <div class="info-row"><span>Duration</span><strong id="durationDisplay">3 seconds</strong></div>
+                <div class="info-row"><span>Duration</span><strong id="durationDisplay">1 minute</strong></div>
                 <div class="info-row"><span>Bot Status</span><strong id="botStatus">STOPPED</strong></div>
             </div>
         </div>
@@ -437,9 +437,9 @@
             <div class="setting"><label>Direction</label><div class="setting-value direction">PUT / FALL</div></div>
             
             <div class="setting">
-                <label>Duration (seconds)</label>
+                <label>Duration (minutes)</label>
                 <div class="setting-value">
-                    <input id="durationInput" type="number" value="3" min="1" max="60"
+                    <input id="durationInput" type="number" value="1" min="1" max="60"
                            style="width:80px;background:#070a19;border:1px solid var(--border);border-radius:6px;color:white;padding:4px 8px;font-size:14px;"
                            onchange="updateDuration()">
                 </div>
@@ -638,9 +638,9 @@
     }
 
     async function updateDuration() {
-        const duration = parseInt($("durationInput").value) || 3;
+        const duration = parseInt($("durationInput").value) || 1;
         if (duration < 1) {
-            setMessage("Duration must be at least 1 second.", "error");
+            setMessage("Duration must be at least 1 minute.", "error");
             return;
         }
         try {
@@ -651,8 +651,8 @@
             });
             const data = await response.json();
             if (!response.ok || !data.ok) throw new Error(data.error || "Failed to update duration.");
-            setMessage("Duration updated to " + duration + "s", "ok");
-            $("durationDisplay").textContent = duration + " seconds";
+            setMessage("Duration updated to " + duration + " minute(s)", "ok");
+            $("durationDisplay").textContent = duration + " minute" + (duration > 1 ? "s" : "");
         } catch (error) {
             setMessage(error.message, "error");
         }
@@ -790,7 +790,7 @@
             $("connectionInfo").textContent = data.connected ? "ONLINE" : "OFFLINE";
             $("botStatus").textContent = data.running ? "RUNNING" : "STOPPED";
             $("baseStake").textContent = money(data.stake);
-            $("durationDisplay").textContent = (data.duration || 3) + " seconds";
+            $("durationDisplay").textContent = (data.duration || 1) + " minute" + (data.duration > 1 ? "s" : "");
 
             if (data.symbol_display) {
                 const display = data.symbol_display;
