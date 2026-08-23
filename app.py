@@ -35,7 +35,7 @@ state = {
     "running": False,
 
     "stake": 0.35,
-    "duration": 3,
+    "duration": 1,          # <-- 1 minitra (default)
     "direction": "PUT",
 
     "total_trades": 0,
@@ -253,26 +253,26 @@ def trading_loop():
                 f"{direction} | "
                 f"{symbol} | "
                 f"{stake} {state['currency']} | "
-                f"{duration}s"
+                f"{duration} minute(s)"
             )
 
             # ==================================================
-            # PROPOSAL
+            # PROPOSAL - Mampiasa MINITRA (duration_unit = "m")
             # ==================================================
             proposal_payload = {
                 "proposal": 1,
 
                 "amount": stake,
 
-                "basis": "stake",  # <-- ILaina mandrakariva
+                "basis": "stake",          # ILaina mandrakariva
 
                 "contract_type": direction,
 
                 "currency": state["currency"],
 
-                "duration": duration,
+                "duration": duration,      # 1, 2, 5, sns. minitra
 
-                "duration_unit": "s",  # <-- Segondra
+                "duration_unit": "m",      # MINITRA (tsy segondra)
 
                 "underlying_symbol": symbol,
 
@@ -489,8 +489,13 @@ def on_message(socket, message):
         )
 
         add_log(
-            f"DERIV ERROR: "
+            f"❌ DERIV ERROR: "
             f"{code}: {message_text}"
+        )
+
+        # Aseho ny valiny feno mba hahitana ny error
+        add_log(
+            f"📦 Full error response: {json.dumps(data)}"
         )
 
         echo_req = data.get("echo_req", {})
@@ -498,11 +503,11 @@ def on_message(socket, message):
         if echo_req.get("proposal") == 1:
 
             add_log(
-                "The error came from PROPOSAL."
+                "⚠️ The error came from PROPOSAL."
             )
 
             add_log(
-                f"Proposal request: "
+                f"📤 Proposal request: "
                 f"{json.dumps(echo_req)}"
             )
 
@@ -540,7 +545,7 @@ def on_message(socket, message):
         state["authorized"] = True
 
         add_log(
-            f"Account authorized. "
+            f"✅ Account authorized. "
             f"Balance: "
             f"{state['balance']:.2f} "
             f"{state['currency']}"
@@ -581,7 +586,7 @@ def on_message(socket, message):
                 continue
 
             # BOOM ihany no alaina (tsy R_)
-            if "BOOM" in display_name.upper():
+            if "BOOM" in symbol.upper():
 
                 boom.append({
                     "symbol": symbol,
@@ -599,8 +604,7 @@ def on_message(socket, message):
         for item in boom:
 
             add_log(
-                f"BOOM: "
-                f"{item['symbol']} = "
+                f"  - {item['symbol']} = "
                 f"{item['display_name']}"
             )
 
@@ -668,10 +672,15 @@ def on_message(socket, message):
         return
 
     # ========================================================
-    # PROPOSAL - FANITSINA: Mijery ny valiny feno
+    # PROPOSAL - FANITSINA FARANY: Mamoaka ny valiny feno
     # ========================================================
 
     if msg_type == "proposal":
+
+        # Aseho ny valiny feno mba hahitana izay tena tonga
+        add_log(
+            f"📩 FULL PROPOSAL RESPONSE: {json.dumps(data)}"
+        )
 
         proposal = data.get(
             "proposal",
@@ -694,36 +703,31 @@ def on_message(socket, message):
             }
 
             add_log(
-                f"PROPOSAL RECEIVED: "
+                f"✅ PROPOSAL RECEIVED: "
                 f"id={proposal_id}, "
                 f"ask_price={ask_price}"
             )
 
         else:
 
-            # ⚠️ Tsy misy id → mety misy error
-            add_log(
-                "⚠️ PROPOSAL received WITHOUT proposal id."
-            )
-
-            # 🔍 Aseho ny valiny feno mba hahitana ny error
-            add_log(
-                f"📦 Full proposal response: {json.dumps(data)}"
-            )
-
             # Jereo raha misy error ao anaty valiny
             if "error" in data:
                 add_log(
-                    f"❌ Error in proposal: {data.get('error')}"
+                    f"❌ ERROR in proposal: {data.get('error')}"
                 )
-
-            # Jereo raha misy echo_req (hahafantarana izay nalefa)
             if "echo_req" in data:
                 add_log(
                     f"📤 Echo request: {data.get('echo_req')}"
                 )
 
-            # Atao azo antoka fa tsy hisy proposal miandry
+            add_log(
+                "⚠️ PROPOSAL received WITHOUT proposal id."
+            )
+
+            add_log(
+                f"📦 Full data: {json.dumps(data)}"
+            )
+
             state["last_proposal"] = None
 
         return
@@ -767,7 +771,7 @@ def on_message(socket, message):
             )
 
             add_log(
-                f"CONTRACT OPENED: "
+                f"✅ CONTRACT OPENED: "
                 f"{contract_id}"
             )
 
@@ -1412,7 +1416,7 @@ def api_update_interval():
 
 
 # ============================================================
-# UPDATE DURATION
+# UPDATE DURATION (MINITRA)
 # ============================================================
 
 @app.post("/api/update-duration")
@@ -1428,7 +1432,7 @@ def api_update_duration():
     duration = int(
         data.get(
             "duration",
-            3
+            1
         )
     )
 
@@ -1437,14 +1441,14 @@ def api_update_duration():
         return jsonify({
             "ok": False,
             "error":
-                "Duration must be at least 1 second."
+                "Duration must be at least 1 minute."
         }), 400
 
     state["duration"] = duration
 
     add_log(
         f"Duration updated "
-        f"to {duration} seconds."
+        f"to {duration} minute(s)."
     )
 
     return jsonify({
