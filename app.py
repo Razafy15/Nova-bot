@@ -35,7 +35,7 @@ state = {
     "running": False,
 
     "stake": 0.35,
-    "duration": 1,          # <-- 1 minitra (default)
+    "duration": 5,          # <-- 5 ticks (default)
     "direction": "PUT",
 
     "total_trades": 0,
@@ -253,11 +253,11 @@ def trading_loop():
                 f"{direction} | "
                 f"{symbol} | "
                 f"{stake} {state['currency']} | "
-                f"{duration} minute(s)"
+                f"{duration} ticks"
             )
 
             # ==================================================
-            # PROPOSAL - Mampiasa MINITRA (duration_unit = "m")
+            # PROPOSAL - Mampiasa TICKS (duration_unit = "t")
             # ==================================================
             proposal_payload = {
                 "proposal": 1,
@@ -270,9 +270,9 @@ def trading_loop():
 
                 "currency": state["currency"],
 
-                "duration": duration,      # 1, 2, 5, sns. minitra
+                "duration": duration,      # Isan'ny ticks
 
-                "duration_unit": "m",      # MINITRA (tsy segondra)
+                "duration_unit": "t",      # TICKS (tsy segondra na minitra)
 
                 "underlying_symbol": symbol,
 
@@ -1416,7 +1416,7 @@ def api_update_interval():
 
 
 # ============================================================
-# UPDATE DURATION (MINITRA)
+# UPDATE DURATION (TICKS)
 # ============================================================
 
 @app.post("/api/update-duration")
@@ -1432,7 +1432,7 @@ def api_update_duration():
     duration = int(
         data.get(
             "duration",
-            1
+            5
         )
     )
 
@@ -1441,14 +1441,14 @@ def api_update_duration():
         return jsonify({
             "ok": False,
             "error":
-                "Duration must be at least 1 minute."
+                "Duration must be at least 1 tick."
         }), 400
 
     state["duration"] = duration
 
     add_log(
         f"Duration updated "
-        f"to {duration} minute(s)."
+        f"to {duration} ticks."
     )
 
     return jsonify({
