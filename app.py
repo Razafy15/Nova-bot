@@ -5,36 +5,41 @@ import time
 import requests
 import websocket
 from flask import Flask, jsonify, request, render_template_string
-from threading import RLock
+from threading import RLock, Lock
 
 app = Flask(__name__)
 
 # ============================================================
-# CREDENTIALS DEFAULT
+# ENVIRONMENT VARIABLES
 # ============================================================
-DEFAULT_APP_ID = "342OQxSDH634DTzSs0Ble"
-DEFAULT_PAT_TOKEN = "pat_f9458c289641c9ab5e3da1eb03b46762ed297a5d6c6442905c718f3926a57d5e"
-DEFAULT_ACCOUNT_ID = "DOT92654388"
+DEFAULT_APP_ID = os.environ.get("DERIV_APP_ID", "")
+DEFAULT_PAT_TOKEN = os.environ.get("DERIV_PAT_TOKEN", "")
+DEFAULT_ACCOUNT_ID = os.environ.get("DERIV_ACCOUNT_ID", "")
 
 CURRENT_APP_ID = DEFAULT_APP_ID
 CURRENT_PAT_TOKEN = DEFAULT_PAT_TOKEN
 CURRENT_ACCOUNT_ID = DEFAULT_ACCOUNT_ID
+
+if not CURRENT_APP_ID:
+    CURRENT_APP_ID = "1089"
 
 # ============================================================
 # STATE
 # ============================================================
 state = {
     "connected": False,
+    "connection_authenticated": False,
     "authorized": False,
     "balance": 0.0,
     "symbol": "",
     "symbol_display": "",
+    "last_symbol": "",  # Fitehirizana ny symbol taloha ho an'ny forget
     "last_price": None,
     "ticks_buffer": [],
     "running": False,
     "stake": 0.35,
     "duration": 1,
-    "duration_unit": "m",
+    "duration_unit": "auto",
     "total_trades": 0,
     "wins": 0,
     "losses": 0,
@@ -52,23 +57,24 @@ state = {
     "logs": [],
     "last_error": "",
     "last_proposal": None,
-    "last_trade_time": 0,
+    "last_trade_time": time.time(),
     "trade_interval": 5,
     "trade_state": "IDLE",
     "contract_info": None,
     "last_proposal_id": None,
     "session_start": time.time(),
     "day_start": time.time(),
+    "daily_loss_reset_time": time.time(),
+    "recovering": False,
+    "pending_buy": None,
+    "pending_buy_req_id": None,
+    "pending_proposal_req_id": None,
+    "req_id_counter": 0,
+    "pending_buy_start_time": 0,
+    "tick_subscription_id": None,  # Ho an'ny fanaraha-maso ny ticks
 }
 
 state_lock = RLock()
-
-ws = None
-ws_thread = None
-reconnect_count = 0
-MAX_RECONNECT = 10
-RECONNECT_DELAY = 3
-reconnecting = False
 
 # ============================================================
 # LOGGING
@@ -81,19 +87,89 @@ def add_log(message):
     print(f"[{timestamp}] {message}", flush=True)
 
 # ============================================================
-# WEBSOCKET SEND - Miaraka amin'ny fanamarinana connected
+# PERSISTENCE
+# ============================================================
+STATE_FILE = "bot_state.json"
+
+def load_state():
+    try:
+        if os.path.exists(STATE_FILE):
+            with open(STATE_FILE, 'r') as f:
+                return json.load(f)
+    except Exception as e:
+        print(f"⚠️ Error loading state: {e}")
+    return None
+
+def save_state():
+    try:
+        with state_lock:
+            data_to_save = {
+                "total_trades": state["total_trades"],
+                "wins": state["wins"],
+                "losses": state["losses"],
+                "profit": state["profit"],
+                "loss_streak": state["loss_streak"],
+                "daily_loss": state["daily_loss"],
+                "trades_today": state["trades_today"],
+                "current_trade": state["current_trade"],
+                "trade_state": state["trade_state"],
+                "last_trade_time": state["last_trade_time"],
+                "symbol": state["symbol"],
+                "symbol_display": state["symbol_display"],
+                "stake": state["stake"],
+                "duration": state["duration"],
+                "duration_unit": state["duration_unit"],
+                "trade_interval": state["trade_interval"],
+                "max_loss_streak": state["max_loss_streak"],
+                "max_daily_loss": state["max_daily_loss"],
+                "max_trades_per_day": state["max_trades_per_day"],
+            }
+        with open(STATE_FILE, 'w') as f:
+            json.dump(data_to_save, f)
+    except Exception as e:
+        add_log(f"⚠️ Error saving state: {e}")
+
+# Mamerina ny state
+saved_state = load_state()
+if saved_state:
+    for key, value in saved_state.items():
+        if key in state:
+            state[key] = value
+    add_log("🔄 State restored from file")
+
+# ============================================================
+# RECONNECT CONTROLLER
+# ============================================================
+reconnect_lock = Lock()
+reconnecting = False
+reconnect_timer = None
+reconnect_count = 0
+MAX_RECONNECT = 10
+RECONNECT_DELAY = 3
+
+ws = None
+ws_thread = None
+ws_should_run = True
+
+# ============================================================
+# REQUEST ID
+# ============================================================
+def get_req_id():
+    with state_lock:
+        state["req_id_counter"] += 1
+        return state["req_id_counter"]
+
+# ============================================================
+# WEBSOCKET SEND
 # ============================================================
 def send_ws(payload):
     global ws
     
-    # Fanamarinana: tsy maintsy misy ny ws sy connected
     with state_lock:
         if not state["connected"]:
-            add_log("❌ WebSocket is not connected.")
             return False
     
     if ws is None:
-        add_log("❌ WebSocket is not initialized.")
         return False
     
     try:
@@ -139,58 +215,97 @@ def get_otp_url(app_id, token, account_id):
     return ws_url
 
 # ============================================================
+# FORMAT SYMBOL (Fanadiovana ny tick taloha)
+# ============================================================
+def unsubscribe_old_symbol():
+    """Manao forget amin'ny symbol taloha raha misy"""
+    with state_lock:
+        old_symbol = state.get("last_symbol")
+        if old_symbol and state["connected"]:
+            add_log(f"🔄 Unsubscribing from {old_symbol}")
+            send_ws({
+                "forget_all": "ticks",
+                "req_id": get_req_id()
+            })
+            # Mampiato kely mba hahafahan'ny API manao forget
+            time.sleep(0.5)
+            return True
+    return False
+
+# ============================================================
 # STRATEGIE - 3 TICKS MIDINA IHANY
 # ============================================================
 def check_strategy():
-    """
-    Miverina True raha misy 3 ticks mifanesy midina.
-    """
     with state_lock:
         buffer = state.get("ticks_buffer", [])
     
-    # Tsy ampy ny ticks
     if len(buffer) < 3:
         return False
     
-    # 3 ticks mifanesy midina: tick[-1] < tick[-2] < tick[-3]
     if buffer[-1] < buffer[-2] < buffer[-3]:
         return True
     
     return False
 
 # ============================================================
-# FANAMARIHANA NY DURATION AZO EKENA
+# DURATION SELECTION
 # ============================================================
 def find_valid_duration(symbol):
     """
-    Mijery ny contracts_for mba hahitana izay duration azo ekena ho an'ny PUT.
+    Mitady PUT contract ary mamerina duration mety.
     """
     with state_lock:
-        contracts = state.get("available_contracts", [])
-    
+        contracts = list(state.get("available_contracts", []))
+
     if not contracts:
-        add_log("⚠️ No contract info, using default 1m")
-        return 1, "m"
-    
-    # Mitady ny PUT contract
+        add_log(f"❌ No contracts available for {symbol}")
+        return None
+
     put_contracts = []
+
     for contract in contracts:
-        if contract.get("contract_type", "").upper() == "PUT":
+        ctype = contract.get("contract_type")
+        if not ctype:
+            continue
+        
+        if ctype.upper().strip() == "PUT":
             put_contracts.append(contract)
-    
+
     if not put_contracts:
-        add_log("⚠️ No PUT contract found, using default 1m")
-        return 1, "m"
-    
-    # Jereo ny expiry_type sy duration azo ekena
+        available = []
+
+        for contract in contracts:
+            ctype = contract.get("contract_type", "UNKNOWN")
+            expiry = contract.get("expiry_type", "UNKNOWN")
+            available.append(f"{ctype}/{expiry}")
+
+        add_log(
+            f"❌ PUT NOT AVAILABLE for {symbol}. "
+            f"Available: {', '.join(available)}"
+        )
+
+        return None
+
+    # Raha misy PUT, jereo ny expiry_type
     for contract in put_contracts:
-        expiry = contract.get("expiry_type", "").lower()
-        min_duration = contract.get("min_duration", 0)
-        max_duration = contract.get("max_duration", 0)
+        expiry = contract.get("expiry_type", "").lower().strip()
+        min_duration = contract.get("min_duration")
+        max_duration = contract.get("max_duration")
         
-        add_log(f"📋 PUT contract: expiry={expiry}, min={min_duration}, max={max_duration}")
+        add_log(f"📋 PUT found: expiry={expiry}, min={min_duration}, max={max_duration}")
         
-        # Mamaritra izay duration azo ekena
+        # Raha misy min/max duration dia ampiasaina
+        if min_duration is not None and max_duration is not None:
+            if "intraday" in expiry:
+                duration = min(1, max_duration)
+                return duration, "m"
+            elif "daily" in expiry:
+                duration = min(1, max_duration)
+                return duration, "d"
+            elif "tick" in expiry:
+                duration = min(5, max_duration)
+                return duration, "t"
+        
         if "intraday" in expiry:
             return 1, "m"
         elif "daily" in expiry:
@@ -199,15 +314,25 @@ def find_valid_duration(symbol):
             return 5, "t"
         elif "endless" in expiry:
             return 1, "m"
-    
-    return 1, "m"
+        elif "endtime" in expiry:
+            return 1, "m"
+        else:
+            return 1, "m"
+
+    return None
 
 # ============================================================
-# FANARAHANA NY FEPETRA RISK
+# RISK LIMITS
 # ============================================================
 def check_risk_limits():
-    # Maka ny sanda ao anaty lock fohy
     with state_lock:
+        current_time = time.time()
+        if current_time - state["daily_loss_reset_time"] > 86400:
+            add_log("🔄 New day detected, resetting daily stats")
+            state["daily_loss"] = 0.0
+            state["trades_today"] = 0
+            state["daily_loss_reset_time"] = current_time
+        
         loss_streak = state["loss_streak"]
         max_loss_streak = state["max_loss_streak"]
         daily_loss = state["daily_loss"]
@@ -215,7 +340,6 @@ def check_risk_limits():
         trades_today = state["trades_today"]
         max_trades_per_day = state["max_trades_per_day"]
     
-    # Manao ny fanaraha-maso
     if loss_streak >= max_loss_streak:
         add_log(f"⚠️ Max loss streak reached: {loss_streak}")
         return False
@@ -231,61 +355,98 @@ def check_risk_limits():
     return True
 
 # ============================================================
-# RECONNECT AUTOMATIQUE (Miaraka amin'ny fanatsarana)
+# RECOVERY
 # ============================================================
-def reconnect_websocket():
-    global ws, ws_thread, reconnect_count, reconnecting
-    
-    # Raha efa misy reconnect
-    if reconnecting:
-        add_log("⏳ Reconnection already in progress...")
-        return False
-    
-    reconnecting = True
-    
-    try:
-        if reconnect_count > MAX_RECONNECT:
-            add_log(f"❌ Max reconnection attempts ({MAX_RECONNECT}) reached")
-            return False
+def recover_active_contract():
+    with state_lock:
+        if state["recovering"]:
+            return
         
-        reconnect_count += 1
-        add_log(f"🔄 Attempting to reconnect ({reconnect_count}/{MAX_RECONNECT})...")
+        state["recovering"] = True
         
-        # Manidy ny WebSocket taloha
-        if ws:
+        add_log("🔄 Checking portfolio for active contracts...")
+        send_ws({
+            "portfolio": 1,
+            "req_id": get_req_id(),
+        })
+
+# ============================================================
+# RECONNECT
+# ============================================================
+def schedule_reconnect():
+    global reconnect_timer, reconnecting, reconnect_count, ws_should_run
+    
+    with reconnect_lock:
+        if reconnecting:
+            add_log("⏳ Reconnection already in progress...")
+            return
+        
+        if reconnect_timer is not None:
+            return
+        
+        ws_should_run = True
+        reconnecting = True
+        
+        def do_reconnect():
+            global reconnect_timer, reconnecting, ws, ws_thread, reconnect_count, ws_should_run
+            
             try:
-                ws.close()
-            except:
-                pass
-            time.sleep(1)
+                with reconnect_lock:
+                    reconnect_timer = None
+                
+                reconnect_count += 1
+                
+                if reconnect_count > MAX_RECONNECT:
+                    add_log(f"❌ Max reconnection attempts ({MAX_RECONNECT}) reached")
+                    with reconnect_lock:
+                        reconnecting = False
+                    return
+                
+                add_log(f"🔄 Attempting to reconnect ({reconnect_count}/{MAX_RECONNECT})...")
+                
+                old_ws = ws
+                if old_ws:
+                    try:
+                        old_ws.close()
+                    except:
+                        pass
+                    time.sleep(1)
+                
+                if ws_thread and ws_thread.is_alive():
+                    time.sleep(0.5)
+                
+                ws_url = get_otp_url(CURRENT_APP_ID, CURRENT_PAT_TOKEN, CURRENT_ACCOUNT_ID)
+                
+                ws = websocket.WebSocketApp(
+                    ws_url,
+                    on_open=on_open,
+                    on_message=on_message,
+                    on_error=on_error,
+                    on_close=on_close,
+                )
+                
+                ws_thread = threading.Thread(
+                    target=lambda: ws.run_forever(ping_interval=20, ping_timeout=10),
+                    daemon=True
+                )
+                ws_thread.start()
+                
+                add_log("✅ Reconnection initiated")
+                
+            except Exception as e:
+                add_log(f"❌ Reconnection failed: {e}")
+                time.sleep(RECONNECT_DELAY)
+                with reconnect_lock:
+                    reconnecting = False
+                    reconnect_timer = None
+                if ws_should_run:
+                    schedule_reconnect()
+            finally:
+                with reconnect_lock:
+                    reconnecting = False
         
-        # Mampiasa ny credentials amin'izao fotoana izao
-        ws_url = get_otp_url(CURRENT_APP_ID, CURRENT_PAT_TOKEN, CURRENT_ACCOUNT_ID)
-        
-        # Mamorona WebSocket vaovao
-        ws = websocket.WebSocketApp(
-            ws_url,
-            on_open=on_open,
-            on_message=on_message,
-            on_error=on_error,
-            on_close=on_close,
-        )
-        
-        # Manomboka ny thread
-        ws_thread = threading.Thread(
-            target=lambda: ws.run_forever(ping_interval=20, ping_timeout=10),
-            daemon=True
-        )
-        ws_thread.start()
-        
-        add_log("✅ Reconnection initiated")
-        return True
-        
-    except Exception as e:
-        add_log(f"❌ Reconnection failed: {e}")
-        return False
-    finally:
-        reconnecting = False
+        reconnect_timer = threading.Thread(target=do_reconnect, daemon=True)
+        reconnect_timer.start()
 
 # ============================================================
 # TRADING LOOP
@@ -295,7 +456,6 @@ def trading_loop():
     loop_count = 0
 
     while True:
-        # Mijery raha mbola mandeha ny bot
         with state_lock:
             if not state["running"]:
                 break
@@ -305,8 +465,8 @@ def trading_loop():
             if loop_count % 10 == 0:
                 add_log(f"🔁 Trading loop alive (cycle {loop_count})")
 
-            # Maka ireo sanda ilaina
             with state_lock:
+                authenticated = state["connection_authenticated"]
                 authorized = state["authorized"]
                 symbol = state["symbol"]
                 current_trade = state["current_trade"]
@@ -316,6 +476,26 @@ def trading_loop():
                 stake = state["stake"]
                 duration = state["duration"]
                 duration_unit = state["duration_unit"]
+                recovering = state["recovering"]
+                pending_buy = state["pending_buy"]
+            
+            if pending_buy:
+                if time.time() - state.get("pending_buy_start_time", 0) > 30:
+                    add_log("⚠️ Pending buy timeout, resetting")
+                    with state_lock:
+                        state["pending_buy"] = None
+                        state["pending_buy_req_id"] = None
+                        state["trade_state"] = "IDLE"
+                time.sleep(1)
+                continue
+            
+            if recovering:
+                time.sleep(1)
+                continue
+            
+            if not authenticated:
+                time.sleep(1)
+                continue
             
             if not authorized:
                 time.sleep(1)
@@ -333,42 +513,57 @@ def trading_loop():
                 time.sleep(0.5)
                 continue
 
-            # Jereo ny risk limits
             if not check_risk_limits():
                 with state_lock:
                     state["running"] = False
                 add_log("⛔ Risk limits reached, bot stopped")
                 break
 
-            # Miandry ny fotoana
             if time.time() - last_trade_time < trade_interval:
                 time.sleep(0.5)
                 continue
 
             # ==================================================
-            # STRATEGIE - 3 TICKS MIDINA IHANY
+            # STRATEGIE
             # ==================================================
             if not check_strategy():
                 time.sleep(0.5)
                 continue
 
-            # Mahazo ny duration azo ekena
+            # ==================================================
+            # DURATION - Mampiasa ny nofidinao raha tsy "auto"
+            # ==================================================
             if duration_unit == "auto":
-                duration, unit = find_valid_duration(symbol)
+                valid_duration = find_valid_duration(symbol)
+
+                if not valid_duration:
+                    add_log(f"⛔ SKIP: PUT not available for {symbol}")
+                    with state_lock:
+                        state["trade_state"] = "IDLE"
+                        state["last_trade_time"] = time.time()
+                    time.sleep(2)
+                    continue
+
+                duration, unit = valid_duration
+
             else:
                 duration = duration
                 unit = duration_unit
 
-            add_log(f"📤 STRATEGY TRIGGERED: PUT | {symbol} | ${stake} | {duration}{unit}")
+            add_log(f"📤 STRATEGY: PUT | {symbol} | ${stake} | {duration}{unit}")
 
-            # Manova ny state
+            # ==================================================
+            # PROPOSAL
+            # ==================================================
+            proposal_req_id = get_req_id()
+            
             with state_lock:
                 state["last_proposal"] = None
                 state["last_proposal_id"] = None
                 state["trade_state"] = "PROPOSAL_PENDING"
                 state["last_error"] = ""
+                state["pending_proposal_req_id"] = proposal_req_id
 
-            # Mandefa PROPOSAL
             proposal_payload = {
                 "proposal": 1,
                 "amount": stake,
@@ -379,33 +574,43 @@ def trading_loop():
                 "duration_unit": unit,
                 "underlying_symbol": symbol,
                 "subscribe": 1,
-                "req_id": 700 + loop_count,
+                "req_id": proposal_req_id,
             }
 
-            send_ws(proposal_payload)
-            add_log(f"📤 Proposal sent: PUT {duration}{unit}")
+            if not send_ws(proposal_payload):
+                add_log("❌ Failed to send proposal")
+                with state_lock:
+                    state["trade_state"] = "IDLE"
+                    state["pending_proposal_req_id"] = None
+                    state["last_trade_time"] = time.time()
+                time.sleep(2)
+                continue
+
+            add_log(f"📤 Proposal sent (req_id={proposal_req_id})")
             
-            # Miandry valiny 10 segondra
+            # Miandry valiny
             wait_start = time.time()
             proposal_received = False
             while time.time() - wait_start < 10:
                 with state_lock:
                     if state.get("last_proposal") and state["last_proposal"].get("id"):
-                        proposal_received = True
-                        state["trade_state"] = "PROPOSAL_OK"
-                        add_log(f"✅ Proposal OK: {state['last_proposal']['id']}")
-                        break
+                        if state.get("pending_proposal_req_id") == proposal_req_id:
+                            proposal_received = True
+                            state["trade_state"] = "PROPOSAL_OK"
+                            state["pending_proposal_req_id"] = None
+                            add_log(f"✅ Proposal OK: {state['last_proposal']['id']}")
+                            break
                 time.sleep(0.5)
 
             if not proposal_received:
                 with state_lock:
                     add_log(f"❌ PROPOSAL FAILED: {state.get('last_error', 'Timeout')}")
                     state["trade_state"] = "IDLE"
+                    state["pending_proposal_req_id"] = None
                     state["last_trade_time"] = time.time()
                 time.sleep(2)
                 continue
 
-            # Mahazo ny proposal ID sy price
             with state_lock:
                 proposal_id = state["last_proposal"]["id"]
                 ask_price = state["last_proposal"]["ask_price"]
@@ -414,6 +619,7 @@ def trading_loop():
                 add_log("❌ No price in proposal")
                 with state_lock:
                     state["trade_state"] = "IDLE"
+                    state["pending_proposal_req_id"] = None
                 continue
 
             try:
@@ -422,42 +628,70 @@ def trading_loop():
                 add_log(f"❌ Invalid price: {ask_price}")
                 with state_lock:
                     state["trade_state"] = "IDLE"
+                    state["pending_proposal_req_id"] = None
                 continue
 
-            # Mandefa BUY
+            # ==================================================
+            # BUY
+            # ==================================================
+            buy_req_id = get_req_id()
+            
             buy_payload = {
                 "buy": proposal_id,
                 "price": ask_price,
-                "req_id": 701 + loop_count,
+                "req_id": buy_req_id,
             }
 
             with state_lock:
                 state["trade_state"] = "BUY_PENDING"
                 state["last_proposal_id"] = proposal_id
-            add_log(f"📤 BUY sent for proposal {proposal_id}")
-            send_ws(buy_payload)
+                state["pending_buy"] = {
+                    "proposal_id": proposal_id,
+                    "price": ask_price,
+                    "start_time": time.time(),
+                    "req_id": buy_req_id,
+                }
+                state["pending_buy_req_id"] = buy_req_id
+                state["pending_buy_start_time"] = time.time()
+            
+            if not send_ws(buy_payload):
+                add_log("❌ Failed to send BUY")
+                with state_lock:
+                    state["trade_state"] = "IDLE"
+                    state["pending_buy"] = None
+                    state["pending_buy_req_id"] = None
+                    state["last_trade_time"] = time.time()
+                continue
 
-            # Miandry ny valin'ny BUY 10 segondra
+            add_log(f"📤 BUY sent (req_id={buy_req_id})")
+
+            # Miandry ny valin'ny BUY
             wait_start = time.time()
             buy_success = False
             while time.time() - wait_start < 10:
                 with state_lock:
                     if state.get("current_trade") and state["current_trade"].get("contract_id"):
-                        buy_success = True
-                        state["trade_state"] = "OPEN"
-                        add_log(f"✅ CONTRACT OPENED: {state['current_trade']['contract_id']}")
-                        break
+                        if state.get("pending_buy_req_id") == buy_req_id:
+                            buy_success = True
+                            state["trade_state"] = "OPEN"
+                            state["pending_buy"] = None
+                            state["pending_buy_req_id"] = None
+                            add_log(f"✅ CONTRACT OPENED: {state['current_trade']['contract_id']}")
+                            break
                 time.sleep(0.5)
 
             with state_lock:
                 if not buy_success:
                     add_log(f"❌ BUY FAILED: {state.get('last_error', 'No contract opened')}")
                     state["trade_state"] = "IDLE"
+                    state["pending_buy"] = None
+                    state["pending_buy_req_id"] = None
                     state["last_trade_time"] = time.time()
                     continue
 
                 state["last_trade_time"] = time.time()
 
+            save_state()
             time.sleep(2)
 
         except Exception as e:
@@ -472,15 +706,19 @@ def trading_loop():
 # WEBSOCKET EVENTS
 # ============================================================
 def on_open(socket):
-    global reconnect_count, reconnecting
+    global reconnect_count
     
     with state_lock:
         state["connected"] = True
-    reconnect_count = 0
-    reconnecting = False
-    add_log("✅ WebSocket connected")
-    send_ws({"balance": 1, "subscribe": 1, "req_id": 100})
-    send_ws({"active_symbols": "full", "req_id": 101})
+        state["connection_authenticated"] = True
+        reconnect_count = 0
+    
+    add_log("✅ WebSocket connected (authenticated via OTP)")
+    send_ws({"balance": 1, "subscribe": 1, "req_id": get_req_id()})
+    send_ws({"active_symbols": "full", "req_id": get_req_id()})
+    
+    time.sleep(1)
+    recover_active_contract()
 
 def on_message(socket, message):
     try:
@@ -489,6 +727,7 @@ def on_message(socket, message):
         return
 
     msg_type = data.get("msg_type")
+    req_id = data.get("req_id")
 
     # ============================================================
     # ERROR
@@ -507,6 +746,7 @@ def on_message(socket, message):
             add_log("⚠️ DURATION ERROR: Try changing duration_unit")
             with state_lock:
                 state["trade_state"] = "IDLE"
+                state["pending_proposal_req_id"] = None
         return
 
     # ============================================================
@@ -574,7 +814,65 @@ def on_message(socket, message):
         for contract in state["available_contracts"]:
             ctype = contract.get("contract_type", "UNKNOWN")
             expiry = contract.get("expiry_type", "UNKNOWN")
-            add_log(f"  - {ctype} | {expiry}")
+            min_dur = contract.get("min_duration", "N/A")
+            max_dur = contract.get("max_duration", "N/A")
+            add_log(f"  - {ctype} | {expiry} | min={min_dur} max={max_dur}")
+        return
+
+    # ============================================================
+    # PORTFOLIO - Recovery
+    # ============================================================
+    if msg_type == "portfolio":
+        portfolio = data.get("portfolio", {})
+        contracts = portfolio.get("contracts", [])
+        
+        if contracts:
+            add_log(f"📊 Found {len(contracts)} active contracts")
+            open_contract = None
+            for contract in contracts:
+                if not contract.get("is_sold", True):
+                    contract_id = contract.get("contract_id")
+                    if contract_id:
+                        open_contract = contract_id
+                        break
+            
+            if open_contract:
+                add_log(f"🔄 Found active contract: {open_contract}")
+                with state_lock:
+                    state["current_trade"] = {
+                        "contract_id": open_contract,
+                        "symbol": state["symbol"],
+                        "stake": state["stake"],
+                        "status": "OPEN",
+                        "start_time": time.time(),
+                    }
+                    state["trade_state"] = "OPEN"
+                    state["pending_buy"] = None
+                    state["pending_buy_req_id"] = None
+                    state["recovering"] = False
+                send_ws({
+                    "proposal_open_contract": 1,
+                    "contract_id": open_contract,
+                    "subscribe": 1,
+                    "req_id": get_req_id(),
+                })
+                add_log("✅ Contract recovery initiated")
+            else:
+                with state_lock:
+                    state["current_trade"] = None
+                    state["trade_state"] = "IDLE"
+                    state["pending_buy"] = None
+                    state["pending_buy_req_id"] = None
+                    state["recovering"] = False
+                add_log("✅ No active contracts found")
+        else:
+            with state_lock:
+                state["current_trade"] = None
+                state["trade_state"] = "IDLE"
+                state["pending_buy"] = None
+                state["pending_buy_req_id"] = None
+                state["recovering"] = False
+            add_log("✅ No contracts in portfolio")
         return
 
     # ============================================================
@@ -584,78 +882,93 @@ def on_message(socket, message):
         proposal = data.get("proposal", {})
         if proposal.get("id"):
             with state_lock:
-                state["last_proposal"] = {
-                    "id": proposal["id"],
-                    "ask_price": proposal.get("ask_price")
-                }
-                if state["trade_state"] == "PROPOSAL_PENDING":
-                    state["trade_state"] = "PROPOSAL_OK"
-            add_log(f"✅ Proposal OK: {proposal['id']}")
+                pending_req_id = state.get("pending_proposal_req_id")
+                if pending_req_id == req_id or pending_req_id is None:
+                    state["last_proposal"] = {
+                        "id": proposal["id"],
+                        "ask_price": proposal.get("ask_price")
+                    }
+                    if state["trade_state"] == "PROPOSAL_PENDING":
+                        state["trade_state"] = "PROPOSAL_OK"
+                    add_log(f"✅ Proposal OK: {proposal['id']} (req_id={req_id})")
+                else:
+                    add_log(f"⚠️ Ignoring proposal with mismatched req_id: {req_id} (expected {pending_req_id})")
         else:
             add_log(f"❌ Proposal FAILED: {json.dumps(data)}")
             with state_lock:
                 state["last_proposal"] = None
                 state["trade_state"] = "IDLE"
+                state["pending_proposal_req_id"] = None
                 if "error" in data:
                     state["last_error"] = data["error"].get("message", "Unknown")
         return
 
     # ============================================================
-    # BUY - Miaraka amin'ny fanamarinana error
+    # BUY
     # ============================================================
     if msg_type == "buy":
         buy = data.get("buy", {})
         contract_id = buy.get("contract_id")
         
-        # Jereo raha misy error
         if "error" in data:
             error = data.get("error", {})
             with state_lock:
                 state["last_error"] = f"BUY ERROR: {error.get('message', 'Unknown')}"
                 state["trade_state"] = "IDLE"
+                state["pending_buy"] = None
+                state["pending_buy_req_id"] = None
             add_log(f"❌ BUY ERROR: {error.get('message', 'Unknown')}")
             return
         
         if contract_id:
             with state_lock:
-                state["current_trade"] = {
-                    "contract_id": contract_id,
-                    "symbol": state["symbol"],
-                    "stake": state["stake"],
-                    "status": "OPEN",
-                    "start_time": time.time(),
-                }
-                state["total_trades"] += 1
-                state["trades_today"] += 1
-                state["trade_state"] = "OPEN"
-            add_log(f"✅ CONTRACT OPENED: {contract_id}")
-            
-            # SUBSCRIBE amin'ny proposal_open_contract
-            send_ws({
-                "proposal_open_contract": 1,
-                "contract_id": contract_id,
-                "subscribe": 1,
-                "req_id": 300,
-            })
+                pending_req_id = state.get("pending_buy_req_id")
+                if pending_req_id == req_id or pending_req_id is None:
+                    state["current_trade"] = {
+                        "contract_id": contract_id,
+                        "symbol": state["symbol"],
+                        "stake": state["stake"],
+                        "status": "OPEN",
+                        "start_time": time.time(),
+                    }
+                    state["total_trades"] += 1
+                    state["trades_today"] += 1
+                    state["trade_state"] = "OPEN"
+                    state["pending_buy"] = None
+                    state["pending_buy_req_id"] = None
+                    add_log(f"✅ CONTRACT OPENED: {contract_id} (req_id={req_id})")
+                    
+                    save_state()
+                    send_ws({
+                        "proposal_open_contract": 1,
+                        "contract_id": contract_id,
+                        "subscribe": 1,
+                        "req_id": get_req_id(),
+                    })
+                else:
+                    add_log(f"⚠️ Ignoring buy with mismatched req_id: {req_id} (expected {pending_req_id})")
         else:
             add_log(f"❌ BUY FAILED: {json.dumps(data)}")
             with state_lock:
                 state["trade_state"] = "IDLE"
+                state["pending_buy"] = None
+                state["pending_buy_req_id"] = None
                 if "error" in data:
                     state["last_error"] = data["error"].get("message", "Unknown")
         return
 
     # ============================================================
-    # OPEN CONTRACT - FANARAHANA NY VOKATRA
+    # OPEN CONTRACT
     # ============================================================
     if msg_type == "proposal_open_contract":
         contract = data.get("proposal_open_contract", {})
         
-        # Raha mbola tsy tapitra
         if not (contract.get("is_sold") or contract.get("is_expired")):
+            if state.get("recovering"):
+                with state_lock:
+                    state["recovering"] = False
             return
 
-        # Tapitra ny contract
         try:
             profit = float(contract.get("profit", 0))
         except:
@@ -685,7 +998,11 @@ def on_message(socket, message):
             state["current_trade"] = None
             state["trade_state"] = "IDLE"
             state["last_trade_time"] = time.time()
+            state["recovering"] = False
+            state["pending_buy"] = None
+            state["pending_buy_req_id"] = None
         
+        save_state()
         add_log(f"{result}: {profit:+.2f} | Loss streak: {state['loss_streak']}")
         return
 
@@ -695,29 +1012,30 @@ def on_message(socket, message):
 def on_error(socket, error):
     with state_lock:
         state["connected"] = False
+        state["connection_authenticated"] = False
     add_log(f"❌ WebSocket error: {error}")
     with state_lock:
         running = state["running"]
     if running:
-        time.sleep(RECONNECT_DELAY)
-        reconnect_websocket()
+        time.sleep(1)
+        schedule_reconnect()
 
 def on_close(socket, code, reason):
     with state_lock:
         state["connected"] = False
-        state["authorized"] = False
+        state["connection_authenticated"] = False
     add_log(f"🔒 WebSocket closed: {code} {reason}")
     with state_lock:
         running = state["running"]
     if running:
-        time.sleep(RECONNECT_DELAY)
-        reconnect_websocket()
+        time.sleep(1)
+        schedule_reconnect()
 
 # ============================================================
-# WEBSOCKET THREAD - IRAY IHANY
+# WEBSOCKET THREAD
 # ============================================================
 def websocket_thread(ws_url):
-    global ws
+    global ws, ws_should_run
     try:
         add_log("Opening WebSocket...")
         ws = websocket.WebSocketApp(
@@ -731,12 +1049,13 @@ def websocket_thread(ws_url):
     except Exception as exc:
         with state_lock:
             state["connected"] = False
+            state["connection_authenticated"] = False
         add_log(f"❌ WS THREAD ERROR: {exc}")
         with state_lock:
             running = state["running"]
-        if running:
-            time.sleep(RECONNECT_DELAY)
-            reconnect_websocket()
+        if running and ws_should_run:
+            time.sleep(1)
+            schedule_reconnect()
 
 # ============================================================
 # FLASK ROUTES
@@ -798,6 +1117,7 @@ def index():
                 .header { flex-direction: column; align-items: flex-start; }
             }
             .strategy-info { background: #1a2340; padding: 10px; border-radius: 8px; border-left: 3px solid #7654ff; margin-top: 10px; font-size: 12px; color: #a28dff; }
+            .warning-box { background: #2a1a1a; padding: 10px; border-radius: 8px; border-left: 3px solid #e0a51b; margin-top: 10px; font-size: 12px; color: #e0a51b; }
         </style>
     </head>
     <body>
@@ -820,21 +1140,24 @@ def index():
             <div class="grid">
                 <div class="field">
                     <label>App ID</label>
-                    <input id="appId" type="text" value="{{ APP_ID }}">
+                    <input id="appId" type="text" placeholder="App ID">
                 </div>
                 <div class="field">
                     <label>PAT Token</label>
-                    <input id="apiToken" type="password" value="{{ PAT_TOKEN }}">
+                    <input id="apiToken" type="password" placeholder="PAT Token">
                 </div>
                 <div class="field">
                     <label>Account ID</label>
-                    <input id="accountId" type="text" value="{{ ACCOUNT_ID }}">
+                    <input id="accountId" type="text" placeholder="Account ID">
                 </div>
                 <div class="field" style="display:flex;align-items:end;">
                     <button class="btn btn-purple" onclick="connectDeriv()">🔌 CONNECT</button>
                 </div>
             </div>
             <div id="connectionMessage" style="margin-top:10px;color:#8991ad;font-size:12px;">Enter credentials and connect</div>
+            <div class="warning-box">
+                ⚠️ Ampiasao ny environment variables DERIV_APP_ID, DERIV_PAT_TOKEN, DERIV_ACCOUNT_ID ho an'ny production.
+            </div>
         </div>
 
         <div class="panel">
@@ -875,9 +1198,9 @@ def index():
                     <div style="display:flex;gap:5px;">
                         <input id="durationInput" type="number" value="1" min="1" max="60" style="width:60%;" onchange="updateDuration()">
                         <select id="durationUnitInput" onchange="updateDuration()" style="width:40%;">
-                            <option value="auto">auto</option>
+                            <option value="auto" selected>auto</option>
                             <option value="s">s</option>
-                            <option value="m" selected>m</option>
+                            <option value="m">m</option>
                             <option value="h">h</option>
                             <option value="d">d</option>
                             <option value="t">t</option>
@@ -1096,25 +1419,34 @@ def index():
 
         async function pauseBot() {
             try {
-                await fetch("/api/pause", { method: "POST" });
-                setMessage("⏸ Paused", "");
-                updateDashboard();
+                var r = await fetch("/api/pause", { method: "POST" });
+                var res = await r.json();
+                if (res.ok) {
+                    setMessage("⏸ Paused", "");
+                    updateDashboard();
+                }
             } catch(e) {}
         }
 
         async function stopBot() {
             try {
-                await fetch("/api/stop", { method: "POST" });
-                setMessage("⛔ Stopped", "");
-                updateDashboard();
+                var r = await fetch("/api/stop", { method: "POST" });
+                var res = await r.json();
+                if (res.ok) {
+                    setMessage("⛔ Stopped", "");
+                    updateDashboard();
+                }
             } catch(e) {}
         }
 
         async function resetStats() {
             try {
-                await fetch("/api/reset-stats", { method: "POST" });
-                setMessage("🔄 Stats reset", "ok");
-                updateDashboard();
+                var r = await fetch("/api/reset-stats", { method: "POST" });
+                var res = await r.json();
+                if (res.ok) {
+                    setMessage("🔄 Stats reset", "ok");
+                    updateDashboard();
+                }
             } catch(e) {}
         }
 
@@ -1141,7 +1473,9 @@ def index():
             }
             var html = "<b>Available contracts:</b><br>";
             contracts.forEach(function(c) {
-                html += "• " + (c.contract_type || "UNKNOWN") + " | " + (c.expiry_type || "") + "<br>";
+                var ctype = c.contract_type || "UNKNOWN";
+                var expiry = c.expiry_type || "UNKNOWN";
+                html += "• " + ctype + " | " + expiry + "<br>";
             });
             box.innerHTML = html;
         }
@@ -1292,7 +1626,13 @@ def index():
         }
 
         function clearLogs() {
-            $("logs").innerHTML = '<div class="empty">Cleared</div>';
+            fetch("/api/clear-logs", { method: "POST" })
+                .then(function() {
+                    $("logs").innerHTML = '<div class="empty">Cleared</div>';
+                })
+                .catch(function() {
+                    $("logs").innerHTML = '<div class="empty">Cleared</div>';
+                });
         }
 
         setInterval(updateDashboard, 2000);
@@ -1302,14 +1642,14 @@ def index():
     </body>
     </html>
     """
-    return render_template_string(html, APP_ID=CURRENT_APP_ID, PAT_TOKEN=CURRENT_PAT_TOKEN, ACCOUNT_ID=CURRENT_ACCOUNT_ID)
+    return render_template_string(html, APP_ID="", PAT_TOKEN="", ACCOUNT_ID="")
 
 # ============================================================
 # API ROUTES
 # ============================================================
 @app.post("/api/connect")
 def api_connect():
-    global ws_thread, CURRENT_APP_ID, CURRENT_PAT_TOKEN, CURRENT_ACCOUNT_ID, reconnect_count
+    global ws_thread, CURRENT_APP_ID, CURRENT_PAT_TOKEN, CURRENT_ACCOUNT_ID
     
     data = request.get_json(silent=True) or {}
     app_id = str(data.get("app_id", "")).strip()
@@ -1325,7 +1665,6 @@ def api_connect():
         CURRENT_APP_ID = app_id
         CURRENT_PAT_TOKEN = token
         CURRENT_ACCOUNT_ID = account_id
-        reconnect_count = 0
         
         accounts = get_accounts(app_id, token)
         selected = None
@@ -1360,11 +1699,18 @@ def api_connect():
         add_log(f"❌ CONNECT ERROR: {e}")
         return jsonify({"ok": False, "error": str(e)}), 400
 
+@app.post("/api/clear-logs")
+def api_clear_logs():
+    with state_lock:
+        state["logs"] = []
+    add_log("🧹 Logs cleared")
+    return jsonify({"ok": True})
+
 @app.post("/api/markets")
 def api_markets():
     if not state["connected"]:
         return jsonify({"ok": False, "error": "Not connected"}), 400
-    send_ws({"active_symbols": "full", "req_id": 500})
+    send_ws({"active_symbols": "full", "req_id": get_req_id()})
     return jsonify({"ok": True})
 
 @app.post("/api/select-symbol")
@@ -1379,6 +1725,13 @@ def api_select_symbol():
         return jsonify({"ok": False, "error": "Not a BOOM symbol"}), 400
 
     with state_lock:
+        # FANITSINA: Manao forget amin'ny symbol taloha aloha
+        if state["symbol"] and state["symbol"] != symbol:
+            add_log(f"🔄 Switching from {state['symbol']} to {symbol}")
+            # Manao forget_all ticks
+            send_ws({"forget_all": "ticks", "req_id": get_req_id()})
+            time.sleep(0.5)
+        
         state["symbol"] = symbol
         state["symbol_display"] = display_name
         state["available_contracts"] = []
@@ -1386,9 +1739,12 @@ def api_select_symbol():
         state["trade_state"] = "IDLE"
         state["ticks_buffer"] = []
         state["last_price"] = None
+        state["last_trade_time"] = time.time()
+        state["last_symbol"] = symbol
 
-    send_ws({"ticks": symbol, "subscribe": 1, "req_id": 600})
-    send_ws({"contracts_for": symbol, "req_id": 601})
+    # Manao tick subscription vaovao
+    send_ws({"ticks": symbol, "subscribe": 1, "req_id": get_req_id()})
+    send_ws({"contracts_for": symbol, "req_id": get_req_id()})
 
     add_log(f"✅ Selected: {symbol} ({display_name})")
     return jsonify({"ok": True})
@@ -1396,17 +1752,21 @@ def api_select_symbol():
 @app.post("/api/start")
 def api_start():
     with state_lock:
+        if not state["connection_authenticated"]:
+            return jsonify({"ok": False, "error": "Not authenticated"}), 400
         if not state["authorized"]:
             return jsonify({"ok": False, "error": "Not authorized"}), 400
         if not state["symbol"]:
             return jsonify({"ok": False, "error": "No symbol selected"}), 400
 
         state["running"] = True
-        state["last_trade_time"] = 0
+        state["last_trade_time"] = time.time()
         state["trade_state"] = "IDLE"
         state["day_start"] = time.time()
-        state["daily_loss"] = 0.0
-        state["trades_today"] = 0
+        state["daily_loss_reset_time"] = time.time()
+        state["pending_buy"] = None
+        state["pending_buy_req_id"] = None
+        state["pending_proposal_req_id"] = None
 
     if not hasattr(app, "trading_thread") or not app.trading_thread.is_alive():
         app.trading_thread = threading.Thread(target=trading_loop, daemon=True)
@@ -1421,6 +1781,9 @@ def api_pause():
     with state_lock:
         state["running"] = False
         state["trade_state"] = "IDLE"
+        state["pending_buy"] = None
+        state["pending_buy_req_id"] = None
+        state["pending_proposal_req_id"] = None
     add_log("⏸ BOT PAUSED")
     return jsonify({"ok": True})
 
@@ -1429,7 +1792,11 @@ def api_stop():
     with state_lock:
         state["running"] = False
         state["trade_state"] = "IDLE"
+        state["pending_buy"] = None
+        state["pending_buy_req_id"] = None
+        state["pending_proposal_req_id"] = None
     add_log("⛔ BOT STOPPED")
+    save_state()
     return jsonify({"ok": True})
 
 @app.post("/api/update-stake")
@@ -1485,6 +1852,9 @@ def api_update_risk():
 @app.post("/api/reset-stats")
 def api_reset_stats():
     with state_lock:
+        if state["current_trade"] is not None:
+            return jsonify({"ok": False, "error": "Cannot reset while trade is open"}), 400
+        
         state["total_trades"] = 0
         state["wins"] = 0
         state["losses"] = 0
@@ -1493,8 +1863,12 @@ def api_reset_stats():
         state["daily_loss"] = 0.0
         state["trades_today"] = 0
         state["history"] = []
-        state["current_trade"] = None
         state["trade_state"] = "IDLE"
+        state["last_trade_time"] = time.time()
+        state["pending_buy"] = None
+        state["pending_buy_req_id"] = None
+        state["pending_proposal_req_id"] = None
+    save_state()
     add_log("🔄 Stats reset")
     return jsonify({"ok": True})
 
@@ -1505,6 +1879,7 @@ def api_status():
         win_rate = (state["wins"] / total * 100) if total else 0.0
         return jsonify({
             "connected": state["connected"],
+            "authenticated": state["connection_authenticated"],
             "authorized": state["authorized"],
             "balance": state["balance"],
             "symbol": state["symbol"],
@@ -1533,6 +1908,7 @@ def api_status():
             "max_daily_loss": state["max_daily_loss"],
             "trades_today": state["trades_today"],
             "max_trades_per_day": state["max_trades_per_day"],
+            "pending_buy": state["pending_buy"] is not None,
         })
 
 # ============================================================
