@@ -33,13 +33,14 @@ state = {
     "balance": 0.0,
     "symbol": "",
     "symbol_display": "",
-    "last_symbol": "",  # Fitehirizana ny symbol taloha ho an'ny forget
+    "last_symbol": "",
     "last_price": None,
     "ticks_buffer": [],
     "running": False,
     "stake": 0.35,
+    "multiplier": 10,
     "duration": 1,
-    "duration_unit": "auto",
+    "duration_unit": "m",
     "total_trades": 0,
     "wins": 0,
     "losses": 0,
@@ -71,7 +72,6 @@ state = {
     "pending_proposal_req_id": None,
     "req_id_counter": 0,
     "pending_buy_start_time": 0,
-    "tick_subscription_id": None,  # Ho an'ny fanaraha-maso ny ticks
 }
 
 state_lock = RLock()
@@ -117,6 +117,7 @@ def save_state():
                 "symbol": state["symbol"],
                 "symbol_display": state["symbol_display"],
                 "stake": state["stake"],
+                "multiplier": state["multiplier"],
                 "duration": state["duration"],
                 "duration_unit": state["duration_unit"],
                 "trade_interval": state["trade_interval"],
@@ -129,7 +130,6 @@ def save_state():
     except Exception as e:
         add_log(f"⚠️ Error saving state: {e}")
 
-# Mamerina ny state
 saved_state = load_state()
 if saved_state:
     for key, value in saved_state.items():
@@ -215,10 +215,9 @@ def get_otp_url(app_id, token, account_id):
     return ws_url
 
 # ============================================================
-# FORMAT SYMBOL (Fanadiovana ny tick taloha)
+# UNSUBSCRIBE OLD SYMBOL
 # ============================================================
 def unsubscribe_old_symbol():
-    """Manao forget amin'ny symbol taloha raha misy"""
     with state_lock:
         old_symbol = state.get("last_symbol")
         if old_symbol and state["connected"]:
@@ -227,33 +226,69 @@ def unsubscribe_old_symbol():
                 "forget_all": "ticks",
                 "req_id": get_req_id()
             })
-            # Mampiato kely mba hahafahan'ny API manao forget
             time.sleep(0.5)
             return True
     return False
 
 # ============================================================
-# STRATEGIE - 3 TICKS MIDINA IHANY
+# STRATEGIE: 3-Tick PUT + MultiDown Filter (FANOVANA IHANY)
 # ============================================================
 def check_strategy():
+    """
+    3-Tick PUT + MultiDown Filter Strategy
+    
+    Filter:
+    1. 3 ticks mifanesy midina → Signal
+    2. Momentum: Raha miakatra ny ticks 5 farany → tsy mandeha
+    3. SMA5: Raha mihoatra ny SMA5 ny vidiny → tsy mandeha
+    4. Overextended: Raha tsy nidina mihitsy ny ticks 10 farany → tsy mandeha
+    """
     with state_lock:
-        buffer = state.get("ticks_buffer", [])
-    
-    if len(buffer) < 3:
+        buffer = list(state.get("ticks_buffer", []))
+
+    if len(buffer) < 10:
         return False
-    
-    if buffer[-1] < buffer[-2] < buffer[-3]:
-        return True
-    
-    return False
+
+    # =============================================
+    # 1. SIGNAL: 3 ticks mifanesy midina
+    # =============================================
+    if not (buffer[-1] < buffer[-2] < buffer[-3]):
+        return False
+
+    # =============================================
+    # 2. MOMENTUM FILTER
+    # Raha miakatra ny ticks 5 farany dia tsy mandeha
+    # =============================================
+    if buffer[-1] > buffer[-5]:
+        return False
+
+    # =============================================
+    # 3. SMA5 FILTER (Trend)
+    # Kajy ny SMA5 (salanisan'ny ticks 5 farany)
+    # Raha mihoatra na mitovy ny SMA5 → tsy mandeha
+    # =============================================
+    sma5 = sum(buffer[-5:]) / 5
+    if buffer[-1] >= sma5:
+        return False
+
+    # =============================================
+    # 4. OVEREXTENDED FILTER (Reversal)
+    # Jereo raha nidina mihitsy ny ticks 10 farany
+    # Raha tsy nidina → tsy mandeha (mety hiverina miakatra)
+    # =============================================
+    drop = buffer[-10] - buffer[-1]
+    if drop <= 0:
+        return False
+
+    # =============================================
+    # 5. ACTION: Mahafeno filtre rehetra → MULTDOWN
+    # =============================================
+    return True
 
 # ============================================================
-# DURATION SELECTION
+# FIND DURATION - Mitady MULTDOWN
 # ============================================================
 def find_valid_duration(symbol):
-    """
-    Mitady PUT contract ary mamerina duration mety.
-    """
     with state_lock:
         contracts = list(state.get("available_contracts", []))
 
@@ -261,17 +296,17 @@ def find_valid_duration(symbol):
         add_log(f"❌ No contracts available for {symbol}")
         return None
 
-    put_contracts = []
+    target_contracts = []
 
     for contract in contracts:
         ctype = contract.get("contract_type")
         if not ctype:
             continue
         
-        if ctype.upper().strip() == "PUT":
-            put_contracts.append(contract)
+        if "MULTDOWN" in ctype.upper():
+            target_contracts.append(contract)
 
-    if not put_contracts:
+    if not target_contracts:
         available = []
 
         for contract in contracts:
@@ -280,21 +315,19 @@ def find_valid_duration(symbol):
             available.append(f"{ctype}/{expiry}")
 
         add_log(
-            f"❌ PUT NOT AVAILABLE for {symbol}. "
+            f"❌ MULTDOWN NOT AVAILABLE for {symbol}. "
             f"Available: {', '.join(available)}"
         )
 
         return None
 
-    # Raha misy PUT, jereo ny expiry_type
-    for contract in put_contracts:
+    for contract in target_contracts:
         expiry = contract.get("expiry_type", "").lower().strip()
         min_duration = contract.get("min_duration")
         max_duration = contract.get("max_duration")
         
-        add_log(f"📋 PUT found: expiry={expiry}, min={min_duration}, max={max_duration}")
+        add_log(f"📋 MULTDOWN found: expiry={expiry}, min={min_duration}, max={max_duration}")
         
-        # Raha misy min/max duration dia ampiasaina
         if min_duration is not None and max_duration is not None:
             if "intraday" in expiry:
                 duration = min(1, max_duration)
@@ -312,10 +345,6 @@ def find_valid_duration(symbol):
             return 1, "d"
         elif "tick" in expiry:
             return 5, "t"
-        elif "endless" in expiry:
-            return 1, "m"
-        elif "endtime" in expiry:
-            return 1, "m"
         else:
             return 1, "m"
 
@@ -449,7 +478,7 @@ def schedule_reconnect():
         reconnect_timer.start()
 
 # ============================================================
-# TRADING LOOP
+# TRADING LOOP (TSY OVAINA)
 # ============================================================
 def trading_loop():
     add_log("=== TRADING LOOP STARTED ===")
@@ -474,6 +503,7 @@ def trading_loop():
                 last_trade_time = state["last_trade_time"]
                 trade_interval = state["trade_interval"]
                 stake = state["stake"]
+                multiplier = state["multiplier"]
                 duration = state["duration"]
                 duration_unit = state["duration_unit"]
                 recovering = state["recovering"]
@@ -524,20 +554,20 @@ def trading_loop():
                 continue
 
             # ==================================================
-            # STRATEGIE
+            # STRATEGIE (Mampiasa ny check_strategy vaovao)
             # ==================================================
             if not check_strategy():
                 time.sleep(0.5)
                 continue
 
             # ==================================================
-            # DURATION - Mampiasa ny nofidinao raha tsy "auto"
+            # DURATION
             # ==================================================
             if duration_unit == "auto":
                 valid_duration = find_valid_duration(symbol)
 
                 if not valid_duration:
-                    add_log(f"⛔ SKIP: PUT not available for {symbol}")
+                    add_log(f"⛔ SKIP: MULTDOWN not available for {symbol}")
                     with state_lock:
                         state["trade_state"] = "IDLE"
                         state["last_trade_time"] = time.time()
@@ -550,10 +580,10 @@ def trading_loop():
                 duration = duration
                 unit = duration_unit
 
-            add_log(f"📤 STRATEGY: PUT | {symbol} | ${stake} | {duration}{unit}")
+            add_log(f"📤 STRATEGY TRIGGERED: MULTDOWN | {symbol} | ${stake} | {multiplier}x | {duration}{unit}")
 
             # ==================================================
-            # PROPOSAL
+            # PROPOSAL - MULTDOWN + multiplier
             # ==================================================
             proposal_req_id = get_req_id()
             
@@ -568,10 +598,11 @@ def trading_loop():
                 "proposal": 1,
                 "amount": stake,
                 "basis": "stake",
-                "contract_type": "PUT",
+                "contract_type": "MULTDOWN",
                 "currency": "USD",
                 "duration": duration,
                 "duration_unit": unit,
+                "multiplier": multiplier,
                 "underlying_symbol": symbol,
                 "subscribe": 1,
                 "req_id": proposal_req_id,
@@ -586,7 +617,7 @@ def trading_loop():
                 time.sleep(2)
                 continue
 
-            add_log(f"📤 Proposal sent (req_id={proposal_req_id})")
+            add_log(f"📤 Proposal sent: MULTDOWN {multiplier}x (req_id={proposal_req_id})")
             
             # Miandry valiny
             wait_start = time.time()
@@ -632,7 +663,7 @@ def trading_loop():
                 continue
 
             # ==================================================
-            # BUY
+            # BUY (TSY OVAINA)
             # ==================================================
             buy_req_id = get_req_id()
             
@@ -703,7 +734,7 @@ def trading_loop():
     add_log("=== TRADING LOOP STOPPED ===")
 
 # ============================================================
-# WEBSOCKET EVENTS
+# WEBSOCKET EVENTS (TSY OVAINA)
 # ============================================================
 def on_open(socket):
     global reconnect_count
@@ -820,7 +851,7 @@ def on_message(socket, message):
         return
 
     # ============================================================
-    # PORTFOLIO - Recovery
+    # PORTFOLIO
     # ============================================================
     if msg_type == "portfolio":
         portfolio = data.get("portfolio", {})
@@ -843,6 +874,7 @@ def on_message(socket, message):
                         "contract_id": open_contract,
                         "symbol": state["symbol"],
                         "stake": state["stake"],
+                        "multiplier": state["multiplier"],
                         "status": "OPEN",
                         "start_time": time.time(),
                     }
@@ -904,7 +936,7 @@ def on_message(socket, message):
         return
 
     # ============================================================
-    # BUY
+    # BUY (TSY OVAINA)
     # ============================================================
     if msg_type == "buy":
         buy = data.get("buy", {})
@@ -928,6 +960,7 @@ def on_message(socket, message):
                         "contract_id": contract_id,
                         "symbol": state["symbol"],
                         "stake": state["stake"],
+                        "multiplier": state["multiplier"],
                         "status": "OPEN",
                         "start_time": time.time(),
                     }
@@ -958,7 +991,7 @@ def on_message(socket, message):
         return
 
     # ============================================================
-    # OPEN CONTRACT
+    # OPEN CONTRACT (TSY OVAINA)
     # ============================================================
     if msg_type == "proposal_open_contract":
         contract = data.get("proposal_open_contract", {})
@@ -991,6 +1024,7 @@ def on_message(socket, message):
                 "time": time.strftime("%H:%M:%S"),
                 "symbol": state["symbol_display"] or state["symbol"],
                 "stake": state["stake"],
+                "multiplier": state["multiplier"],
                 "result": result,
                 "profit": profit,
             })
@@ -1007,7 +1041,7 @@ def on_message(socket, message):
         return
 
 # ============================================================
-# WEBSOCKET ERROR & CLOSE
+# WEBSOCKET ERROR & CLOSE (TSY OVAINA)
 # ============================================================
 def on_error(socket, error):
     with state_lock:
@@ -1032,7 +1066,7 @@ def on_close(socket, code, reason):
         schedule_reconnect()
 
 # ============================================================
-# WEBSOCKET THREAD
+# WEBSOCKET THREAD (TSY OVAINA)
 # ============================================================
 def websocket_thread(ws_url):
     global ws, ws_should_run
@@ -1058,7 +1092,7 @@ def websocket_thread(ws_url):
             schedule_reconnect()
 
 # ============================================================
-# FLASK ROUTES
+# FLASK ROUTES (TSY OVAINA)
 # ============================================================
 @app.route("/")
 def index():
@@ -1068,7 +1102,7 @@ def index():
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>NOVA BOOM BOT</title>
+        <title>NOVA BOOM BOT - 3-Tick PUT + MultiDown Filter</title>
         <style>
             * { box-sizing: border-box; }
             body { background: #0a0e1a; color: #fff; font-family: Arial, sans-serif; padding: 20px; margin: 0; }
@@ -1128,7 +1162,7 @@ def index():
                     <span class="brand-icon">🤖</span>
                     <div>
                         <h1>NOVA BOOM BOT</h1>
-                        <p>Deriv Trading Dashboard - PUT Strategy (3 Ticks Down)</p>
+                        <p>3-Tick PUT + MultiDown Filter Strategy</p>
                     </div>
                 </div>
                 <div id="connectionStatus" class="status disconnected">● DISCONNECTED</div>
@@ -1181,7 +1215,7 @@ def index():
                 <div style="display:flex;flex-direction:column;gap:10px;">
                     <div style="background:#0a0e1a;padding:12px;border-radius:8px;border:1px solid #1a2340;display:flex;justify-content:space-between;"><span style="color:#8991ad;">Symbol</span><strong id="marketName">—</strong></div>
                     <div style="background:#0a0e1a;padding:12px;border-radius:8px;border:1px solid #1a2340;display:flex;justify-content:space-between;"><span style="color:#8991ad;">Price</span><strong id="livePrice">—</strong></div>
-                    <div style="background:#0a0e1a;padding:12px;border-radius:8px;border:1px solid #1a2340;display:flex;justify-content:space-between;"><span style="color:#8991ad;">Direction</span><strong style="color:#ed4665;">PUT</strong></div>
+                    <div style="background:#0a0e1a;padding:12px;border-radius:8px;border:1px solid #1a2340;display:flex;justify-content:space-between;"><span style="color:#8991ad;">Direction</span><strong style="color:#ed4665;">MULTDOWN</strong></div>
                     <div style="background:#0a0e1a;padding:12px;border-radius:8px;border:1px solid #1a2340;display:flex;justify-content:space-between;"><span style="color:#8991ad;">Status</span><strong id="botStatus">STOPPED</strong></div>
                     <div style="background:#0a0e1a;padding:12px;border-radius:8px;border:1px solid #1a2340;display:flex;justify-content:space-between;"><span style="color:#8991ad;">Trade State</span><strong id="tradeState">IDLE</strong></div>
                 </div>
@@ -1213,7 +1247,7 @@ def index():
                 </div>
             </div>
             <div class="strategy-info">
-                🎯 <b>STRATEGY:</b> Rehefa misy <b>3 ticks mifanesy midina</b> → <b>PUT</b>
+                🎯 <b>STRATEGY:</b> 3 ticks mifanesy midina → Momentum OK → SMA5 OK → Reversal OK → <b>MULTDOWN 10×</b>
             </div>
             <div class="btn-group" style="margin-top:15px;">
                 <button class="btn btn-green" onclick="startBot()">▶ START</button>
@@ -1645,7 +1679,7 @@ def index():
     return render_template_string(html, APP_ID="", PAT_TOKEN="", ACCOUNT_ID="")
 
 # ============================================================
-# API ROUTES
+# API ROUTES (TSY OVAINA)
 # ============================================================
 @app.post("/api/connect")
 def api_connect():
@@ -1725,10 +1759,8 @@ def api_select_symbol():
         return jsonify({"ok": False, "error": "Not a BOOM symbol"}), 400
 
     with state_lock:
-        # FANITSINA: Manao forget amin'ny symbol taloha aloha
         if state["symbol"] and state["symbol"] != symbol:
             add_log(f"🔄 Switching from {state['symbol']} to {symbol}")
-            # Manao forget_all ticks
             send_ws({"forget_all": "ticks", "req_id": get_req_id()})
             time.sleep(0.5)
         
@@ -1742,7 +1774,6 @@ def api_select_symbol():
         state["last_trade_time"] = time.time()
         state["last_symbol"] = symbol
 
-    # Manao tick subscription vaovao
     send_ws({"ticks": symbol, "subscribe": 1, "req_id": get_req_id()})
     send_ws({"contracts_for": symbol, "req_id": get_req_id()})
 
@@ -1887,6 +1918,7 @@ def api_status():
             "last_price": state["last_price"],
             "running": state["running"],
             "stake": state["stake"],
+            "multiplier": state["multiplier"],
             "duration": state["duration"],
             "duration_unit": state["duration_unit"],
             "total_trades": state["total_trades"],
