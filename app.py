@@ -39,8 +39,8 @@ state = {
     "running": False,
     "stake": 0.35,
     "multiplier": 10,
-    "duration": 1,
-    "duration_unit": "m",
+    "take_profit": 2.00,
+    "stop_loss": 0.10,
     "total_trades": 0,
     "wins": 0,
     "losses": 0,
@@ -118,8 +118,8 @@ def save_state():
                 "symbol_display": state["symbol_display"],
                 "stake": state["stake"],
                 "multiplier": state["multiplier"],
-                "duration": state["duration"],
-                "duration_unit": state["duration_unit"],
+                "take_profit": state["take_profit"],
+                "stop_loss": state["stop_loss"],
                 "trade_interval": state["trade_interval"],
                 "max_loss_streak": state["max_loss_streak"],
                 "max_daily_loss": state["max_daily_loss"],
@@ -231,17 +231,11 @@ def unsubscribe_old_symbol():
     return False
 
 # ============================================================
-# STRATEGIE: 3-Tick PUT + MultiDown Filter (FANOVANA IHANY)
+# STRATEGIE: 3-Tick PUT + MultiDown Filter
 # ============================================================
 def check_strategy():
     """
     3-Tick PUT + MultiDown Filter Strategy
-    
-    Filter:
-    1. 3 ticks mifanesy midina → Signal
-    2. Momentum: Raha miakatra ny ticks 5 farany → tsy mandeha
-    3. SMA5: Raha mihoatra ny SMA5 ny vidiny → tsy mandeha
-    4. Overextended: Raha tsy nidina mihitsy ny ticks 10 farany → tsy mandeha
     """
     with state_lock:
         buffer = list(state.get("ticks_buffer", []))
@@ -249,54 +243,35 @@ def check_strategy():
     if len(buffer) < 10:
         return False
 
-    # =============================================
-    # 1. SIGNAL: 3 ticks mifanesy midina
-    # =============================================
+    # 1. 3 ticks mifanesy midina
     if not (buffer[-1] < buffer[-2] < buffer[-3]):
         return False
 
-    # =============================================
-    # 2. MOMENTUM FILTER
-    # Raha miakatra ny ticks 5 farany dia tsy mandeha
-    # =============================================
+    # 2. Momentum: tsy miakatra ny ticks 5 farany
     if buffer[-1] > buffer[-5]:
         return False
 
-    # =============================================
-    # 3. SMA5 FILTER (Trend)
-    # Kajy ny SMA5 (salanisan'ny ticks 5 farany)
-    # Raha mihoatra na mitovy ny SMA5 → tsy mandeha
-    # =============================================
+    # 3. SMA5: ambany noho ny SMA5 ny vidiny
     sma5 = sum(buffer[-5:]) / 5
     if buffer[-1] >= sma5:
         return False
 
-    # =============================================
-    # 4. OVEREXTENDED FILTER (Reversal)
-    # Jereo raha nidina mihitsy ny ticks 10 farany
-    # Raha tsy nidina → tsy mandeha (mety hiverina miakatra)
-    # =============================================
+    # 4. Overextended: nidina ny ticks 10 farany
     drop = buffer[-10] - buffer[-1]
     if drop <= 0:
         return False
 
-    # =============================================
-    # 5. ACTION: Mahafeno filtre rehetra → MULTDOWN
-    # =============================================
     return True
 
 # ============================================================
-# FIND DURATION - Mitady MULTDOWN
+# CHECK IF MULTDOWN AVAILABLE
 # ============================================================
-def find_valid_duration(symbol):
+def is_multdown_available(symbol):
     with state_lock:
         contracts = list(state.get("available_contracts", []))
 
     if not contracts:
-        add_log(f"❌ No contracts available for {symbol}")
-        return None
-
-    target_contracts = []
+        return False
 
     for contract in contracts:
         ctype = contract.get("contract_type")
@@ -304,51 +279,9 @@ def find_valid_duration(symbol):
             continue
         
         if "MULTDOWN" in ctype.upper():
-            target_contracts.append(contract)
+            return True
 
-    if not target_contracts:
-        available = []
-
-        for contract in contracts:
-            ctype = contract.get("contract_type", "UNKNOWN")
-            expiry = contract.get("expiry_type", "UNKNOWN")
-            available.append(f"{ctype}/{expiry}")
-
-        add_log(
-            f"❌ MULTDOWN NOT AVAILABLE for {symbol}. "
-            f"Available: {', '.join(available)}"
-        )
-
-        return None
-
-    for contract in target_contracts:
-        expiry = contract.get("expiry_type", "").lower().strip()
-        min_duration = contract.get("min_duration")
-        max_duration = contract.get("max_duration")
-        
-        add_log(f"📋 MULTDOWN found: expiry={expiry}, min={min_duration}, max={max_duration}")
-        
-        if min_duration is not None and max_duration is not None:
-            if "intraday" in expiry:
-                duration = min(1, max_duration)
-                return duration, "m"
-            elif "daily" in expiry:
-                duration = min(1, max_duration)
-                return duration, "d"
-            elif "tick" in expiry:
-                duration = min(5, max_duration)
-                return duration, "t"
-        
-        if "intraday" in expiry:
-            return 1, "m"
-        elif "daily" in expiry:
-            return 1, "d"
-        elif "tick" in expiry:
-            return 5, "t"
-        else:
-            return 1, "m"
-
-    return None
+    return False
 
 # ============================================================
 # RISK LIMITS
@@ -478,7 +411,7 @@ def schedule_reconnect():
         reconnect_timer.start()
 
 # ============================================================
-# TRADING LOOP (TSY OVAINA)
+# TRADING LOOP
 # ============================================================
 def trading_loop():
     add_log("=== TRADING LOOP STARTED ===")
@@ -504,8 +437,8 @@ def trading_loop():
                 trade_interval = state["trade_interval"]
                 stake = state["stake"]
                 multiplier = state["multiplier"]
-                duration = state["duration"]
-                duration_unit = state["duration_unit"]
+                take_profit = state["take_profit"]
+                stop_loss = state["stop_loss"]
                 recovering = state["recovering"]
                 pending_buy = state["pending_buy"]
             
@@ -554,36 +487,27 @@ def trading_loop():
                 continue
 
             # ==================================================
-            # STRATEGIE (Mampiasa ny check_strategy vaovao)
+            # STRATEGIE
             # ==================================================
             if not check_strategy():
                 time.sleep(0.5)
                 continue
 
             # ==================================================
-            # DURATION
+            # Jereo raha misy MULTDOWN
             # ==================================================
-            if duration_unit == "auto":
-                valid_duration = find_valid_duration(symbol)
+            if not is_multdown_available(symbol):
+                add_log(f"⛔ SKIP: MULTDOWN not available for {symbol}")
+                with state_lock:
+                    state["trade_state"] = "IDLE"
+                    state["last_trade_time"] = time.time()
+                time.sleep(2)
+                continue
 
-                if not valid_duration:
-                    add_log(f"⛔ SKIP: MULTDOWN not available for {symbol}")
-                    with state_lock:
-                        state["trade_state"] = "IDLE"
-                        state["last_trade_time"] = time.time()
-                    time.sleep(2)
-                    continue
-
-                duration, unit = valid_duration
-
-            else:
-                duration = duration
-                unit = duration_unit
-
-            add_log(f"📤 STRATEGY TRIGGERED: MULTDOWN | {symbol} | ${stake} | {multiplier}x | {duration}{unit}")
+            add_log(f"📤 STRATEGY TRIGGERED: MULTDOWN | {symbol} | ${stake} | {multiplier}x | TP=${take_profit} | SL=${stop_loss}")
 
             # ==================================================
-            # PROPOSAL - MULTDOWN + multiplier
+            # PROPOSAL - Miaraka amin'ny LIMIT_ORDER
             # ==================================================
             proposal_req_id = get_req_id()
             
@@ -600,10 +524,12 @@ def trading_loop():
                 "basis": "stake",
                 "contract_type": "MULTDOWN",
                 "currency": "USD",
-                "duration": duration,
-                "duration_unit": unit,
                 "multiplier": multiplier,
                 "underlying_symbol": symbol,
+                "limit_order": {
+                    "take_profit": take_profit,
+                    "stop_loss": stop_loss
+                },
                 "subscribe": 1,
                 "req_id": proposal_req_id,
             }
@@ -663,17 +589,12 @@ def trading_loop():
                 continue
 
             # ==================================================
-            # BUY (TSY OVAINA)
+            # BUY
             # ==================================================
             buy_req_id = get_req_id()
             
-            buy_payload = {
-                "buy": proposal_id,
-                "price": ask_price,
-                "req_id": buy_req_id,
-            }
-
             with state_lock:
+                state["current_trade"] = None
                 state["trade_state"] = "BUY_PENDING"
                 state["last_proposal_id"] = proposal_id
                 state["pending_buy"] = {
@@ -685,6 +606,12 @@ def trading_loop():
                 state["pending_buy_req_id"] = buy_req_id
                 state["pending_buy_start_time"] = time.time()
             
+            buy_payload = {
+                "buy": proposal_id,
+                "price": ask_price,
+                "req_id": buy_req_id,
+            }
+
             if not send_ws(buy_payload):
                 add_log("❌ Failed to send BUY")
                 with state_lock:
@@ -694,7 +621,7 @@ def trading_loop():
                     state["last_trade_time"] = time.time()
                 continue
 
-            add_log(f"📤 BUY sent (req_id={buy_req_id})")
+            add_log(f"📤 BUY sent for proposal {proposal_id} (req_id={buy_req_id})")
 
             # Miandry ny valin'ny BUY
             wait_start = time.time()
@@ -734,7 +661,7 @@ def trading_loop():
     add_log("=== TRADING LOOP STOPPED ===")
 
 # ============================================================
-# WEBSOCKET EVENTS (TSY OVAINA)
+# WEBSOCKET EVENTS
 # ============================================================
 def on_open(socket):
     global reconnect_count
@@ -751,6 +678,9 @@ def on_open(socket):
     time.sleep(1)
     recover_active_contract()
 
+# ============================================================
+# WEBSOCKET MESSAGE - FANITSINA: Log feno sy TP/SL avy amin'ny API
+# ============================================================
 def on_message(socket, message):
     try:
         data = json.loads(message)
@@ -774,7 +704,7 @@ def on_message(socket, message):
         add_log(f"❌ ERROR: {code} - {message_text}")
         
         if "Duration" in message_text or "duration" in message_text.lower():
-            add_log("⚠️ DURATION ERROR: Try changing duration_unit")
+            add_log("⚠️ DURATION ERROR: MULTDOWN does not use duration")
             with state_lock:
                 state["trade_state"] = "IDLE"
                 state["pending_proposal_req_id"] = None
@@ -845,9 +775,7 @@ def on_message(socket, message):
         for contract in state["available_contracts"]:
             ctype = contract.get("contract_type", "UNKNOWN")
             expiry = contract.get("expiry_type", "UNKNOWN")
-            min_dur = contract.get("min_duration", "N/A")
-            max_dur = contract.get("max_duration", "N/A")
-            add_log(f"  - {ctype} | {expiry} | min={min_dur} max={max_dur}")
+            add_log(f"  - {ctype} | {expiry}")
         return
 
     # ============================================================
@@ -875,8 +803,17 @@ def on_message(socket, message):
                         "symbol": state["symbol"],
                         "stake": state["stake"],
                         "multiplier": state["multiplier"],
+                        "take_profit": state["take_profit"],
+                        "stop_loss": state["stop_loss"],
+                        "tp_amount": state["take_profit"],
+                        "sl_amount": state["stop_loss"],
+                        "entry_price": None,
+                        "tp_price": None,
+                        "sl_price": None,
                         "status": "OPEN",
                         "start_time": time.time(),
+                        "is_recovered": True,
+                        "limit_order_raw": None,
                     }
                     state["trade_state"] = "OPEN"
                     state["pending_buy"] = None
@@ -936,7 +873,7 @@ def on_message(socket, message):
         return
 
     # ============================================================
-    # BUY (TSY OVAINA)
+    # BUY
     # ============================================================
     if msg_type == "buy":
         buy = data.get("buy", {})
@@ -953,33 +890,52 @@ def on_message(socket, message):
             return
         
         if contract_id:
+            buy_price = buy.get("buy_price")
+            if buy_price is not None:
+                try:
+                    buy_price = float(buy_price)
+                except:
+                    buy_price = None
+            else:
+                buy_price = None
+            
             with state_lock:
-                pending_req_id = state.get("pending_buy_req_id")
-                if pending_req_id == req_id or pending_req_id is None:
-                    state["current_trade"] = {
-                        "contract_id": contract_id,
-                        "symbol": state["symbol"],
-                        "stake": state["stake"],
-                        "multiplier": state["multiplier"],
-                        "status": "OPEN",
-                        "start_time": time.time(),
-                    }
-                    state["total_trades"] += 1
-                    state["trades_today"] += 1
-                    state["trade_state"] = "OPEN"
-                    state["pending_buy"] = None
-                    state["pending_buy_req_id"] = None
-                    add_log(f"✅ CONTRACT OPENED: {contract_id} (req_id={req_id})")
-                    
-                    save_state()
-                    send_ws({
-                        "proposal_open_contract": 1,
-                        "contract_id": contract_id,
-                        "subscribe": 1,
-                        "req_id": get_req_id(),
-                    })
-                else:
-                    add_log(f"⚠️ Ignoring buy with mismatched req_id: {req_id} (expected {pending_req_id})")
+                state["current_trade"] = {
+                    "contract_id": contract_id,
+                    "symbol": state["symbol"],
+                    "stake": state["stake"],
+                    "multiplier": state["multiplier"],
+                    "take_profit": state["take_profit"],
+                    "stop_loss": state["stop_loss"],
+                    "tp_amount": state["take_profit"],
+                    "sl_amount": state["stop_loss"],
+                    "entry_price": None,
+                    "tp_price": None,
+                    "sl_price": None,
+                    "buy_price": buy_price,
+                    "current_spot": None,
+                    "current_pl": None,
+                    "limit_order_raw": None,
+                    "status": "OPEN",
+                    "start_time": time.time(),
+                    "is_recovered": False,
+                }
+                
+                state["total_trades"] += 1
+                state["trades_today"] += 1
+                state["trade_state"] = "OPEN"
+                state["pending_buy"] = None
+                state["pending_buy_req_id"] = None
+            
+            add_log(f"✅ CONTRACT OPENED: {contract_id}")
+            
+            save_state()
+            send_ws({
+                "proposal_open_contract": 1,
+                "contract_id": contract_id,
+                "subscribe": 1,
+                "req_id": get_req_id(),
+            })
         else:
             add_log(f"❌ BUY FAILED: {json.dumps(data)}")
             with state_lock:
@@ -991,27 +947,196 @@ def on_message(socket, message):
         return
 
     # ============================================================
-    # OPEN CONTRACT (TSY OVAINA)
+    # PROPOSAL OPEN CONTRACT - FANITSINA LEBIBE
     # ============================================================
     if msg_type == "proposal_open_contract":
         contract = data.get("proposal_open_contract", {})
         
-        if not (contract.get("is_sold") or contract.get("is_expired")):
-            if state.get("recovering"):
-                with state_lock:
-                    state["recovering"] = False
-            return
-
+        # ==========================================
+        # 0. LOG FENO HO AN'NY FAMAKAFAKANA
+        # ==========================================
+        add_log("🔎 ===== PROPOSAL OPEN CONTRACT =====")
+        add_log(f"🔎 Full contract: {json.dumps(contract, indent=2)}")
+        
+        limit_order = contract.get("limit_order", {})
+        if limit_order:
+            add_log(f"🔎 LIMIT_ORDER: {json.dumps(limit_order, indent=2)}")
+        else:
+            add_log("🔎 No limit_order found in contract")
+        
+        # Jereo ny field rehetra mety ho TP/SL
+        for key in contract.keys():
+            if "take_profit" in key.lower() or "stop_loss" in key.lower() or "tp" in key.lower() or "sl" in key.lower():
+                add_log(f"🔎 Found TP/SL field: {key} = {contract.get(key)}")
+        
+        add_log("🔎 ===================================")
+        
+        # Hitehiry ny JSON ho rakitra raha ilaina
         try:
-            profit = float(contract.get("profit", 0))
-        except:
-            profit = 0.0
-
-        with state_lock:
-            state["profit"] += profit
-            state["daily_loss"] += profit if profit < 0 else 0
+            with open("contract_response.json", "w") as f:
+                json.dump(contract, f, indent=2)
+            add_log("📁 Contract response saved to contract_response.json")
+        except Exception as e:
+            add_log(f"⚠️ Could not save contract response: {e}")
+        
+        # ==========================================
+        # 1. MAHAZO NY ANGONA ILANA
+        # ==========================================
+        entry_price = contract.get("entry_price")
+        if entry_price is not None:
+            try:
+                entry_price = float(entry_price)
+            except:
+                entry_price = None
+        
+        current_spot = contract.get("current_spot")
+        if current_spot is not None:
+            try:
+                current_spot = float(current_spot)
+            except:
+                current_spot = None
+        
+        exit_spot = contract.get("exit_spot")
+        if exit_spot is not None:
+            try:
+                exit_spot = float(exit_spot)
+            except:
+                exit_spot = None
+        
+        profit = contract.get("profit")
+        if profit is not None:
+            try:
+                profit = float(profit)
+            except:
+                profit = 0.0
+        
+        is_sold = contract.get("is_sold", False)
+        is_expired = contract.get("is_expired", False)
+        
+        # ==========================================
+        # 2. TP/SL price level (avy amin'ny Deriv raha misy)
+        # ==========================================
+        tp_price = None
+        sl_price = None
+        
+        # 2a. Jereo ao amin'ny limit_order
+        if limit_order:
+            take_profit_obj = limit_order.get("take_profit")
+            stop_loss_obj = limit_order.get("stop_loss")
             
-            if profit > 0:
+            if take_profit_obj is not None:
+                if isinstance(take_profit_obj, (int, float)):
+                    tp_price = float(take_profit_obj)
+                    add_log(f"🔎 TP price (direct number): {tp_price}")
+                elif isinstance(take_profit_obj, dict):
+                    # Mety misy "value", "price", "amount"
+                    tp_price = take_profit_obj.get("value")
+                    if tp_price is None:
+                        tp_price = take_profit_obj.get("price")
+                    if tp_price is None:
+                        tp_price = take_profit_obj.get("amount")
+                    if tp_price is not None:
+                        try:
+                            tp_price = float(tp_price)
+                            add_log(f"🔎 TP price (from dict): {tp_price}")
+                        except:
+                            tp_price = None
+                            add_log(f"🔎 Could not parse TP: {take_profit_obj}")
+                else:
+                    add_log(f"🔎 Unknown TP format: {take_profit_obj} (type: {type(take_profit_obj)})")
+            
+            if stop_loss_obj is not None:
+                if isinstance(stop_loss_obj, (int, float)):
+                    sl_price = float(stop_loss_obj)
+                    add_log(f"🔎 SL price (direct number): {sl_price}")
+                elif isinstance(stop_loss_obj, dict):
+                    sl_price = stop_loss_obj.get("value")
+                    if sl_price is None:
+                        sl_price = stop_loss_obj.get("price")
+                    if sl_price is None:
+                        sl_price = stop_loss_obj.get("amount")
+                    if sl_price is not None:
+                        try:
+                            sl_price = float(sl_price)
+                            add_log(f"🔎 SL price (from dict): {sl_price}")
+                        except:
+                            sl_price = None
+                            add_log(f"🔎 Could not parse SL: {stop_loss_obj}")
+                else:
+                    add_log(f"🔎 Unknown SL format: {stop_loss_obj} (type: {type(stop_loss_obj)})")
+        
+        # 2b. Jereo mivantana avy amin'ny contract
+        if tp_price is None:
+            for field_name in ["take_profit_price", "take_profit", "tp_price", "tp"]:
+                val = contract.get(field_name)
+                if val is not None:
+                    try:
+                        tp_price = float(val)
+                        add_log(f"🔎 TP from field '{field_name}': {tp_price}")
+                        break
+                    except:
+                        pass
+        
+        if sl_price is None:
+            for field_name in ["stop_loss_price", "stop_loss", "sl_price", "sl"]:
+                val = contract.get(field_name)
+                if val is not None:
+                    try:
+                        sl_price = float(val)
+                        add_log(f"🔎 SL from field '{field_name}': {sl_price}")
+                        break
+                    except:
+                        pass
+        
+        # ==========================================
+        # 3. RAHA MBOLA TSY TAPITRA
+        # ==========================================
+        if not (is_sold or is_expired):
+            with state_lock:
+                if state["current_trade"] is not None:
+                    # Tehirizo ny angona fototra
+                    if entry_price is not None:
+                        state["current_trade"]["entry_price"] = entry_price
+                        add_log(f"📊 ENTRY PRICE: {entry_price:.4f}")
+                    
+                    if current_spot is not None:
+                        state["current_trade"]["current_spot"] = current_spot
+                        add_log(f"📊 CURRENT SPOT: {current_spot:.4f}")
+                    
+                    if profit is not None:
+                        state["current_trade"]["current_pl"] = profit
+                        add_log(f"📊 CURRENT P/L: {profit:+.2f}")
+                    
+                    # TP/SL price level (raha misy avy amin'ny Deriv)
+                    if tp_price is not None:
+                        state["current_trade"]["tp_price"] = tp_price
+                        add_log(f"   🟢 TP PRICE (from Deriv): {tp_price:.4f}")
+                    else:
+                        add_log("   🟢 TP PRICE: Not available from Deriv")
+                    
+                    if sl_price is not None:
+                        state["current_trade"]["sl_price"] = sl_price
+                        add_log(f"   🔴 SL PRICE (from Deriv): {sl_price:.4f}")
+                    else:
+                        add_log("   🔴 SL PRICE: Not available from Deriv")
+                    
+                    # Tehirizo ny limit_order original
+                    if limit_order:
+                        state["current_trade"]["limit_order_raw"] = limit_order
+                    
+                    save_state()
+            return
+        
+        # ==========================================
+        # 4. TAPITRA NY CONTRACT
+        # ==========================================
+        with state_lock:
+            final_profit = profit if profit is not None else 0.0
+            
+            state["profit"] += final_profit
+            state["daily_loss"] += final_profit if final_profit < 0 else 0
+            
+            if final_profit > 0:
                 state["wins"] += 1
                 state["loss_streak"] = 0
                 result = "WIN"
@@ -1019,16 +1144,30 @@ def on_message(socket, message):
                 state["losses"] += 1
                 state["loss_streak"] += 1
                 result = "LOSS"
-
-            state["history"].insert(0, {
+            
+            trade_record = {
                 "time": time.strftime("%H:%M:%S"),
                 "symbol": state["symbol_display"] or state["symbol"],
                 "stake": state["stake"],
                 "multiplier": state["multiplier"],
+                "tp_amount": state["take_profit"],
+                "sl_amount": state["stop_loss"],
                 "result": result,
-                "profit": profit,
-            })
+                "profit": final_profit,
+            }
+            
+            if state["current_trade"]:
+                trade_record["entry_price"] = state["current_trade"].get("entry_price")
+                trade_record["tp_price"] = state["current_trade"].get("tp_price")
+                trade_record["sl_price"] = state["current_trade"].get("sl_price")
+                trade_record["buy_price"] = state["current_trade"].get("buy_price")
+            
+            if exit_spot is not None:
+                trade_record["exit_price"] = exit_spot
+            
+            state["history"].insert(0, trade_record)
             state["history"] = state["history"][:100]
+            
             state["current_trade"] = None
             state["trade_state"] = "IDLE"
             state["last_trade_time"] = time.time()
@@ -1036,12 +1175,15 @@ def on_message(socket, message):
             state["pending_buy"] = None
             state["pending_buy_req_id"] = None
         
+        add_log(f"{result}: {final_profit:+.2f} | Loss streak: {state['loss_streak']}")
+        if exit_spot is not None:
+            add_log(f"   Exit Price: {exit_spot:.4f}")
+        
         save_state()
-        add_log(f"{result}: {profit:+.2f} | Loss streak: {state['loss_streak']}")
         return
 
 # ============================================================
-# WEBSOCKET ERROR & CLOSE (TSY OVAINA)
+# WEBSOCKET ERROR & CLOSE
 # ============================================================
 def on_error(socket, error):
     with state_lock:
@@ -1066,7 +1208,7 @@ def on_close(socket, code, reason):
         schedule_reconnect()
 
 # ============================================================
-# WEBSOCKET THREAD (TSY OVAINA)
+# WEBSOCKET THREAD
 # ============================================================
 def websocket_thread(ws_url):
     global ws, ws_should_run
@@ -1092,7 +1234,7 @@ def websocket_thread(ws_url):
             schedule_reconnect()
 
 # ============================================================
-# FLASK ROUTES (TSY OVAINA)
+# FLASK ROUTES
 # ============================================================
 @app.route("/")
 def index():
@@ -1102,7 +1244,7 @@ def index():
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>NOVA BOOM BOT - 3-Tick PUT + MultiDown Filter</title>
+        <title>NOVA BOOM BOT - MULTDOWN</title>
         <style>
             * { box-sizing: border-box; }
             body { background: #0a0e1a; color: #fff; font-family: Arial, sans-serif; padding: 20px; margin: 0; }
@@ -1151,7 +1293,15 @@ def index():
                 .header { flex-direction: column; align-items: flex-start; }
             }
             .strategy-info { background: #1a2340; padding: 10px; border-radius: 8px; border-left: 3px solid #7654ff; margin-top: 10px; font-size: 12px; color: #a28dff; }
-            .warning-box { background: #2a1a1a; padding: 10px; border-radius: 8px; border-left: 3px solid #e0a51b; margin-top: 10px; font-size: 12px; color: #e0a51b; }
+            .entry-display { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 10px; }
+            .entry-item { background: #0a0e1a; padding: 8px 12px; border-radius: 6px; border: 1px solid #1a2340; text-align: center; }
+            .entry-item .label { font-size: 9px; color: #8991ad; text-transform: uppercase; }
+            .entry-item .value { font-size: 13px; font-weight: bold; margin-top: 2px; }
+            .entry-item .value.entry { color: #ffffff; }
+            .entry-item .value.tp { color: #19c477; }
+            .entry-item .value.sl { color: #ed4665; }
+            .entry-item .value.current { color: #7654ff; }
+            .entry-item .value.pl { color: #fdcb6e; }
         </style>
     </head>
     <body>
@@ -1162,7 +1312,7 @@ def index():
                     <span class="brand-icon">🤖</span>
                     <div>
                         <h1>NOVA BOOM BOT</h1>
-                        <p>3-Tick PUT + MultiDown Filter Strategy</p>
+                        <p>MULTDOWN Strategy - TP $2.00 | SL $0.10</p>
                     </div>
                 </div>
                 <div id="connectionStatus" class="status disconnected">● DISCONNECTED</div>
@@ -1208,7 +1358,7 @@ def index():
         <div class="panel">
             <div class="panel-title">📊 LIVE MARKET <span id="selectedMarket" style="font-size:12px;color:#8991ad;">No market</span></div>
             <div class="grid" style="grid-template-columns: 1.5fr 1fr;">
-                <div style="background:#05080f;border-radius:10px;padding:20px;min-height:200px;border:1px solid #1a2340;position:relative;">
+                <div style="background:#05080f;border-radius:10px;padding:20px;min-height:250px;border:1px solid #1a2340;position:relative;">
                     <canvas id="chartCanvas" style="width:100%;height:100%;"></canvas>
                     <div id="chartPrice" style="position:absolute;right:20px;top:20px;background:#0a0e1a;padding:8px 12px;border-radius:6px;font-size:14px;font-weight:bold;">—</div>
                 </div>
@@ -1218,6 +1368,25 @@ def index():
                     <div style="background:#0a0e1a;padding:12px;border-radius:8px;border:1px solid #1a2340;display:flex;justify-content:space-between;"><span style="color:#8991ad;">Direction</span><strong style="color:#ed4665;">MULTDOWN</strong></div>
                     <div style="background:#0a0e1a;padding:12px;border-radius:8px;border:1px solid #1a2340;display:flex;justify-content:space-between;"><span style="color:#8991ad;">Status</span><strong id="botStatus">STOPPED</strong></div>
                     <div style="background:#0a0e1a;padding:12px;border-radius:8px;border:1px solid #1a2340;display:flex;justify-content:space-between;"><span style="color:#8991ad;">Trade State</span><strong id="tradeState">IDLE</strong></div>
+                    
+                    <div class="entry-display">
+                        <div class="entry-item">
+                            <div class="label">⚪ Entry</div>
+                            <div class="value entry" id="entryDisplay">—</div>
+                        </div>
+                        <div class="entry-item">
+                            <div class="label">🟢 TP ($2.00)</div>
+                            <div class="value tp" id="tpDisplay">—</div>
+                        </div>
+                        <div class="entry-item">
+                            <div class="label">🔴 SL ($0.10)</div>
+                            <div class="value sl" id="slDisplay">—</div>
+                        </div>
+                        <div class="entry-item">
+                            <div class="label">📊 P/L</div>
+                            <div class="value pl" id="plDisplay">—</div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1227,27 +1396,14 @@ def index():
             <div class="grid" style="grid-template-columns: repeat(4, 1fr);">
                 <div class="field"><label>Stake</label><input id="stakeInput" type="number" value="0.35" step="0.01" min="0.01" onchange="updateStake()"></div>
                 <div class="field"><label>Interval (sec)</label><input id="tradeInterval" type="number" value="5" min="1" max="60" onchange="updateInterval()"></div>
-                <div class="field">
-                    <label>Duration</label>
-                    <div style="display:flex;gap:5px;">
-                        <input id="durationInput" type="number" value="1" min="1" max="60" style="width:60%;" onchange="updateDuration()">
-                        <select id="durationUnitInput" onchange="updateDuration()" style="width:40%;">
-                            <option value="auto" selected>auto</option>
-                            <option value="s">s</option>
-                            <option value="m">m</option>
-                            <option value="h">h</option>
-                            <option value="d">d</option>
-                            <option value="t">t</option>
-                        </select>
-                    </div>
-                </div>
+                <div class="field"><label>Multiplier</label><input id="multiplierInput" type="number" value="10" min="1" max="100" onchange="updateMultiplier()"></div>
                 <div class="field">
                     <label>Max Loss Streak</label>
                     <input id="maxLossStreak" type="number" value="3" min="1" max="10" onchange="updateRisk()">
                 </div>
             </div>
             <div class="strategy-info">
-                🎯 <b>STRATEGY:</b> 3 ticks mifanesy midina → Momentum OK → SMA5 OK → Reversal OK → <b>MULTDOWN 10×</b>
+                🎯 <b>STRATEGY:</b> 3 ticks midina → Momentum OK → SMA5 OK → Reversal OK → <b>MULTDOWN 10×</b>
             </div>
             <div class="btn-group" style="margin-top:15px;">
                 <button class="btn btn-green" onclick="startBot()">▶ START</button>
@@ -1314,6 +1470,11 @@ def index():
             box.textContent = text;
             box.style.color = type === "ok" ? "#19c477" : type === "error" ? "#ed4665" : "#8991ad";
         }
+
+        var currentEntry = null;
+        var currentTP = null;
+        var currentSL = null;
+        var currentPL = null;
 
         async function connectDeriv() {
             var data = {
@@ -1408,17 +1569,16 @@ def index():
             }
         }
 
-        async function updateDuration() {
-            var duration = parseInt($("durationInput").value) || 1;
-            var unit = $("durationUnitInput").value;
+        async function updateMultiplier() {
+            var multiplier = parseInt($("multiplierInput").value) || 10;
             try {
-                var r = await fetch("/api/update-duration", {
+                var r = await fetch("/api/update-multiplier", {
                     method: "POST",
                     headers: {"Content-Type":"application/json"},
-                    body: JSON.stringify({ duration: duration, unit: unit })
+                    body: JSON.stringify({ multiplier: multiplier })
                 });
                 var res = await r.json();
-                if (res.ok) setMessage("✅ Duration: " + duration + unit, "ok");
+                if (res.ok) setMessage("✅ Multiplier: " + multiplier + "x", "ok");
             } catch(e) {
                 setMessage("❌ " + e.message, "error");
             }
@@ -1587,25 +1747,67 @@ def index():
                     addPrice(price);
                 }
 
+                // ==========================================
+                // ENTRY / TP / SL
+                // ==========================================
+                if (data.current_trade) {
+                    var trade = data.current_trade;
+
+                    $("tradeStake").textContent = money(trade.stake);
+                    $("contractId").textContent = trade.contract_id || "—";
+                    $("tradeStatus").textContent = trade.status || "OPEN";
+
+                    currentEntry = trade.entry_price != null ? Number(trade.entry_price) : null;
+                    currentTP = trade.tp_price != null ? Number(trade.tp_price) : null;
+                    currentSL = trade.sl_price != null ? Number(trade.sl_price) : null;
+                    currentPL = trade.current_pl != null ? Number(trade.current_pl) : null;
+
+                    document.getElementById("entryDisplay").textContent = 
+                        currentEntry !== null && Number.isFinite(currentEntry) ? currentEntry.toFixed(4) : "—";
+                    
+                    if (currentTP !== null && Number.isFinite(currentTP)) {
+                        document.getElementById("tpDisplay").textContent = currentTP.toFixed(4) + " ($2.00)";
+                    } else {
+                        document.getElementById("tpDisplay").textContent = "$" + trade.take_profit.toFixed(2);
+                    }
+                    
+                    if (currentSL !== null && Number.isFinite(currentSL)) {
+                        document.getElementById("slDisplay").textContent = currentSL.toFixed(4) + " ($0.10)";
+                    } else {
+                        document.getElementById("slDisplay").textContent = "$" + trade.stop_loss.toFixed(2);
+                    }
+                    
+                    document.getElementById("plDisplay").textContent = 
+                        currentPL !== null && Number.isFinite(currentPL) ? (currentPL >= 0 ? "+" : "") + currentPL.toFixed(2) : "—";
+                    document.getElementById("plDisplay").className = 
+                        "value " + (currentPL !== null && currentPL >= 0 ? "tp" : "sl");
+
+                } else {
+                    currentEntry = null;
+                    currentTP = null;
+                    currentSL = null;
+                    currentPL = null;
+
+                    $("tradeStake").textContent = "—";
+                    $("contractId").textContent = "—";
+                    $("tradeStatus").textContent = "WAITING";
+
+                    document.getElementById("entryDisplay").textContent = "—";
+                    document.getElementById("tpDisplay").textContent = "—";
+                    document.getElementById("slDisplay").textContent = "—";
+                    document.getElementById("plDisplay").textContent = "—";
+                }
+
                 updateSymbols(data.boom_symbols);
                 updateContractInfo(data.available_contracts);
                 updateHistory(data.history);
                 updateLogs(data.logs);
 
-                if (data.current_trade) {
-                    $("tradeStake").textContent = money(data.current_trade.stake);
-                    $("contractId").textContent = data.current_trade.contract_id || "—";
-                    $("tradeStatus").textContent = data.current_trade.status || "OPEN";
-                } else {
-                    $("tradeStake").textContent = "—";
-                    $("contractId").textContent = "—";
-                    $("tradeStatus").textContent = "WAITING";
-                }
-
                 if (data.last_error) setMessage(data.last_error, "error");
                 drawChart();
-            } catch(e) {
-                console.log("Dashboard error:", e);
+
+            } catch(error) {
+                console.log("Dashboard error:", error);
             }
         }
 
@@ -1639,6 +1841,7 @@ def index():
             var padding = 20;
             var range = max - min;
 
+            // Price line
             ctx.beginPath();
             priceHistory.forEach(function(price, index) {
                 var x = padding + (index / (priceHistory.length - 1)) * (width - padding * 2);
@@ -1650,6 +1853,7 @@ def index():
             ctx.lineWidth = 2;
             ctx.stroke();
 
+            // Last point
             var last = priceHistory[priceHistory.length - 1];
             var lastX = padding + ((priceHistory.length - 1) / (priceHistory.length - 1)) * (width - padding * 2);
             var lastY = height - padding - ((last - min) / range) * (height - padding * 2);
@@ -1657,6 +1861,64 @@ def index():
             ctx.arc(lastX, lastY, 4, 0, Math.PI * 2);
             ctx.fillStyle = "#19c477";
             ctx.fill();
+
+            // ==========================================
+            // ENTRY / TP / SL LINES
+            // ==========================================
+            // TP - maitso (ambany vidiny ho an'ny MULTDOWN)
+            if (currentTP !== null && currentTP >= min && currentTP <= max) {
+                var tpY = height - padding - ((currentTP - min) / range) * (height - padding * 2);
+                ctx.beginPath();
+                ctx.moveTo(padding, tpY);
+                ctx.lineTo(width - padding, tpY);
+                ctx.strokeStyle = "rgba(25, 196, 119, 0.8)";
+                ctx.setLineDash([5, 5]);
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                ctx.setLineDash([]);
+                ctx.fillStyle = "#19c477";
+                ctx.font = "10px Arial";
+                ctx.fillText("🟢 TP: " + currentTP.toFixed(4), padding + 5, tpY - 5);
+            }
+
+            // Entry - fotsy (afovoany)
+            if (currentEntry !== null && currentEntry >= min && currentEntry <= max) {
+                var entryY = height - padding - ((currentEntry - min) / range) * (height - padding * 2);
+                ctx.beginPath();
+                ctx.moveTo(padding, entryY);
+                ctx.lineTo(width - padding, entryY);
+                ctx.strokeStyle = "rgba(255, 255, 255, 0.5)";
+                ctx.setLineDash([5, 5]);
+                ctx.lineWidth = 1;
+                ctx.stroke();
+                ctx.setLineDash([]);
+                ctx.fillStyle = "#ffffff";
+                ctx.font = "10px Arial";
+                ctx.fillText("⚪ Entry: " + currentEntry.toFixed(4), padding + 5, entryY - 5);
+            }
+
+            // SL - mena (ambony vidiny ho an'ny MULTDOWN)
+            if (currentSL !== null && currentSL >= min && currentSL <= max) {
+                var slY = height - padding - ((currentSL - min) / range) * (height - padding * 2);
+                ctx.beginPath();
+                ctx.moveTo(padding, slY);
+                ctx.lineTo(width - padding, slY);
+                ctx.strokeStyle = "rgba(237, 70, 101, 0.8)";
+                ctx.setLineDash([5, 5]);
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                ctx.setLineDash([]);
+                ctx.fillStyle = "#ed4665";
+                ctx.font = "10px Arial";
+                ctx.fillText("🔴 SL: " + currentSL.toFixed(4), padding + 5, slY - 5);
+            }
+
+            // Labels
+            ctx.fillStyle = "#8991ad";
+            ctx.font = "9px Arial";
+            ctx.fillText("Min: " + min.toFixed(4), padding, height - 5);
+            ctx.fillText("Max: " + max.toFixed(4), padding, 15);
+            ctx.fillText("Current: " + last.toFixed(4), width - padding - 80, 15);
         }
 
         function clearLogs() {
@@ -1679,7 +1941,7 @@ def index():
     return render_template_string(html, APP_ID="", PAT_TOKEN="", ACCOUNT_ID="")
 
 # ============================================================
-# API ROUTES (TSY OVAINA)
+# API ROUTES
 # ============================================================
 @app.post("/api/connect")
 def api_connect():
@@ -1852,21 +2114,15 @@ def api_update_interval():
     add_log(f"Interval: {interval}s")
     return jsonify({"ok": True})
 
-@app.post("/api/update-duration")
-def api_update_duration():
+@app.post("/api/update-multiplier")
+def api_update_multiplier():
     data = request.get_json(silent=True) or {}
-    duration = int(data.get("duration", 1))
-    unit = str(data.get("unit", "auto")).strip()
-
-    if duration < 1:
+    multiplier = int(data.get("multiplier", 10))
+    if multiplier < 1:
         return jsonify({"ok": False, "error": "Min 1"}), 400
-    if unit not in ["auto", "s", "m", "h", "d", "t"]:
-        return jsonify({"ok": False, "error": "Invalid unit"}), 400
-
     with state_lock:
-        state["duration"] = duration
-        state["duration_unit"] = unit
-    add_log(f"Duration: {duration}{unit}")
+        state["multiplier"] = multiplier
+    add_log(f"Multiplier: {multiplier}x")
     return jsonify({"ok": True})
 
 @app.post("/api/update-risk")
@@ -1908,6 +2164,31 @@ def api_status():
     with state_lock:
         total = state["total_trades"]
         win_rate = (state["wins"] / total * 100) if total else 0.0
+        
+        current_trade = state.get("current_trade")
+        if current_trade:
+            current_trade_copy = {
+                "contract_id": current_trade.get("contract_id"),
+                "symbol": current_trade.get("symbol"),
+                "stake": current_trade.get("stake"),
+                "multiplier": current_trade.get("multiplier"),
+                "take_profit": current_trade.get("take_profit"),
+                "stop_loss": current_trade.get("stop_loss"),
+                "tp_amount": current_trade.get("tp_amount"),
+                "sl_amount": current_trade.get("sl_amount"),
+                "entry_price": current_trade.get("entry_price"),
+                "tp_price": current_trade.get("tp_price"),
+                "sl_price": current_trade.get("sl_price"),
+                "buy_price": current_trade.get("buy_price"),
+                "current_spot": current_trade.get("current_spot"),
+                "current_pl": current_trade.get("current_pl"),
+                "status": current_trade.get("status"),
+                "start_time": current_trade.get("start_time"),
+                "is_recovered": current_trade.get("is_recovered", False),
+            }
+        else:
+            current_trade_copy = None
+            
         return jsonify({
             "connected": state["connected"],
             "authenticated": state["connection_authenticated"],
@@ -1919,14 +2200,14 @@ def api_status():
             "running": state["running"],
             "stake": state["stake"],
             "multiplier": state["multiplier"],
-            "duration": state["duration"],
-            "duration_unit": state["duration_unit"],
+            "take_profit": state["take_profit"],
+            "stop_loss": state["stop_loss"],
             "total_trades": state["total_trades"],
             "wins": state["wins"],
             "losses": state["losses"],
             "profit": state["profit"],
             "loss_streak": state["loss_streak"],
-            "current_trade": state["current_trade"],
+            "current_trade": current_trade_copy,
             "boom_symbols": state["boom_symbols"],
             "available_contracts": state["available_contracts"],
             "history": state["history"],
