@@ -41,7 +41,6 @@ state = {
     "multiplier": 10,
     "take_profit": 2.00,
     "stop_loss": 0.10,
-    "duration": 1,
     "duration_unit": "s",
     "total_trades": 0,
     "wins": 0,
@@ -69,14 +68,14 @@ state = {
     "day_start": time.time(),
     "daily_loss_reset_time": time.time(),
     "recovering": False,
+    "recovery_pending": False,
     "pending_buy": None,
     "pending_buy_req_id": None,
     "pending_proposal_req_id": None,
     "req_id_counter": 0,
     "pending_buy_start_time": 0,
-    "last_signal_tick": None,
+    "last_signal_sequence": None,
     "tick_subscription_id": None,
-    "reconnect_after_restart": False,
 }
 
 state_lock = RLock()
@@ -107,7 +106,12 @@ def load_state():
 
 def save_state():
     try:
-        # Tsy mampiasa lock be loatra
+        current_trade = state.get("current_trade")
+        if current_trade and current_trade.get("status") == "OPEN":
+            current_trade_to_save = None
+        else:
+            current_trade_to_save = current_trade
+            
         data_to_save = {
             "total_trades": state["total_trades"],
             "wins": state["wins"],
@@ -116,7 +120,7 @@ def save_state():
             "loss_streak": state["loss_streak"],
             "daily_loss": state["daily_loss"],
             "trades_today": state["trades_today"],
-            "current_trade": state["current_trade"],
+            "current_trade": current_trade_to_save,
             "trade_state": state["trade_state"],
             "last_trade_time": state["last_trade_time"],
             "symbol": state["symbol"],
@@ -125,13 +129,11 @@ def save_state():
             "multiplier": state["multiplier"],
             "take_profit": state["take_profit"],
             "stop_loss": state["stop_loss"],
-            "duration": state["duration"],
             "duration_unit": state["duration_unit"],
             "trade_interval": state["trade_interval"],
             "max_loss_streak": state["max_loss_streak"],
             "max_daily_loss": state["max_daily_loss"],
             "max_trades_per_day": state["max_trades_per_day"],
-            "last_signal_tick": state["last_signal_tick"],
         }
         with open(STATE_FILE, 'w') as f:
             json.dump(data_to_save, f)
@@ -168,15 +170,12 @@ def get_req_id():
         return state["req_id_counter"]
 
 # ============================================================
-# WEBSOCKET SEND - FANITSINA: Tsy misy lock
+# WEBSOCKET SEND
 # ============================================================
 def send_ws(payload):
     global ws
-    
-    # Tsy mampiasa state_lock eto
     if ws is None:
         return False
-    
     try:
         ws.send(json.dumps(payload))
         return True
@@ -220,7 +219,7 @@ def get_otp_url(app_id, token, account_id):
     return ws_url
 
 # ============================================================
-# UNSUBSCRIBE OLD SYMBOL - FANITSINA: Tsy misy lock intsony
+# UNSUBSCRIBE OLD SYMBOL
 # ============================================================
 def unsubscribe_old_symbol():
     old_symbol = state.get("last_symbol")
@@ -237,6 +236,8 @@ def unsubscribe_old_symbol():
                 "forget_all": "ticks",
                 "req_id": get_req_id()
             })
+        with state_lock:
+            state["tick_subscription_id"] = None
         time.sleep(0.5)
         return True
     return False
@@ -246,19 +247,14 @@ def unsubscribe_old_symbol():
 # ============================================================
 def check_strategy():
     buffer = state.get("ticks_buffer", [])
-    
     if len(buffer) < 3:
         return False
-
-    # 3 ticks mifanesy midina
     if not (buffer[-1] < buffer[-2] < buffer[-3]):
         return False
-
-    # FANITSINA 3: Tsy mamerina signal amin'ny sequence iray ihany
-    last_signal = state.get("last_signal_tick")
-    if last_signal is not None and buffer[-1] == last_signal:
+    current_sequence = tuple(buffer[-3:])
+    last_sequence = state.get("last_signal_sequence")
+    if last_sequence is not None and last_sequence == current_sequence:
         return False
-
     return True
 
 # ============================================================
@@ -266,7 +262,6 @@ def check_strategy():
 # ============================================================
 def is_multdown_available(symbol):
     contracts = state.get("available_contracts", {})
-    
     if isinstance(contracts, dict):
         return "MULTDOWN" in contracts
     elif isinstance(contracts, list):
@@ -274,7 +269,6 @@ def is_multdown_available(symbol):
             ctype = contract.get("contract_type")
             if ctype and "MULTDOWN" in ctype.upper():
                 return True
-    
     return False
 
 # ============================================================
@@ -288,89 +282,67 @@ def check_risk_limits():
             state["daily_loss"] = 0.0
             state["trades_today"] = 0
             state["daily_loss_reset_time"] = current_time
-        
         loss_streak = state["loss_streak"]
         max_loss_streak = state["max_loss_streak"]
         daily_loss = state["daily_loss"]
         max_daily_loss = state["max_daily_loss"]
         trades_today = state["trades_today"]
         max_trades_per_day = state["max_trades_per_day"]
-    
     if loss_streak >= max_loss_streak:
         add_log(f"⚠️ Max loss streak reached: {loss_streak}")
         return False
-    
     if daily_loss >= max_daily_loss:
         add_log(f"⚠️ Max daily loss reached: ${daily_loss:.2f}")
         return False
-    
     if trades_today >= max_trades_per_day:
         add_log(f"⚠️ Max trades per day reached: {trades_today}")
         return False
-    
     return True
 
 # ============================================================
-# RECOVERY - FANITSINA: Mamerina ny ticks sy contracts
+# RECOVERY
 # ============================================================
 def recover_active_contract():
-    if state.get("recovering"):
+    if state.get("recovering") or state.get("recovery_pending"):
         return
-    
     with state_lock:
         state["recovering"] = True
-    
+        state["recovery_pending"] = True
+        state["pending_buy"] = None
+        state["pending_buy_req_id"] = None
+        state["pending_proposal_req_id"] = None
     add_log("🔄 Recovery started...")
-    
-    # 1. Mamerina ny tick subscription
     symbol = state.get("symbol")
     if symbol and state["connected"]:
         add_log(f"🔄 Resubscribing to ticks for {symbol}")
         send_ws({"ticks": symbol, "subscribe": 1, "req_id": get_req_id()})
         send_ws({"contracts_for": symbol, "req_id": get_req_id()})
-    
-    # 2. Mijery ny portfolio
-    send_ws({
-        "portfolio": 1,
-        "req_id": get_req_id(),
-    })
-    
-    with state_lock:
-        state["recovering"] = False
+    send_ws({"portfolio": 1, "req_id": get_req_id()})
 
 # ============================================================
 # RECONNECT
 # ============================================================
 def schedule_reconnect():
     global reconnect_timer, reconnecting, reconnect_count, ws_should_run
-    
     with reconnect_lock:
         if reconnecting:
             return
-        
         if reconnect_timer is not None:
             return
-        
         ws_should_run = True
         reconnecting = True
-        
         def do_reconnect():
             global reconnect_timer, reconnecting, ws, ws_thread, reconnect_count, ws_should_run
-            
             try:
                 with reconnect_lock:
                     reconnect_timer = None
-                
                 reconnect_count += 1
-                
                 if reconnect_count > MAX_RECONNECT:
                     add_log(f"❌ Max reconnection attempts ({MAX_RECONNECT}) reached")
                     with reconnect_lock:
                         reconnecting = False
                     return
-                
                 add_log(f"🔄 Attempting to reconnect ({reconnect_count}/{MAX_RECONNECT})...")
-                
                 old_ws = ws
                 if old_ws:
                     try:
@@ -378,12 +350,9 @@ def schedule_reconnect():
                     except:
                         pass
                     time.sleep(1)
-                
                 if ws_thread and ws_thread.is_alive():
                     time.sleep(0.5)
-                
                 ws_url = get_otp_url(CURRENT_APP_ID, CURRENT_PAT_TOKEN, CURRENT_ACCOUNT_ID)
-                
                 ws = websocket.WebSocketApp(
                     ws_url,
                     on_open=on_open,
@@ -391,15 +360,12 @@ def schedule_reconnect():
                     on_error=on_error,
                     on_close=on_close,
                 )
-                
                 ws_thread = threading.Thread(
                     target=lambda: ws.run_forever(ping_interval=20, ping_timeout=10),
                     daemon=True
                 )
                 ws_thread.start()
-                
                 add_log("✅ Reconnection initiated")
-                
             except Exception as e:
                 add_log(f"❌ Reconnection failed: {e}")
                 time.sleep(RECONNECT_DELAY)
@@ -411,27 +377,23 @@ def schedule_reconnect():
             finally:
                 with reconnect_lock:
                     reconnecting = False
-        
         reconnect_timer = threading.Thread(target=do_reconnect, daemon=True)
         reconnect_timer.start()
 
 # ============================================================
-# TRADING LOOP
+# TRADING LOOP - FANITSINA FARANY: duration_unit="s" fa tsy duration
 # ============================================================
 def trading_loop():
     add_log("=== TRADING LOOP STARTED ===")
     loop_count = 0
-
     while True:
         with state_lock:
             if not state["running"]:
                 break
-        
         loop_count += 1
         try:
             if loop_count % 10 == 0:
                 add_log(f"🔁 Trading loop alive (cycle {loop_count})")
-
             with state_lock:
                 authenticated = state["connection_authenticated"]
                 authorized = state["authorized"]
@@ -444,11 +406,10 @@ def trading_loop():
                 multiplier = state["multiplier"]
                 take_profit = state["take_profit"]
                 stop_loss = state["stop_loss"]
-                duration = state["duration"]
                 duration_unit = state["duration_unit"]
                 recovering = state["recovering"]
+                recovery_pending = state["recovery_pending"]
                 pending_buy = state["pending_buy"]
-            
             if pending_buy:
                 if time.time() - state.get("pending_buy_start_time", 0) > 30:
                     add_log("⚠️ Pending buy timeout, resetting")
@@ -458,49 +419,35 @@ def trading_loop():
                         state["trade_state"] = "IDLE"
                 time.sleep(1)
                 continue
-            
-            if recovering:
+            if recovering or recovery_pending:
                 time.sleep(1)
                 continue
-            
             if not authenticated:
                 time.sleep(1)
                 continue
-            
             if not authorized:
                 time.sleep(1)
                 continue
-
             if not symbol:
                 time.sleep(1)
                 continue
-
             if current_trade is not None:
                 time.sleep(1)
                 continue
-            
             if trade_state != "IDLE":
                 time.sleep(0.5)
                 continue
-
             if not check_risk_limits():
                 with state_lock:
                     state["running"] = False
                 add_log("⛔ Risk limits reached, bot stopped")
                 break
-
             if time.time() - last_trade_time < trade_interval:
                 time.sleep(0.5)
                 continue
-
-            # ==================================================
-            # STRATEGIE: 3 ticks midina → MULTDOWN
-            # ==================================================
             if not check_strategy():
                 time.sleep(0.5)
                 continue
-
-            # Jereo raha misy MULTDOWN
             if not is_multdown_available(symbol):
                 add_log(f"⛔ SKIP: MULTDOWN not available for {symbol}")
                 with state_lock:
@@ -508,29 +455,26 @@ def trading_loop():
                     state["last_trade_time"] = time.time()
                 time.sleep(2)
                 continue
-
-            add_log(f"📤 STRATEGY TRIGGERED: MULTDOWN | {symbol} | ${stake} | {multiplier}x | {duration}{duration_unit} | TP=${take_profit} | SL=${stop_loss}")
-
-            # ==================================================
-            # PROPOSAL
-            # ==================================================
+            buffer = state.get("ticks_buffer", [])
+            if len(buffer) >= 3:
+                with state_lock:
+                    state["last_signal_sequence"] = tuple(buffer[-3:])
+            add_log(f"📤 STRATEGY TRIGGERED: MULTDOWN | {symbol} | ${stake} | {multiplier}x | TP=${take_profit} | SL=${stop_loss}")
+            # PROPOSAL - FANITSINA: TSY MISY DURATION, FA MISY DURATION_UNIT
             proposal_req_id = get_req_id()
-            
             with state_lock:
                 state["last_proposal"] = None
                 state["last_proposal_id"] = None
                 state["trade_state"] = "PROPOSAL_PENDING"
                 state["last_error"] = ""
                 state["pending_proposal_req_id"] = proposal_req_id
-
             proposal_payload = {
                 "proposal": 1,
                 "amount": stake,
                 "basis": "stake",
                 "contract_type": "MULTDOWN",
                 "currency": "USD",
-                "duration": duration,
-                "duration_unit": duration_unit,
+                "duration_unit": duration_unit,  # "s"
                 "multiplier": multiplier,
                 "underlying_symbol": symbol,
                 "limit_order": {
@@ -540,7 +484,6 @@ def trading_loop():
                 "subscribe": 1,
                 "req_id": proposal_req_id,
             }
-
             if not send_ws(proposal_payload):
                 add_log("❌ Failed to send proposal")
                 with state_lock:
@@ -549,9 +492,7 @@ def trading_loop():
                     state["last_trade_time"] = time.time()
                 time.sleep(2)
                 continue
-
             add_log(f"📤 Proposal sent: {json.dumps(proposal_payload)}")
-            
             wait_start = time.time()
             proposal_received = False
             while time.time() - wait_start < 10:
@@ -564,7 +505,6 @@ def trading_loop():
                             add_log(f"✅ Proposal OK: {state['last_proposal']['id']}")
                             break
                 time.sleep(0.5)
-
             if not proposal_received:
                 with state_lock:
                     add_log(f"❌ PROPOSAL FAILED: {state.get('last_error', 'Timeout')}")
@@ -573,18 +513,15 @@ def trading_loop():
                     state["last_trade_time"] = time.time()
                 time.sleep(2)
                 continue
-
             with state_lock:
                 proposal_id = state["last_proposal"]["id"]
                 ask_price = state["last_proposal"]["ask_price"]
-
             if ask_price is None:
                 add_log("❌ No price in proposal")
                 with state_lock:
                     state["trade_state"] = "IDLE"
                     state["pending_proposal_req_id"] = None
                 continue
-
             try:
                 ask_price = float(ask_price)
             except:
@@ -593,12 +530,8 @@ def trading_loop():
                     state["trade_state"] = "IDLE"
                     state["pending_proposal_req_id"] = None
                 continue
-
-            # ==================================================
             # BUY
-            # ==================================================
             buy_req_id = get_req_id()
-            
             with state_lock:
                 state["current_trade"] = None
                 state["trade_state"] = "BUY_PENDING"
@@ -611,13 +544,11 @@ def trading_loop():
                 }
                 state["pending_buy_req_id"] = buy_req_id
                 state["pending_buy_start_time"] = time.time()
-            
             buy_payload = {
                 "buy": proposal_id,
                 "price": ask_price,
                 "req_id": buy_req_id,
             }
-
             if not send_ws(buy_payload):
                 add_log("❌ Failed to send BUY")
                 with state_lock:
@@ -626,9 +557,7 @@ def trading_loop():
                     state["pending_buy_req_id"] = None
                     state["last_trade_time"] = time.time()
                 continue
-
             add_log(f"📤 BUY sent: proposal={proposal_id} price={ask_price} (req_id={buy_req_id})")
-
             wait_start = time.time()
             buy_success = False
             while time.time() - wait_start < 10:
@@ -639,14 +568,9 @@ def trading_loop():
                             state["trade_state"] = "OPEN"
                             state["pending_buy"] = None
                             state["pending_buy_req_id"] = None
-                            # FANITSINA 5: Tehirizo ny last_signal_tick rehefa tafavita ny BUY
-                            buffer = state.get("ticks_buffer", [])
-                            if len(buffer) > 0:
-                                state["last_signal_tick"] = buffer[-1]
                             add_log(f"✅ CONTRACT OPENED: {state['current_trade']['contract_id']}")
                             break
                 time.sleep(0.5)
-
             with state_lock:
                 if not buy_success:
                     add_log(f"❌ BUY FAILED: {state.get('last_error', 'No contract opened')}")
@@ -655,18 +579,14 @@ def trading_loop():
                     state["pending_buy_req_id"] = None
                     state["last_trade_time"] = time.time()
                     continue
-
                 state["last_trade_time"] = time.time()
-
             save_state()
             time.sleep(2)
-
         except Exception as e:
             add_log(f"❌ TRADING LOOP ERROR: {e}")
             import traceback
             add_log(traceback.format_exc())
             time.sleep(5)
-
     add_log("=== TRADING LOOP STOPPED ===")
 
 # ============================================================
@@ -674,17 +594,16 @@ def trading_loop():
 # ============================================================
 def on_open(socket):
     global reconnect_count
-    
     with state_lock:
         state["connected"] = True
         state["connection_authenticated"] = True
         reconnect_count = 0
-    
+        state["pending_buy"] = None
+        state["pending_buy_req_id"] = None
+        state["pending_proposal_req_id"] = None
     add_log("✅ WebSocket connected (authenticated via OTP)")
     send_ws({"balance": 1, "subscribe": 1, "req_id": get_req_id()})
     send_ws({"active_symbols": "full", "req_id": get_req_id()})
-    
-    # FANITSINA 2: Mamerina ny ticks sy contracts rehefa reconnect
     time.sleep(1)
     recover_active_contract()
 
@@ -696,37 +615,30 @@ def on_message(socket, message):
         data = json.loads(message)
     except:
         return
-
     msg_type = data.get("msg_type")
     req_id = data.get("req_id")
-
-    # ============================================================
-    # ERROR - FANITSINA 3: Mamerina IDLE
-    # ============================================================
+    # ERROR
     if msg_type == "error":
         error = data.get("error", {})
         code = error.get("code", "UNKNOWN")
         message_text = error.get("message", "Unknown error")
-        
         with state_lock:
             state["last_error"] = f"{code}: {message_text}"
-            # Raha avy amin'ny proposal ny error dia averina ho IDLE
-            if state["trade_state"] in ["PROPOSAL_PENDING", "BUY_PENDING"]:
+            if state.get("pending_proposal_req_id") == req_id:
                 state["trade_state"] = "IDLE"
                 state["pending_proposal_req_id"] = None
+                add_log(f"❌ PROPOSAL ERROR: {code} - {message_text}")
+            elif state.get("pending_buy_req_id") == req_id:
+                state["trade_state"] = "IDLE"
                 state["pending_buy"] = None
                 state["pending_buy_req_id"] = None
-        
-        add_log(f"❌ ERROR: {code} - {message_text}")
-        
-        # Raha misy resaka duration
-        if "duration" in message_text.lower() or "Duration" in message_text:
-            add_log("⚠️ DURATION ERROR: Check duration and duration_unit")
+                add_log(f"❌ BUY ERROR: {code} - {message_text}")
+            else:
+                add_log(f"❌ ERROR: {code} - {message_text}")
+        if "duration" in message_text.lower():
+            add_log("⚠️ DURATION: Check duration and duration_unit")
         return
-
-    # ============================================================
     # BALANCE
-    # ============================================================
     if msg_type == "balance":
         balance = data.get("balance", {})
         try:
@@ -737,10 +649,7 @@ def on_message(socket, message):
             pass
         add_log(f"✅ Authorized! Balance: ${state['balance']:.2f}")
         return
-
-    # ============================================================
     # ACTIVE SYMBOLS
-    # ============================================================
     if msg_type == "active_symbols":
         symbols = data.get("active_symbols", [])
         boom = []
@@ -759,10 +668,7 @@ def on_message(socket, message):
         for b in boom[:10]:
             add_log(f"  - {b['symbol']} = {b['display_name']}")
         return
-
-    # ============================================================
-    # TICK - FANITSINA: Tehirizo ny subscription_id
-    # ============================================================
+    # TICK
     if msg_type == "tick":
         tick = data.get("tick", {})
         try:
@@ -772,8 +678,6 @@ def on_message(socket, message):
                 state["ticks_buffer"].append(price)
                 if len(state["ticks_buffer"]) > 20:
                     state["ticks_buffer"].pop(0)
-                
-                # Tehirizo ny subscription_id
                 if state.get("tick_subscription_id") is None:
                     subscription = data.get("subscription")
                     if subscription:
@@ -781,43 +685,33 @@ def on_message(socket, message):
         except:
             pass
         return
-
-    # ============================================================
-    # CONTRACTS FOR - FANITSINA: Tehirizo ho dictionary
-    # ============================================================
+    # CONTRACTS FOR
     if msg_type == "contracts_for":
         result = data.get("contracts_for", {})
         available = result.get("available", [])
-        
         contracts_dict = {}
         for contract in available:
             ctype = contract.get("contract_type")
             if ctype:
                 contracts_dict[ctype] = contract
-        
         with state_lock:
             state["available_contracts"] = contracts_dict
             state["contract_info"] = data
-        
         add_log(f"✅ Contract info received for {state['symbol']}")
-        
         for ctype, info in contracts_dict.items():
             expiry = info.get("expiry_type", "UNKNOWN")
             add_log(f"  - {ctype} | {expiry}")
-        
         if "MULTDOWN" in contracts_dict:
             add_log("✅ MULTDOWN is available for this symbol")
         else:
             add_log("⚠️ MULTDOWN is NOT available for this symbol")
         return
-
-    # ============================================================
     # PORTFOLIO
-    # ============================================================
     if msg_type == "portfolio":
         portfolio = data.get("portfolio", {})
         contracts = portfolio.get("contracts", [])
-        
+        with state_lock:
+            state["recovery_pending"] = False
         if contracts:
             add_log(f"📊 Found {len(contracts)} active contracts")
             open_contract = None
@@ -827,7 +721,6 @@ def on_message(socket, message):
                     if contract_id:
                         open_contract = contract_id
                         break
-            
             if open_contract:
                 add_log(f"🔄 Found active contract: {open_contract}")
                 with state_lock:
@@ -876,16 +769,13 @@ def on_message(socket, message):
                 state["recovering"] = False
             add_log("✅ No contracts in portfolio")
         return
-
-    # ============================================================
     # PROPOSAL
-    # ============================================================
     if msg_type == "proposal":
         proposal = data.get("proposal", {})
         if proposal.get("id"):
             with state_lock:
                 pending_req_id = state.get("pending_proposal_req_id")
-                if pending_req_id == req_id or pending_req_id is None:
+                if pending_req_id == req_id:
                     state["last_proposal"] = {
                         "id": proposal["id"],
                         "ask_price": proposal.get("ask_price")
@@ -904,208 +794,160 @@ def on_message(socket, message):
                 if "error" in data:
                     state["last_error"] = data["error"].get("message", "Unknown")
         return
-
-    # ============================================================
     # BUY
-    # ============================================================
     if msg_type == "buy":
         buy = data.get("buy", {})
         contract_id = buy.get("contract_id")
-        
         if "error" in data:
             error = data.get("error", {})
             with state_lock:
                 state["last_error"] = f"BUY ERROR: {error.get('message', 'Unknown')}"
-                state["trade_state"] = "IDLE"
-                state["pending_buy"] = None
-                state["pending_buy_req_id"] = None
+                if state.get("pending_buy_req_id") == req_id:
+                    state["trade_state"] = "IDLE"
+                    state["pending_buy"] = None
+                    state["pending_buy_req_id"] = None
             add_log(f"❌ BUY ERROR: {error.get('message', 'Unknown')}")
             return
-        
         if contract_id:
-            buy_price = buy.get("buy_price")
-            if buy_price is not None:
-                try:
-                    buy_price = float(buy_price)
-                except:
-                    buy_price = None
-            else:
-                buy_price = None
-            
             with state_lock:
-                state["current_trade"] = {
-                    "contract_id": contract_id,
-                    "symbol": state["symbol"],
-                    "stake": state["stake"],
-                    "multiplier": state["multiplier"],
-                    "take_profit": state["take_profit"],
-                    "stop_loss": state["stop_loss"],
-                    "tp_amount": state["take_profit"],
-                    "sl_amount": state["stop_loss"],
-                    "entry_price": None,
-                    "tp_price": None,
-                    "sl_price": None,
-                    "buy_price": buy_price,
-                    "current_spot": None,
-                    "current_pl": None,
-                    "limit_order_raw": None,
-                    "status": "OPEN",
-                    "start_time": time.time(),
-                    "is_recovered": False,
-                }
-                
-                state["total_trades"] += 1
-                state["trades_today"] += 1
-                state["trade_state"] = "OPEN"
-                state["pending_buy"] = None
-                state["pending_buy_req_id"] = None
-            
-            add_log(f"✅ CONTRACT OPENED: {contract_id}")
-            
-            save_state()
-            send_ws({
-                "proposal_open_contract": 1,
-                "contract_id": contract_id,
-                "subscribe": 1,
-                "req_id": get_req_id(),
-            })
+                pending_req_id = state.get("pending_buy_req_id")
+                if pending_req_id == req_id:
+                    buy_price = buy.get("buy_price")
+                    if buy_price is not None:
+                        try:
+                            buy_price = float(buy_price)
+                        except:
+                            buy_price = None
+                    else:
+                        buy_price = None
+                    state["current_trade"] = {
+                        "contract_id": contract_id,
+                        "symbol": state["symbol"],
+                        "stake": state["stake"],
+                        "multiplier": state["multiplier"],
+                        "take_profit": state["take_profit"],
+                        "stop_loss": state["stop_loss"],
+                        "tp_amount": state["take_profit"],
+                        "sl_amount": state["stop_loss"],
+                        "entry_price": None,
+                        "tp_price": None,
+                        "sl_price": None,
+                        "buy_price": buy_price,
+                        "current_spot": None,
+                        "current_pl": None,
+                        "limit_order_raw": None,
+                        "status": "OPEN",
+                        "start_time": time.time(),
+                        "is_recovered": False,
+                    }
+                    state["total_trades"] += 1
+                    state["trades_today"] += 1
+                    state["trade_state"] = "OPEN"
+                    state["pending_buy"] = None
+                    state["pending_buy_req_id"] = None
+                    add_log(f"✅ CONTRACT OPENED: {contract_id} (req_id={req_id})")
+                    save_state()
+                    send_ws({
+                        "proposal_open_contract": 1,
+                        "contract_id": contract_id,
+                        "subscribe": 1,
+                        "req_id": get_req_id(),
+                    })
+                else:
+                    add_log(f"⚠️ Ignoring buy with mismatched req_id: {req_id} (expected {pending_req_id})")
         else:
             add_log(f"❌ BUY FAILED: {json.dumps(data)}")
             with state_lock:
-                state["trade_state"] = "IDLE"
-                state["pending_buy"] = None
-                state["pending_buy_req_id"] = None
+                if state.get("pending_buy_req_id") == req_id:
+                    state["trade_state"] = "IDLE"
+                    state["pending_buy"] = None
+                    state["pending_buy_req_id"] = None
                 if "error" in data:
                     state["last_error"] = data["error"].get("message", "Unknown")
         return
-
-    # ============================================================
     # PROPOSAL OPEN CONTRACT
-    # ============================================================
     if msg_type == "proposal_open_contract":
         contract = data.get("proposal_open_contract", {})
-        
         entry_price = contract.get("entry_price")
         if entry_price is not None:
             try:
                 entry_price = float(entry_price)
             except:
                 entry_price = None
-        
         current_spot = contract.get("current_spot")
         if current_spot is not None:
             try:
                 current_spot = float(current_spot)
             except:
                 current_spot = None
-        
         exit_spot = contract.get("exit_spot")
         if exit_spot is not None:
             try:
                 exit_spot = float(exit_spot)
             except:
                 exit_spot = None
-        
         profit = contract.get("profit")
         if profit is not None:
             try:
                 profit = float(profit)
             except:
                 profit = 0.0
-        
         is_sold = contract.get("is_sold", False)
         is_expired = contract.get("is_expired", False)
-        
         limit_order = contract.get("limit_order", {})
-        
         tp_price = None
         sl_price = None
-        
-        # FANITSINA 4: TP/SL price level avy amin'ny Deriv
-        if limit_order:
+        if limit_order and state.get("current_trade") is not None:
             take_profit_obj = limit_order.get("take_profit")
-            stop_loss_obj = limit_order.get("stop_loss")
-            
             if isinstance(take_profit_obj, dict):
-                value = take_profit_obj.get("value")
-                if value is not None:
-                    try:
-                        tp_price = float(value)
-                        add_log(f"🔎 TP price from Deriv: {tp_price}")
-                    except:
-                        pass
-                # Raha tsy misy value, jereo ny price
+                tp_price = take_profit_obj.get("value")
                 if tp_price is None:
-                    price = take_profit_obj.get("price")
-                    if price is not None:
-                        try:
-                            tp_price = float(price)
-                            add_log(f"🔎 TP price from Deriv (price field): {tp_price}")
-                        except:
-                            pass
-            
-            if isinstance(stop_loss_obj, dict):
-                value = stop_loss_obj.get("value")
-                if value is not None:
+                    tp_price = take_profit_obj.get("price")
+                if tp_price is not None:
                     try:
-                        sl_price = float(value)
-                        add_log(f"🔎 SL price from Deriv: {sl_price}")
-                    except:
-                        pass
+                        tp_price = float(tp_price)
+                        add_log(f"🔎 TP price from Deriv: {tp_price}")
+                    except (TypeError, ValueError):
+                        tp_price = None
+            stop_loss_obj = limit_order.get("stop_loss")
+            if isinstance(stop_loss_obj, dict):
+                sl_price = stop_loss_obj.get("value")
                 if sl_price is None:
-                    price = stop_loss_obj.get("price")
-                    if price is not None:
-                        try:
-                            sl_price = float(price)
-                            add_log(f"🔎 SL price from Deriv (price field): {sl_price}")
-                        except:
-                            pass
-        
+                    sl_price = stop_loss_obj.get("price")
+                if sl_price is not None:
+                    try:
+                        sl_price = float(sl_price)
+                        add_log(f"🔎 SL price from Deriv: {sl_price}")
+                    except (TypeError, ValueError):
+                        sl_price = None
         if not (is_sold or is_expired):
             with state_lock:
                 if state["current_trade"] is not None:
                     if entry_price is not None:
                         state["current_trade"]["entry_price"] = entry_price
                         add_log(f"📊 ENTRY PRICE: {entry_price:.4f}")
-                    
                     if current_spot is not None:
                         state["current_trade"]["current_spot"] = current_spot
                         add_log(f"📊 CURRENT SPOT: {current_spot:.4f}")
-                    
                     if profit is not None:
                         state["current_trade"]["current_pl"] = profit
                         add_log(f"📊 CURRENT P/L: {profit:+.2f}")
-                    
-                    # FANITSINA 4: TP/SL price level
                     if tp_price is not None:
                         state["current_trade"]["tp_price"] = tp_price
                         add_log(f"   🟢 TP PRICE (from Deriv): {tp_price:.4f}")
-                    else:
-                        add_log("   🟢 TP PRICE: Not available from Deriv")
-                    
                     if sl_price is not None:
                         state["current_trade"]["sl_price"] = sl_price
                         add_log(f"   🔴 SL PRICE (from Deriv): {sl_price:.4f}")
-                    else:
-                        add_log("   🔴 SL PRICE: Not available from Deriv")
-                    
-                    # TP/SL amount (napetrakao)
                     state["current_trade"]["tp_amount"] = state["take_profit"]
                     state["current_trade"]["sl_amount"] = state["stop_loss"]
-                    
                     if limit_order:
                         state["current_trade"]["limit_order_raw"] = limit_order
-                    
                     save_state()
             return
-        
-        # Tapitra ny contract
         with state_lock:
             final_profit = profit if profit is not None else 0.0
-            
             state["profit"] += final_profit
             state["daily_loss"] += final_profit if final_profit < 0 else 0
-            
             if final_profit > 0:
                 state["wins"] += 1
                 state["loss_streak"] = 0
@@ -1114,43 +956,35 @@ def on_message(socket, message):
                 state["losses"] += 1
                 state["loss_streak"] += 1
                 result = "LOSS"
-            
             trade_record = {
                 "time": time.strftime("%H:%M:%S"),
                 "symbol": state["symbol_display"] or state["symbol"],
                 "stake": state["stake"],
                 "multiplier": state["multiplier"],
-                "duration": state["duration"],
                 "duration_unit": state["duration_unit"],
                 "tp_amount": state["take_profit"],
                 "sl_amount": state["stop_loss"],
                 "result": result,
                 "profit": final_profit,
             }
-            
             if state["current_trade"]:
                 trade_record["entry_price"] = state["current_trade"].get("entry_price")
                 trade_record["tp_price"] = state["current_trade"].get("tp_price")
                 trade_record["sl_price"] = state["current_trade"].get("sl_price")
                 trade_record["buy_price"] = state["current_trade"].get("buy_price")
-            
             if exit_spot is not None:
                 trade_record["exit_price"] = exit_spot
-            
             state["history"].insert(0, trade_record)
             state["history"] = state["history"][:100]
-            
             state["current_trade"] = None
             state["trade_state"] = "IDLE"
             state["last_trade_time"] = time.time()
             state["recovering"] = False
             state["pending_buy"] = None
             state["pending_buy_req_id"] = None
-        
         add_log(f"{result}: {final_profit:+.2f} | Loss streak: {state['loss_streak']}")
         if exit_spot is not None:
             add_log(f"   Exit Price: {exit_spot:.4f}")
-        
         save_state()
         return
 
@@ -1637,10 +1471,21 @@ def index():
                 return;
             }
             var html = "<b>Available contracts:</b><br>";
+            var hasMultdown = false;
             for (var ctype in contracts) {
                 var info = contracts[ctype];
                 var expiry = info.expiry_type || "UNKNOWN";
-                html += "• " + ctype + " | " + expiry + "<br>";
+                if (ctype.toUpperCase() === "MULTDOWN") {
+                    html += "• <span style='color:#19c477;font-weight:bold;'>✅ " + ctype + "</span> | " + expiry + " <span style='color:#19c477;'>(AVAILABLE)</span><br>";
+                    hasMultdown = true;
+                } else {
+                    html += "• " + ctype + " | " + expiry + "<br>";
+                }
+            }
+            if (!hasMultdown) {
+                html += "<br><span style='color:#ed4665;'>⚠️ MULTDOWN is NOT available for this symbol</span>";
+            } else {
+                html += "<br><span style='color:#19c477;'>✅ MULTDOWN is available for this symbol</span>";
             }
             box.innerHTML = html;
         }
@@ -1905,22 +1750,17 @@ def index():
 @app.post("/api/connect")
 def api_connect():
     global ws_thread, CURRENT_APP_ID, CURRENT_PAT_TOKEN, CURRENT_ACCOUNT_ID
-    
     data = request.get_json(silent=True) or {}
     app_id = str(data.get("app_id", "")).strip()
     token = str(data.get("token", "")).strip()
     account_id = str(data.get("account_id", "")).strip()
-
     if not app_id or not token or not account_id:
         return jsonify({"ok": False, "error": "Missing credentials"}), 400
-
     try:
         add_log("========== CONNECT ==========")
-        
         CURRENT_APP_ID = app_id
         CURRENT_PAT_TOKEN = token
         CURRENT_ACCOUNT_ID = account_id
-        
         accounts = get_accounts(app_id, token)
         selected = None
         for acc in accounts:
@@ -1929,9 +1769,7 @@ def api_connect():
                 break
         if selected is None:
             raise RuntimeError("Account ID not found")
-
         ws_url = get_otp_url(app_id, token, account_id)
-
         if ws_thread and ws_thread.is_alive():
             if ws:
                 try:
@@ -1939,17 +1777,14 @@ def api_connect():
                 except:
                     pass
             time.sleep(1)
-
         ws_thread = threading.Thread(
             target=websocket_thread,
             args=(ws_url,),
             daemon=True
         )
         ws_thread.start()
-
         add_log("✅ Connection started")
         return jsonify({"ok": True})
-
     except Exception as e:
         add_log(f"❌ CONNECT ERROR: {e}")
         return jsonify({"ok": False, "error": str(e)}), 400
@@ -1973,17 +1808,13 @@ def api_select_symbol():
     data = request.get_json(silent=True) or {}
     symbol = data.get("symbol", "").strip()
     display_name = data.get("display_name", symbol)
-
     if not symbol:
         return jsonify({"ok": False, "error": "Symbol required"}), 400
     if not symbol.upper().startswith("BOOM"):
         return jsonify({"ok": False, "error": "Not a BOOM symbol"}), 400
-
-    # FANITSINA: Esorina ny send_ws ao anaty lock
     if state["symbol"] and state["symbol"] != symbol:
         add_log(f"🔄 Switching from {state['symbol']} to {symbol}")
         unsubscribe_old_symbol()
-    
     with state_lock:
         state["symbol"] = symbol
         state["symbol_display"] = display_name
@@ -1994,12 +1825,10 @@ def api_select_symbol():
         state["last_price"] = None
         state["last_trade_time"] = time.time()
         state["last_symbol"] = symbol
-        state["last_signal_tick"] = None
+        state["last_signal_sequence"] = None
         state["tick_subscription_id"] = None
-
     send_ws({"ticks": symbol, "subscribe": 1, "req_id": get_req_id()})
     send_ws({"contracts_for": symbol, "req_id": get_req_id()})
-
     add_log(f"✅ Selected: {symbol} ({display_name})")
     return jsonify({"ok": True})
 
@@ -2012,7 +1841,6 @@ def api_start():
             return jsonify({"ok": False, "error": "Not authorized"}), 400
         if not state["symbol"]:
             return jsonify({"ok": False, "error": "No symbol selected"}), 400
-
         state["running"] = True
         state["last_trade_time"] = time.time()
         state["trade_state"] = "IDLE"
@@ -2021,12 +1849,10 @@ def api_start():
         state["pending_buy"] = None
         state["pending_buy_req_id"] = None
         state["pending_proposal_req_id"] = None
-
     if not hasattr(app, "trading_thread") or not app.trading_thread.is_alive():
         app.trading_thread = threading.Thread(target=trading_loop, daemon=True)
         app.trading_thread.start()
         add_log("✅ Trading thread started")
-
     add_log("✅ BOT STARTED")
     return jsonify({"ok": True})
 
@@ -2102,7 +1928,6 @@ def api_reset_stats():
     with state_lock:
         if state["current_trade"] is not None:
             return jsonify({"ok": False, "error": "Cannot reset while trade is open"}), 400
-        
         state["total_trades"] = 0
         state["wins"] = 0
         state["losses"] = 0
@@ -2125,7 +1950,6 @@ def api_status():
     with state_lock:
         total = state["total_trades"]
         win_rate = (state["wins"] / total * 100) if total else 0.0
-        
         current_trade = state.get("current_trade")
         if current_trade:
             current_trade_copy = {
@@ -2149,7 +1973,6 @@ def api_status():
             }
         else:
             current_trade_copy = None
-            
         return jsonify({
             "connected": state["connected"],
             "authenticated": state["connection_authenticated"],
@@ -2163,7 +1986,6 @@ def api_status():
             "multiplier": state["multiplier"],
             "take_profit": state["take_profit"],
             "stop_loss": state["stop_loss"],
-            "duration": state["duration"],
             "duration_unit": state["duration_unit"],
             "total_trades": state["total_trades"],
             "wins": state["wins"],
