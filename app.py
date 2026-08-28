@@ -38,7 +38,7 @@ state = {
     "ticks_buffer": [],
     "running": False,
     "stake": 1.00,
-    "multiplier": 10,
+    "multiplier": 300,              # <-- FANITSINA: 300 (farafahakeliny)
     "take_profit": 2.00,
     "stop_loss": 0.10,
     "duration_unit": "s",
@@ -381,7 +381,7 @@ def schedule_reconnect():
         reconnect_timer.start()
 
 # ============================================================
-# TRADING LOOP - FANITSINA FARANY: duration_unit="s" fa tsy duration
+# TRADING LOOP - FANITSINA FARANY
 # ============================================================
 def trading_loop():
     add_log("=== TRADING LOOP STARTED ===")
@@ -459,8 +459,11 @@ def trading_loop():
             if len(buffer) >= 3:
                 with state_lock:
                     state["last_signal_sequence"] = tuple(buffer[-3:])
+            # FANITSINA: Log tsy misy duration
             add_log(f"📤 STRATEGY TRIGGERED: MULTDOWN | {symbol} | ${stake} | {multiplier}x | TP=${take_profit} | SL=${stop_loss}")
-            # PROPOSAL - FANITSINA: TSY MISY DURATION, FA MISY DURATION_UNIT
+            # ==================================================
+            # PROPOSAL - FANITSINA: TSY MISY DURATION
+            # ==================================================
             proposal_req_id = get_req_id()
             with state_lock:
                 state["last_proposal"] = None
@@ -475,7 +478,7 @@ def trading_loop():
                 "contract_type": "MULTDOWN",
                 "currency": "USD",
                 "duration_unit": duration_unit,  # "s"
-                "multiplier": multiplier,
+                "multiplier": multiplier,        # 300
                 "underlying_symbol": symbol,
                 "limit_order": {
                     "take_profit": take_profit,
@@ -530,7 +533,9 @@ def trading_loop():
                     state["trade_state"] = "IDLE"
                     state["pending_proposal_req_id"] = None
                 continue
+            # ==================================================
             # BUY
+            # ==================================================
             buy_req_id = get_req_id()
             with state_lock:
                 state["current_trade"] = None
@@ -635,8 +640,10 @@ def on_message(socket, message):
                 add_log(f"❌ BUY ERROR: {code} - {message_text}")
             else:
                 add_log(f"❌ ERROR: {code} - {message_text}")
+        if "multiplier" in message_text.lower():
+            add_log("⚠️ MULTIPLIER: Check multiplier range (300-2000)")
         if "duration" in message_text.lower():
-            add_log("⚠️ DURATION: Check duration and duration_unit")
+            add_log("⚠️ DURATION: Remove duration from proposal")
         return
     # BALANCE
     if msg_type == "balance":
@@ -1201,14 +1208,14 @@ def index():
             <div class="grid" style="grid-template-columns: repeat(4, 1fr);">
                 <div class="field"><label>Stake</label><input id="stakeInput" type="number" value="1.00" step="0.01" min="0.01" onchange="updateStake()"></div>
                 <div class="field"><label>Interval (sec)</label><input id="tradeInterval" type="number" value="5" min="1" max="60" onchange="updateInterval()"></div>
-                <div class="field"><label>Multiplier</label><input id="multiplierInput" type="number" value="10" min="1" max="100" onchange="updateMultiplier()"></div>
+                <div class="field"><label>Multiplier</label><input id="multiplierInput" type="number" value="300" min="300" max="2000" step="100" onchange="updateMultiplier()"></div>
                 <div class="field">
                     <label>Max Loss Streak</label>
                     <input id="maxLossStreak" type="number" value="3" min="1" max="10" onchange="updateRisk()">
                 </div>
             </div>
             <div class="strategy-info">
-                🎯 <b>STRATEGY:</b> 3 ticks mifanesy midina → <b>MULTDOWN 10×</b>
+                🎯 <b>STRATEGY:</b> 3 ticks mifanesy midina → <b>MULTDOWN</b> (Multiplier 300x - 2000x)
             </div>
             <div class="btn-group" style="margin-top:15px;">
                 <button class="btn btn-green" onclick="startBot()">▶ START</button>
@@ -1375,7 +1382,11 @@ def index():
         }
 
         async function updateMultiplier() {
-            var multiplier = parseInt($("multiplierInput").value) || 10;
+            var multiplier = parseInt($("multiplierInput").value) || 300;
+            if (multiplier < 300) {
+                setMessage("⚠️ Multiplier must be at least 300", "error");
+                return;
+            }
             try {
                 var r = await fetch("/api/update-multiplier", {
                     method: "POST",
@@ -1572,446 +1583,4 @@ def index():
 
                     currentEntry = trade.entry_price != null ? Number(trade.entry_price) : null;
                     currentTP = trade.tp_price != null ? Number(trade.tp_price) : null;
-                    currentSL = trade.sl_price != null ? Number(trade.sl_price) : null;
-                    currentPL = trade.current_pl != null ? Number(trade.current_pl) : null;
-
-                    document.getElementById("entryDisplay").textContent = 
-                        currentEntry !== null && Number.isFinite(currentEntry) ? currentEntry.toFixed(4) : "—";
-                    
-                    if (currentTP !== null && Number.isFinite(currentTP)) {
-                        document.getElementById("tpDisplay").textContent = currentTP.toFixed(4) + " ($2.00)";
-                    } else {
-                        document.getElementById("tpDisplay").textContent = "$" + trade.take_profit.toFixed(2);
-                    }
-                    
-                    if (currentSL !== null && Number.isFinite(currentSL)) {
-                        document.getElementById("slDisplay").textContent = currentSL.toFixed(4) + " ($0.10)";
-                    } else {
-                        document.getElementById("slDisplay").textContent = "$" + trade.stop_loss.toFixed(2);
-                    }
-                    
-                    document.getElementById("plDisplay").textContent = 
-                        currentPL !== null && Number.isFinite(currentPL) ? (currentPL >= 0 ? "+" : "") + currentPL.toFixed(2) : "—";
-                    document.getElementById("plDisplay").className = 
-                        "value " + (currentPL !== null && currentPL >= 0 ? "tp" : "sl");
-
-                } else {
-                    currentEntry = null;
-                    currentTP = null;
-                    currentSL = null;
-                    currentPL = null;
-
-                    $("tradeStake").textContent = "—";
-                    $("contractId").textContent = "—";
-                    $("tradeStatus").textContent = "WAITING";
-
-                    document.getElementById("entryDisplay").textContent = "—";
-                    document.getElementById("tpDisplay").textContent = "—";
-                    document.getElementById("slDisplay").textContent = "—";
-                    document.getElementById("plDisplay").textContent = "—";
-                }
-
-                updateSymbols(data.boom_symbols);
-                updateContractInfo(data.available_contracts);
-                updateHistory(data.history);
-                updateLogs(data.logs);
-
-                if (data.last_error) setMessage(data.last_error, "error");
-                drawChart();
-
-            } catch(error) {
-                console.log("Dashboard error:", error);
-            }
-        }
-
-        function addPrice(price) {
-            priceHistory.push(Number(price));
-            if (priceHistory.length > maxPoints) priceHistory.shift();
-        }
-
-        function drawChart() {
-            var canvas = $("chartCanvas");
-            var rect = canvas.parentElement.getBoundingClientRect();
-            var dpr = window.devicePixelRatio || 1;
-            canvas.width = rect.width * dpr;
-            canvas.height = rect.height * dpr;
-            var ctx = canvas.getContext("2d");
-            ctx.scale(dpr, dpr);
-            var width = rect.width;
-            var height = rect.height;
-            ctx.clearRect(0, 0, width, height);
-
-            if (priceHistory.length < 2) {
-                ctx.fillStyle = "#8991ad";
-                ctx.font = "12px Arial";
-                ctx.fillText("Waiting for price...", 20, 30);
-                return;
-            }
-
-            var min = Math.min.apply(null, priceHistory);
-            var max = Math.max.apply(null, priceHistory);
-            if (min === max) { min -= 1; max += 1; }
-            var padding = 20;
-            var range = max - min;
-
-            ctx.beginPath();
-            priceHistory.forEach(function(price, index) {
-                var x = padding + (index / (priceHistory.length - 1)) * (width - padding * 2);
-                var y = height - padding - ((price - min) / range) * (height - padding * 2);
-                if (index === 0) ctx.moveTo(x, y);
-                else ctx.lineTo(x, y);
-            });
-            ctx.strokeStyle = "#7654ff";
-            ctx.lineWidth = 2;
-            ctx.stroke();
-
-            var last = priceHistory[priceHistory.length - 1];
-            var lastX = padding + ((priceHistory.length - 1) / (priceHistory.length - 1)) * (width - padding * 2);
-            var lastY = height - padding - ((last - min) / range) * (height - padding * 2);
-            ctx.beginPath();
-            ctx.arc(lastX, lastY, 4, 0, Math.PI * 2);
-            ctx.fillStyle = "#19c477";
-            ctx.fill();
-
-            if (currentTP !== null && currentTP >= min && currentTP <= max) {
-                var tpY = height - padding - ((currentTP - min) / range) * (height - padding * 2);
-                ctx.beginPath();
-                ctx.moveTo(padding, tpY);
-                ctx.lineTo(width - padding, tpY);
-                ctx.strokeStyle = "rgba(25, 196, 119, 0.8)";
-                ctx.setLineDash([5, 5]);
-                ctx.lineWidth = 2;
-                ctx.stroke();
-                ctx.setLineDash([]);
-                ctx.fillStyle = "#19c477";
-                ctx.font = "10px Arial";
-                ctx.fillText("🟢 TP: " + currentTP.toFixed(4), padding + 5, tpY - 5);
-            }
-
-            if (currentEntry !== null && currentEntry >= min && currentEntry <= max) {
-                var entryY = height - padding - ((currentEntry - min) / range) * (height - padding * 2);
-                ctx.beginPath();
-                ctx.moveTo(padding, entryY);
-                ctx.lineTo(width - padding, entryY);
-                ctx.strokeStyle = "rgba(255, 255, 255, 0.5)";
-                ctx.setLineDash([5, 5]);
-                ctx.lineWidth = 1;
-                ctx.stroke();
-                ctx.setLineDash([]);
-                ctx.fillStyle = "#ffffff";
-                ctx.font = "10px Arial";
-                ctx.fillText("⚪ Entry: " + currentEntry.toFixed(4), padding + 5, entryY - 5);
-            }
-
-            if (currentSL !== null && currentSL >= min && currentSL <= max) {
-                var slY = height - padding - ((currentSL - min) / range) * (height - padding * 2);
-                ctx.beginPath();
-                ctx.moveTo(padding, slY);
-                ctx.lineTo(width - padding, slY);
-                ctx.strokeStyle = "rgba(237, 70, 101, 0.8)";
-                ctx.setLineDash([5, 5]);
-                ctx.lineWidth = 2;
-                ctx.stroke();
-                ctx.setLineDash([]);
-                ctx.fillStyle = "#ed4665";
-                ctx.font = "10px Arial";
-                ctx.fillText("🔴 SL: " + currentSL.toFixed(4), padding + 5, slY - 5);
-            }
-
-            ctx.fillStyle = "#8991ad";
-            ctx.font = "9px Arial";
-            ctx.fillText("Min: " + min.toFixed(4), padding, height - 5);
-            ctx.fillText("Max: " + max.toFixed(4), padding, 15);
-            ctx.fillText("Current: " + last.toFixed(4), width - padding - 80, 15);
-        }
-
-        function clearLogs() {
-            fetch("/api/clear-logs", { method: "POST" })
-                .then(function() {
-                    $("logs").innerHTML = '<div class="empty">Cleared</div>';
-                })
-                .catch(function() {
-                    $("logs").innerHTML = '<div class="empty">Cleared</div>';
-                });
-        }
-
-        setInterval(updateDashboard, 2000);
-        window.addEventListener("resize", drawChart);
-        updateDashboard();
-    </script>
-    </body>
-    </html>
-    """
-    return render_template_string(html, APP_ID="", PAT_TOKEN="", ACCOUNT_ID="")
-
-# ============================================================
-# API ROUTES
-# ============================================================
-@app.post("/api/connect")
-def api_connect():
-    global ws_thread, CURRENT_APP_ID, CURRENT_PAT_TOKEN, CURRENT_ACCOUNT_ID
-    data = request.get_json(silent=True) or {}
-    app_id = str(data.get("app_id", "")).strip()
-    token = str(data.get("token", "")).strip()
-    account_id = str(data.get("account_id", "")).strip()
-    if not app_id or not token or not account_id:
-        return jsonify({"ok": False, "error": "Missing credentials"}), 400
-    try:
-        add_log("========== CONNECT ==========")
-        CURRENT_APP_ID = app_id
-        CURRENT_PAT_TOKEN = token
-        CURRENT_ACCOUNT_ID = account_id
-        accounts = get_accounts(app_id, token)
-        selected = None
-        for acc in accounts:
-            if str(acc.get("account_id", "")).strip() == account_id:
-                selected = acc
-                break
-        if selected is None:
-            raise RuntimeError("Account ID not found")
-        ws_url = get_otp_url(app_id, token, account_id)
-        if ws_thread and ws_thread.is_alive():
-            if ws:
-                try:
-                    ws.close()
-                except:
-                    pass
-            time.sleep(1)
-        ws_thread = threading.Thread(
-            target=websocket_thread,
-            args=(ws_url,),
-            daemon=True
-        )
-        ws_thread.start()
-        add_log("✅ Connection started")
-        return jsonify({"ok": True})
-    except Exception as e:
-        add_log(f"❌ CONNECT ERROR: {e}")
-        return jsonify({"ok": False, "error": str(e)}), 400
-
-@app.post("/api/clear-logs")
-def api_clear_logs():
-    with state_lock:
-        state["logs"] = []
-    add_log("🧹 Logs cleared")
-    return jsonify({"ok": True})
-
-@app.post("/api/markets")
-def api_markets():
-    if not state["connected"]:
-        return jsonify({"ok": False, "error": "Not connected"}), 400
-    send_ws({"active_symbols": "full", "req_id": get_req_id()})
-    return jsonify({"ok": True})
-
-@app.post("/api/select-symbol")
-def api_select_symbol():
-    data = request.get_json(silent=True) or {}
-    symbol = data.get("symbol", "").strip()
-    display_name = data.get("display_name", symbol)
-    if not symbol:
-        return jsonify({"ok": False, "error": "Symbol required"}), 400
-    if not symbol.upper().startswith("BOOM"):
-        return jsonify({"ok": False, "error": "Not a BOOM symbol"}), 400
-    if state["symbol"] and state["symbol"] != symbol:
-        add_log(f"🔄 Switching from {state['symbol']} to {symbol}")
-        unsubscribe_old_symbol()
-    with state_lock:
-        state["symbol"] = symbol
-        state["symbol_display"] = display_name
-        state["available_contracts"] = {}
-        state["contract_info"] = None
-        state["trade_state"] = "IDLE"
-        state["ticks_buffer"] = []
-        state["last_price"] = None
-        state["last_trade_time"] = time.time()
-        state["last_symbol"] = symbol
-        state["last_signal_sequence"] = None
-        state["tick_subscription_id"] = None
-    send_ws({"ticks": symbol, "subscribe": 1, "req_id": get_req_id()})
-    send_ws({"contracts_for": symbol, "req_id": get_req_id()})
-    add_log(f"✅ Selected: {symbol} ({display_name})")
-    return jsonify({"ok": True})
-
-@app.post("/api/start")
-def api_start():
-    with state_lock:
-        if not state["connection_authenticated"]:
-            return jsonify({"ok": False, "error": "Not authenticated"}), 400
-        if not state["authorized"]:
-            return jsonify({"ok": False, "error": "Not authorized"}), 400
-        if not state["symbol"]:
-            return jsonify({"ok": False, "error": "No symbol selected"}), 400
-        state["running"] = True
-        state["last_trade_time"] = time.time()
-        state["trade_state"] = "IDLE"
-        state["day_start"] = time.time()
-        state["daily_loss_reset_time"] = time.time()
-        state["pending_buy"] = None
-        state["pending_buy_req_id"] = None
-        state["pending_proposal_req_id"] = None
-    if not hasattr(app, "trading_thread") or not app.trading_thread.is_alive():
-        app.trading_thread = threading.Thread(target=trading_loop, daemon=True)
-        app.trading_thread.start()
-        add_log("✅ Trading thread started")
-    add_log("✅ BOT STARTED")
-    return jsonify({"ok": True})
-
-@app.post("/api/pause")
-def api_pause():
-    with state_lock:
-        state["running"] = False
-        state["trade_state"] = "IDLE"
-        state["pending_buy"] = None
-        state["pending_buy_req_id"] = None
-        state["pending_proposal_req_id"] = None
-    add_log("⏸ BOT PAUSED")
-    return jsonify({"ok": True})
-
-@app.post("/api/stop")
-def api_stop():
-    with state_lock:
-        state["running"] = False
-        state["trade_state"] = "IDLE"
-        state["pending_buy"] = None
-        state["pending_buy_req_id"] = None
-        state["pending_proposal_req_id"] = None
-    add_log("⛔ BOT STOPPED")
-    save_state()
-    return jsonify({"ok": True})
-
-@app.post("/api/update-stake")
-def api_update_stake():
-    data = request.get_json(silent=True) or {}
-    stake = float(data.get("stake", 1.00))
-    if stake < 0.01:
-        return jsonify({"ok": False, "error": "Min stake 0.01"}), 400
-    with state_lock:
-        state["stake"] = stake
-    add_log(f"Stake: ${stake}")
-    return jsonify({"ok": True})
-
-@app.post("/api/update-interval")
-def api_update_interval():
-    data = request.get_json(silent=True) or {}
-    interval = int(data.get("interval", 5))
-    if interval < 1:
-        return jsonify({"ok": False, "error": "Min 1 second"}), 400
-    with state_lock:
-        state["trade_interval"] = interval
-    add_log(f"Interval: {interval}s")
-    return jsonify({"ok": True})
-
-@app.post("/api/update-multiplier")
-def api_update_multiplier():
-    data = request.get_json(silent=True) or {}
-    multiplier = int(data.get("multiplier", 10))
-    if multiplier < 1:
-        return jsonify({"ok": False, "error": "Min 1"}), 400
-    with state_lock:
-        state["multiplier"] = multiplier
-    add_log(f"Multiplier: {multiplier}x")
-    return jsonify({"ok": True})
-
-@app.post("/api/update-risk")
-def api_update_risk():
-    data = request.get_json(silent=True) or {}
-    max_loss = int(data.get("max_loss_streak", 3))
-    if max_loss < 1:
-        return jsonify({"ok": False, "error": "Min 1"}), 400
-    with state_lock:
-        state["max_loss_streak"] = max_loss
-    add_log(f"Max loss streak: {max_loss}")
-    return jsonify({"ok": True})
-
-@app.post("/api/reset-stats")
-def api_reset_stats():
-    with state_lock:
-        if state["current_trade"] is not None:
-            return jsonify({"ok": False, "error": "Cannot reset while trade is open"}), 400
-        state["total_trades"] = 0
-        state["wins"] = 0
-        state["losses"] = 0
-        state["profit"] = 0.0
-        state["loss_streak"] = 0
-        state["daily_loss"] = 0.0
-        state["trades_today"] = 0
-        state["history"] = []
-        state["trade_state"] = "IDLE"
-        state["last_trade_time"] = time.time()
-        state["pending_buy"] = None
-        state["pending_buy_req_id"] = None
-        state["pending_proposal_req_id"] = None
-    save_state()
-    add_log("🔄 Stats reset")
-    return jsonify({"ok": True})
-
-@app.get("/api/status")
-def api_status():
-    with state_lock:
-        total = state["total_trades"]
-        win_rate = (state["wins"] / total * 100) if total else 0.0
-        current_trade = state.get("current_trade")
-        if current_trade:
-            current_trade_copy = {
-                "contract_id": current_trade.get("contract_id"),
-                "symbol": current_trade.get("symbol"),
-                "stake": current_trade.get("stake"),
-                "multiplier": current_trade.get("multiplier"),
-                "take_profit": current_trade.get("take_profit"),
-                "stop_loss": current_trade.get("stop_loss"),
-                "tp_amount": current_trade.get("tp_amount"),
-                "sl_amount": current_trade.get("sl_amount"),
-                "entry_price": current_trade.get("entry_price"),
-                "tp_price": current_trade.get("tp_price"),
-                "sl_price": current_trade.get("sl_price"),
-                "buy_price": current_trade.get("buy_price"),
-                "current_spot": current_trade.get("current_spot"),
-                "current_pl": current_trade.get("current_pl"),
-                "status": current_trade.get("status"),
-                "start_time": current_trade.get("start_time"),
-                "is_recovered": current_trade.get("is_recovered", False),
-            }
-        else:
-            current_trade_copy = None
-        return jsonify({
-            "connected": state["connected"],
-            "authenticated": state["connection_authenticated"],
-            "authorized": state["authorized"],
-            "balance": state["balance"],
-            "symbol": state["symbol"],
-            "symbol_display": state["symbol_display"],
-            "last_price": state["last_price"],
-            "running": state["running"],
-            "stake": state["stake"],
-            "multiplier": state["multiplier"],
-            "take_profit": state["take_profit"],
-            "stop_loss": state["stop_loss"],
-            "duration_unit": state["duration_unit"],
-            "total_trades": state["total_trades"],
-            "wins": state["wins"],
-            "losses": state["losses"],
-            "profit": state["profit"],
-            "loss_streak": state["loss_streak"],
-            "current_trade": current_trade_copy,
-            "boom_symbols": state["boom_symbols"],
-            "available_contracts": state["available_contracts"],
-            "history": state["history"],
-            "logs": state["logs"][:50],
-            "last_error": state["last_error"],
-            "win_rate": win_rate,
-            "trade_interval": state["trade_interval"],
-            "trade_state": state["trade_state"],
-            "max_loss_streak": state["max_loss_streak"],
-            "daily_loss": state["daily_loss"],
-            "max_daily_loss": state["max_daily_loss"],
-            "trades_today": state["trades_today"],
-            "max_trades_per_day": state["max_trades_per_day"],
-            "pending_buy": state["pending_buy"] is not None,
-        })
-
-# ============================================================
-# MAIN
-# ============================================================
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port, debug=False)
+                    currentSL = trade.sl_price != null
