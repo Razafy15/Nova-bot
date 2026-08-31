@@ -38,7 +38,7 @@ state = {
     "ticks_buffer": [],
     "running": False,
     "stake": 1.00,
-    "multiplier": 300,              # <-- FANITSINA: 300 (farafahakeliny)
+    "multiplier": 300,  # <-- FANITSINA: 300 farafahakeliny
     "take_profit": 2.00,
     "stop_loss": 0.10,
     "duration_unit": "s",
@@ -459,7 +459,6 @@ def trading_loop():
             if len(buffer) >= 3:
                 with state_lock:
                     state["last_signal_sequence"] = tuple(buffer[-3:])
-            # FANITSINA: Log tsy misy duration
             add_log(f"📤 STRATEGY TRIGGERED: MULTDOWN | {symbol} | ${stake} | {multiplier}x | TP=${take_profit} | SL=${stop_loss}")
             # ==================================================
             # PROPOSAL - FANITSINA: TSY MISY DURATION
@@ -640,10 +639,10 @@ def on_message(socket, message):
                 add_log(f"❌ BUY ERROR: {code} - {message_text}")
             else:
                 add_log(f"❌ ERROR: {code} - {message_text}")
-        if "multiplier" in message_text.lower():
-            add_log("⚠️ MULTIPLIER: Check multiplier range (300-2000)")
         if "duration" in message_text.lower():
-            add_log("⚠️ DURATION: Remove duration from proposal")
+            add_log("⚠️ DURATION: Check duration and duration_unit")
+        if "multiplier" in message_text.lower():
+            add_log("⚠️ MULTIPLIER: Check multiplier value (min 300 for this contract)")
         return
     # BALANCE
     if msg_type == "balance":
@@ -1208,14 +1207,14 @@ def index():
             <div class="grid" style="grid-template-columns: repeat(4, 1fr);">
                 <div class="field"><label>Stake</label><input id="stakeInput" type="number" value="1.00" step="0.01" min="0.01" onchange="updateStake()"></div>
                 <div class="field"><label>Interval (sec)</label><input id="tradeInterval" type="number" value="5" min="1" max="60" onchange="updateInterval()"></div>
-                <div class="field"><label>Multiplier</label><input id="multiplierInput" type="number" value="300" min="300" max="2000" step="100" onchange="updateMultiplier()"></div>
+                <div class="field"><label>Multiplier</label><input id="multiplierInput" type="number" value="300" min="1" max="2000" onchange="updateMultiplier()"></div>
                 <div class="field">
                     <label>Max Loss Streak</label>
                     <input id="maxLossStreak" type="number" value="3" min="1" max="10" onchange="updateRisk()">
                 </div>
             </div>
             <div class="strategy-info">
-                🎯 <b>STRATEGY:</b> 3 ticks mifanesy midina → <b>MULTDOWN</b> (Multiplier 300x - 2000x)
+                🎯 <b>STRATEGY:</b> 3 ticks mifanesy midina → <b>MULTDOWN {multiplier}x</b>
             </div>
             <div class="btn-group" style="margin-top:15px;">
                 <button class="btn btn-green" onclick="startBot()">▶ START</button>
@@ -1383,10 +1382,6 @@ def index():
 
         async function updateMultiplier() {
             var multiplier = parseInt($("multiplierInput").value) || 300;
-            if (multiplier < 300) {
-                setMessage("⚠️ Multiplier must be at least 300", "error");
-                return;
-            }
             try {
                 var r = await fetch("/api/update-multiplier", {
                     method: "POST",
@@ -1583,4 +1578,8 @@ def index():
 
                     currentEntry = trade.entry_price != null ? Number(trade.entry_price) : null;
                     currentTP = trade.tp_price != null ? Number(trade.tp_price) : null;
-                    currentSL = trade.sl_price != null
+                    currentSL = trade.sl_price != null ? Number(trade.sl_price) : null;
+                    currentPL = trade.current_pl != null ? Number(trade.current_pl) : null;
+
+                    document.getElementById("entryDisplay").textContent = 
+                        currentEntry !== null && Number.isFinite(currentEntry) ?
