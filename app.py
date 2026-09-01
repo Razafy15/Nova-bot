@@ -86,6 +86,11 @@ state = {
     "pending_buy_req_id": None,
     "pending_buy_start_time": 0,
 
+    # Server-side TP/SL request tracking
+    "pending_tp_sl_req_id": None,
+    "tp_sl_status": "NOT_SET",
+    "tp_sl_error": "",
+
     "req_id_counter": 0,
 
     "last_signal_sequence": None,
@@ -632,6 +637,8 @@ def set_server_tp_sl(contract_id, tp_amount, sl_amount):
     if tp_amount is None or sl_amount is None:
         return False
 
+    req_id = get_req_id()
+
     payload = {
         "contract_update": 1,
         "contract_id": int(contract_id),
@@ -639,15 +646,30 @@ def set_server_tp_sl(contract_id, tp_amount, sl_amount):
             "take_profit": tp_amount,
             "stop_loss": sl_amount,
         },
-        "req_id": get_req_id(),
+        "req_id": req_id,
     }
+
+    with state_lock:
+        state["pending_tp_sl_req_id"] = req_id
+        state["tp_sl_status"] = "PENDING"
+        state["tp_sl_error"] = ""
+        if state.get("current_trade") is not None:
+            state["current_trade"]["tp_sl_status"] = "PENDING"
 
     add_log(
         f"🎯 Setting SERVER TP=${tp_amount:.2f} "
-        f"SL=${sl_amount:.2f}"
+        f"SL=${sl_amount:.2f} | req_id={req_id}"
     )
 
-    return send_ws(payload)
+    ok = send_ws(payload)
+    if not ok:
+        with state_lock:
+            state["tp_sl_status"] = "SEND_FAILED"
+            state["tp_sl_error"] = "WebSocket send failed"
+            state["pending_tp_sl_req_id"] = None
+            if state.get("current_trade") is not None:
+                state["current_trade"]["tp_sl_status"] = "SEND_FAILED"
+    return ok
 
 
 # ============================================================
@@ -907,18 +929,40 @@ def trading_loop():
                 time.sleep(0.2)
 
             if not buy_success:
-                with state_lock:
-                    error_text = state.get(
-                        "last_error",
-                        "No contract opened"
-                    )
-                    state["trade_state"] = "IDLE"
-                    state["pending_buy"] = None
-                    state["pending_buy_req_id"] = None
-                    state["last_trade_time"] = time.time()
+                # Do NOT immediately declare BUY failed. The BUY response and
+                # portfolio/contract stream can arrive out of order. First
+                # recover the account portfolio and wait briefly for an OPEN
+                # contract. This prevents the old:
+                #   BUY FAILED + CONTRACT OPENED
+                # race condition.
+                add_log("⚠️ BUY response timeout; checking portfolio before declaring failure")
 
-                add_log(f"❌ BUY FAILED: {error_text}")
-                continue
+                recover_active_contract()
+
+                recovery_wait = time.time()
+                recovered = False
+                while time.time() - recovery_wait < 5:
+                    with state_lock:
+                        recovered = state.get("current_trade") is not None
+                    if recovered:
+                        break
+                    time.sleep(0.25)
+
+                if not recovered:
+                    with state_lock:
+                        error_text = state.get(
+                            "last_error",
+                            "No contract opened"
+                        )
+                        state["trade_state"] = "IDLE"
+                        state["pending_buy"] = None
+                        state["pending_buy_req_id"] = None
+                        state["last_trade_time"] = time.time()
+
+                    add_log(f"❌ BUY FAILED AFTER RECOVERY: {error_text}")
+                    continue
+
+                add_log("✅ BUY recovered from portfolio: contract is OPEN")
 
             with state_lock:
                 state["last_trade_time"] = time.time()
@@ -1012,9 +1056,20 @@ def on_message(socket, message):
                 state["pending_proposal_req_id"] = None
 
             if state.get("pending_buy_req_id") == req_id:
+                # A BUY error means no confirmed contract from this request.
                 state["trade_state"] = "IDLE"
                 state["pending_buy"] = None
                 state["pending_buy_req_id"] = None
+
+            if state.get("pending_tp_sl_req_id") == req_id:
+                # IMPORTANT: TP/SL failure must NOT mark an already-open
+                # contract as IDLE. Keep the trade OPEN and expose the error.
+                state["tp_sl_status"] = "REJECTED"
+                state["tp_sl_error"] = f"{code}: {text}"
+                state["pending_tp_sl_req_id"] = None
+                if state.get("current_trade") is not None:
+                    state["current_trade"]["tp_sl_status"] = "REJECTED"
+                    state["current_trade"]["tp_sl_error"] = f"{code}: {text}"
 
         add_log(f"❌ API ERROR: {code} - {text}")
 
@@ -1147,6 +1202,10 @@ def on_message(socket, message):
                     "entry_price": None,
                     "current_spot": None,
                     "current_pl": None,
+                    "price_change": None,
+                    "price_change_percent": None,
+                    "tp_sl_status": "UNKNOWN_RECOVERED",
+                    "tp_sl_error": "",
                     "tp_price": None,
                     "sl_price": None,
                     "buy_price": None,
@@ -1268,6 +1327,10 @@ def on_message(socket, message):
                 "buy_price": buy_price,
                 "current_spot": None,
                 "current_pl": None,
+                "price_change": None,
+                "price_change_percent": None,
+                "tp_sl_status": "NOT_SET",
+                "tp_sl_error": "",
 
                 "limit_order_raw": None,
                 "status": "OPEN",
@@ -1278,6 +1341,8 @@ def on_message(socket, message):
             state["total_trades"] += 1
             state["trades_today"] += 1
             state["trade_state"] = "OPEN"
+            state["tp_sl_status"] = "NOT_SET"
+            state["tp_sl_error"] = ""
             state["pending_buy"] = None
             state["pending_buy_req_id"] = None
 
@@ -1322,7 +1387,17 @@ def on_message(socket, message):
             )
 
         with state_lock:
+            pending_tp_req = state.get("pending_tp_sl_req_id")
+            if pending_tp_req == req_id:
+                state["pending_tp_sl_req_id"] = None
+                state["tp_sl_status"] = "CONFIRMED"
+                state["tp_sl_error"] = ""
+
             if state["current_trade"] is not None:
+
+                if pending_tp_req == req_id:
+                    state["current_trade"]["tp_sl_status"] = "CONFIRMED"
+                    state["current_trade"]["tp_sl_error"] = ""
 
                 if tp_price is not None:
                     state["current_trade"]["tp_price"] = tp_price
@@ -1347,6 +1422,21 @@ def on_message(socket, message):
             add_log(
                 f"🔴 SERVER SL PRICE = {sl_price}"
             )
+
+        if tp_price is not None or sl_price is not None:
+            add_log("✅ SERVER TP/SL CONFIRMED by Deriv")
+
+        with state_lock:
+            trade = state.get("current_trade")
+            if trade is not None:
+                entry = trade.get("entry_price")
+                spot = trade.get("current_spot")
+                pl = trade.get("current_pl")
+                if entry is not None and spot is not None:
+                    add_log(
+                        f"📊 CONTRACT | Entry={entry} | Spot={spot} | "
+                        f"Δ={spot-entry:+.5f} | P/L=${pl if pl is not None else 0:.2f}"
+                    )
 
         save_state()
         return
@@ -1416,12 +1506,24 @@ def on_message(socket, message):
                 current_trade = state.get("current_trade")
 
                 if current_trade is not None:
+                    # The open-contract stream is authoritative for state.
+                    # Never leave an active contract displayed as IDLE.
+                    state["trade_state"] = "OPEN"
+                    current_trade["status"] = "OPEN"
 
                     if entry_price is not None:
                         current_trade["entry_price"] = entry_price
 
                     if current_spot is not None:
                         current_trade["current_spot"] = current_spot
+
+                    if (entry_price is not None and current_spot is not None):
+                        change = current_spot - entry_price
+                        current_trade["price_change"] = change
+                        current_trade["price_change_percent"] = (
+                            (change / entry_price) * 100.0
+                            if entry_price != 0 else None
+                        )
 
                     if profit is not None:
                         current_trade["current_pl"] = profit
@@ -1806,7 +1908,7 @@ canvas{
 }
 .entry-display{
     display:grid;
-    grid-template-columns:repeat(4,1fr);
+    grid-template-columns:repeat(6,1fr);
     gap:8px;
     margin-top:10px;
 }
@@ -1828,6 +1930,10 @@ canvas{
 .tp{color:#19c477}
 .sl{color:#ed4665}
 .pl{color:#8da7ff}
+.spot{color:#f3c969}
+.delta{color:#b7c0d9}
+.protection{color:#19c477}
+.protection.bad{color:#ed4665}
 .strategy{
     margin-top:12px;
     padding:10px;
@@ -2040,8 +2146,23 @@ th{color:#8991ad}
                 </div>
 
                 <div class="entry-item">
+                    <div class="label">📍 CONTRACT SPOT</div>
+                    <div id="spotDisplay" class="value spot">—</div>
+                </div>
+
+                <div class="entry-item">
+                    <div class="label">↕ CHANGE FROM ENTRY</div>
+                    <div id="deltaDisplay" class="value delta">—</div>
+                </div>
+
+                <div class="entry-item">
                     <div class="label">📊 P/L</div>
                     <div id="plDisplay" class="value pl">—</div>
+                </div>
+
+                <div class="entry-item">
+                    <div class="label">🛡️ TP/SL SERVER</div>
+                    <div id="protectionDisplay" class="value protection">—</div>
                 </div>
             </div>
         </div>
@@ -2262,6 +2383,7 @@ th{color:#8991ad}
 <script>
 var priceHistory = [];
 var maxPoints = 80;
+var contractForChart = null;
 
 function $(id){
     return document.getElementById(id);
@@ -2695,39 +2817,85 @@ function drawChart(){
     var w = canvas.width;
     var h = canvas.height;
 
-    var min =
-        Math.min.apply(null,priceHistory);
+    var values = priceHistory.slice();
 
-    var max =
-        Math.max.apply(null,priceHistory);
+    // Include contract levels so Entry/TP/SL are visible on the same chart.
+    if(contractForChart){
+        [
+            contractForChart.entry_price,
+            contractForChart.current_spot,
+            contractForChart.tp_price,
+            contractForChart.sl_price
+        ].forEach(function(v){
+            if(v !== null && v !== undefined && Number.isFinite(Number(v)))
+                values.push(Number(v));
+        });
+    }
+
+    var min = Math.min.apply(null,values);
+    var max = Math.max.apply(null,values);
 
     if(max === min){
         max += 1;
         min -= 1;
     }
 
+    function yFor(v){
+        return h-pad-((Number(v)-min)/(max-min))*(h-pad*2);
+    }
+
     ctx.beginPath();
 
     priceHistory.forEach(function(v,i){
-        var x =
-            pad +
-            (i/(priceHistory.length-1)) *
-            (w-pad*2);
+        var x = pad + (i/(priceHistory.length-1))*(w-pad*2);
+        var y = yFor(v);
 
-        var y =
-            h-pad -
-            ((v-min)/(max-min)) *
-            (h-pad*2);
-
-        if(i === 0)
-            ctx.moveTo(x,y);
-        else
-            ctx.lineTo(x,y);
+        if(i === 0) ctx.moveTo(x,y);
+        else ctx.lineTo(x,y);
     });
 
     ctx.strokeStyle = "#7c6cff";
     ctx.lineWidth = 2 * devicePixelRatio;
     ctx.stroke();
+
+    // Draw contract reference levels.
+    if(contractForChart){
+        var levels = [
+            {key:"entry_price", label:"ENTRY", color:"#dbe1f4"},
+            {key:"tp_price", label:"TP", color:"#19c477"},
+            {key:"sl_price", label:"SL", color:"#ed4665"}
+        ];
+
+        levels.forEach(function(item){
+            var v = contractForChart[item.key];
+            if(v === null || v === undefined || !Number.isFinite(Number(v))) return;
+
+            var y = yFor(v);
+            if(y < pad || y > h-pad) return;
+
+            ctx.beginPath();
+            ctx.setLineDash([5,4]);
+            ctx.moveTo(pad,y);
+            ctx.lineTo(w-pad,y);
+            ctx.strokeStyle = item.color;
+            ctx.lineWidth = 1 * devicePixelRatio;
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            ctx.font = (10 * devicePixelRatio) + "px sans-serif";
+            ctx.fillStyle = item.color;
+            ctx.fillText(item.label + " " + price(v), pad+4, Math.max(12,y-4));
+        });
+
+        var spot = contractForChart.current_spot;
+        if(spot !== null && spot !== undefined && Number.isFinite(Number(spot))){
+            var sy = yFor(spot);
+            ctx.beginPath();
+            ctx.arc(w-pad,sy,4*devicePixelRatio,0,Math.PI*2);
+            ctx.fillStyle = "#f3c969";
+            ctx.fill();
+        }
+    }
 }
 
 function updateDashboard(){
@@ -2862,12 +3030,45 @@ function updateDashboard(){
                     : trade.sl_price_estimate
                 );
 
+            $("spotDisplay").textContent =
+                trade.current_spot !== null &&
+                trade.current_spot !== undefined
+                ? price(trade.current_spot)
+                : "—";
+
+            var delta = trade.price_change;
+            if(delta !== null && delta !== undefined && Number.isFinite(Number(delta))){
+                var d = Number(delta);
+                $("deltaDisplay").textContent =
+                    (d >= 0 ? "+" : "") + price(d);
+                $("deltaDisplay").className =
+                    "value delta " + (d <= 0 ? "protection" : "sl");
+            }else{
+                $("deltaDisplay").textContent = "—";
+                $("deltaDisplay").className = "value delta";
+            }
+
             $("plDisplay").textContent =
                 trade.current_pl !== null &&
                 trade.current_pl !== undefined
                 ? money(trade.current_pl)
                 : "—";
+
+            var protection = trade.tp_sl_status || "UNKNOWN";
+            $("protectionDisplay").textContent = protection;
+            $("protectionDisplay").className =
+                "value protection " +
+                ((protection === "CONFIRMED") ? "" : "bad");
+
+            contractForChart = trade;
+            drawChart();
         }else{
+            contractForChart = null;
+            $("spotDisplay").textContent = "—";
+            $("deltaDisplay").textContent = "—";
+            $("plDisplay").textContent = "—";
+            $("protectionDisplay").textContent = "—";
+            $("protectionDisplay").className = "value protection";
             $("tradeStake").textContent = "—";
             $("contractId").textContent = "—";
             $("tradeStatus").textContent = "WAITING";
@@ -3339,6 +3540,8 @@ def api_status():
 
             "last_error": state["last_error"],
             "trade_state": state["trade_state"],
+            "tp_sl_status": state["tp_sl_status"],
+            "tp_sl_error": state["tp_sl_error"],
         })
 
 
