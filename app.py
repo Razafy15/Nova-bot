@@ -90,6 +90,10 @@ state = {
     "pending_tp_sl_req_id": None,
     "tp_sl_status": "NOT_SET",
     "tp_sl_error": "",
+    "tp_sl_contract_id": None,
+    "buy_error": "",
+    "last_contract_seen": 0.0,
+    "last_portfolio_req_id": None,
 
     "req_id_counter": 0,
 
@@ -530,9 +534,13 @@ def recover_active_contract():
         "req_id": get_req_id()
     })
 
+    portfolio_req_id = get_req_id()
+    with state_lock:
+        state["last_portfolio_req_id"] = portfolio_req_id
+
     send_ws({
         "portfolio": 1,
-        "req_id": get_req_id()
+        "req_id": portfolio_req_id
     })
 
 
@@ -651,6 +659,7 @@ def set_server_tp_sl(contract_id, tp_amount, sl_amount):
 
     with state_lock:
         state["pending_tp_sl_req_id"] = req_id
+        state["tp_sl_contract_id"] = int(contract_id)
         state["tp_sl_status"] = "PENDING"
         state["tp_sl_error"] = ""
         if state.get("current_trade") is not None:
@@ -716,12 +725,17 @@ def trading_loop():
                     - state.get("pending_buy_start_time", 0)
                     > 30
                 ):
-                    add_log("⚠️ Pending BUY timeout")
+                    add_log("⚠️ Pending BUY timeout; checking portfolio before resetting state")
+                    recover_active_contract()
 
+                    # NEVER reset to IDLE while a contract is already known/open.
                     with state_lock:
-                        state["pending_buy"] = None
-                        state["pending_buy_req_id"] = None
-                        state["trade_state"] = "IDLE"
+                        if state.get("current_trade") is not None:
+                            state["trade_state"] = "OPEN"
+                            state["pending_buy"] = None
+                            state["pending_buy_req_id"] = None
+                        else:
+                            state["trade_state"] = "RECOVERY_PENDING"
 
                 time.sleep(0.5)
                 continue
@@ -1056,10 +1070,10 @@ def on_message(socket, message):
                 state["pending_proposal_req_id"] = None
 
             if state.get("pending_buy_req_id") == req_id:
-                # A BUY error means no confirmed contract from this request.
-                state["trade_state"] = "IDLE"
-                state["pending_buy"] = None
-                state["pending_buy_req_id"] = None
+                # BUY responses/errors can race with portfolio/open-contract messages.
+                # Keep the state guarded until portfolio recovery confirms no contract.
+                state["buy_error"] = f"{code}: {text}"
+                state["trade_state"] = "BUY_PENDING"
 
             if state.get("pending_tp_sl_req_id") == req_id:
                 # IMPORTANT: TP/SL failure must NOT mark an already-open
@@ -1179,48 +1193,66 @@ def on_message(socket, message):
         portfolio = data.get("portfolio", {}) or {}
         contracts = portfolio.get("contracts", []) or []
 
-        open_contract = None
-
+        open_contracts = []
         for contract in contracts:
             if not contract.get("is_sold", True):
                 cid = contract.get("contract_id")
                 if cid:
-                    open_contract = cid
-                    break
+                    open_contracts.append(cid)
 
-        if open_contract:
+        with state_lock:
+            local_trade = state.get("current_trade")
+            local_id = (local_trade or {}).get("contract_id")
+            recovery_active = state.get("recovering") or state.get("recovery_pending")
+
+        if open_contracts:
+            # There must be only one active contract for this bot.
+            if local_id and int(local_id) not in [int(x) for x in open_contracts]:
+                add_log(
+                    f"🚨 MULTIPLE/UNKNOWN OPEN CONTRACTS: local={local_id}, "
+                    f"portfolio={open_contracts}. Trading paused for safety."
+                )
+                with state_lock:
+                    state["running"] = False
+                    state["trade_state"] = "OPEN"
+                return
+
+            open_contract = local_id or open_contracts[0]
+
             with state_lock:
-                state["current_trade"] = {
-                    "contract_id": open_contract,
-                    "symbol": state["symbol"],
-                    "stake": state["stake"],
-                    "multiplier": state["multiplier"],
-                    "take_profit": state["take_profit"],
-                    "stop_loss": state["stop_loss"],
-                    "tp_amount": state["take_profit"],
-                    "sl_amount": state["stop_loss"],
-                    "entry_price": None,
-                    "current_spot": None,
-                    "current_pl": None,
-                    "price_change": None,
-                    "price_change_percent": None,
-                    "tp_sl_status": "UNKNOWN_RECOVERED",
-                    "tp_sl_error": "",
-                    "tp_price": None,
-                    "sl_price": None,
-                    "buy_price": None,
-                    "status": "OPEN",
-                    "start_time": time.time(),
-                    "is_recovered": True,
-                    "limit_order_raw": None,
-                }
+                if state.get("current_trade") is None:
+                    state["current_trade"] = {
+                        "contract_id": open_contract,
+                        "symbol": state["symbol"],
+                        "stake": state["stake"],
+                        "multiplier": state["multiplier"],
+                        "take_profit": state["take_profit"],
+                        "stop_loss": state["stop_loss"],
+                        "tp_amount": state["take_profit"],
+                        "sl_amount": state["stop_loss"],
+                        "entry_price": None,
+                        "current_spot": None,
+                        "current_pl": None,
+                        "price_change": None,
+                        "price_change_percent": None,
+                        "tp_sl_status": "UNKNOWN_RECOVERED",
+                        "tp_sl_error": "",
+                        "tp_price": None,
+                        "sl_price": None,
+                        "buy_price": None,
+                        "status": "OPEN",
+                        "start_time": time.time(),
+                        "is_recovered": True,
+                        "limit_order_raw": None,
+                    }
                 state["trade_state"] = "OPEN"
                 state["recovering"] = False
                 state["recovery_pending"] = False
+                state["last_contract_seen"] = time.time()
+                state["pending_buy"] = None
+                state["pending_buy_req_id"] = None
 
-            add_log(
-                f"🔄 Recovered active contract: {open_contract}"
-            )
+            add_log(f"🔄 Active contract confirmed by portfolio: {open_contract}")
 
             send_ws({
                 "proposal_open_contract": 1,
@@ -1228,15 +1260,36 @@ def on_message(socket, message):
                 "subscribe": 1,
                 "req_id": get_req_id(),
             })
+            return
 
-        else:
+        # IMPORTANT: a stale/empty portfolio response must NEVER erase an
+        # already known open contract. This was the main race causing the bot
+        # to display WAITING/IDLE and open another trade.
+        if local_trade is not None:
+            local_id = local_trade.get("contract_id")
+            add_log(
+                f"⚠️ Portfolio returned NO active contract, but local contract "
+                f"{local_id} is still tracked. Preserving OPEN and rechecking contract."
+            )
+            send_ws({
+                "proposal_open_contract": 1,
+                "contract_id": int(local_id),
+                "subscribe": 1,
+                "req_id": get_req_id(),
+            })
             with state_lock:
-                state["current_trade"] = None
-                state["trade_state"] = "IDLE"
+                state["trade_state"] = "OPEN"
                 state["recovering"] = False
                 state["recovery_pending"] = False
+            return
 
-            add_log("✅ No active contract")
+        with state_lock:
+            state["current_trade"] = None
+            state["trade_state"] = "IDLE"
+            state["recovering"] = False
+            state["recovery_pending"] = False
+
+        add_log("✅ No active contract confirmed")
         return
 
     # --------------------------------------------------------
@@ -1343,6 +1396,9 @@ def on_message(socket, message):
             state["trade_state"] = "OPEN"
             state["tp_sl_status"] = "NOT_SET"
             state["tp_sl_error"] = ""
+            state["tp_sl_contract_id"] = int(contract_id)
+            state["buy_error"] = ""
+            state["last_contract_seen"] = time.time()
             state["pending_buy"] = None
             state["pending_buy_req_id"] = None
 
@@ -1388,14 +1444,26 @@ def on_message(socket, message):
 
         with state_lock:
             pending_tp_req = state.get("pending_tp_sl_req_id")
-            if pending_tp_req == req_id:
+            expected_contract = state.get("tp_sl_contract_id")
+            update_contract_id = safe_int(
+                (data.get("echo_req") or {}).get("contract_id")
+                or update.get("contract_id")
+            )
+            both_levels = (tp_price is not None and sl_price is not None)
+            matching_contract = (
+                expected_contract is None
+                or update_contract_id is None
+                or int(expected_contract) == int(update_contract_id)
+            )
+
+            if pending_tp_req == req_id and both_levels and matching_contract:
                 state["pending_tp_sl_req_id"] = None
                 state["tp_sl_status"] = "CONFIRMED"
                 state["tp_sl_error"] = ""
 
             if state["current_trade"] is not None:
 
-                if pending_tp_req == req_id:
+                if pending_tp_req == req_id and both_levels and matching_contract:
                     state["current_trade"]["tp_sl_status"] = "CONFIRMED"
                     state["current_trade"]["tp_sl_error"] = ""
 
@@ -1463,6 +1531,7 @@ def on_message(socket, message):
 
         is_sold = bool(contract.get("is_sold", False))
         is_expired = bool(contract.get("is_expired", False))
+        contract_id_from_stream = contract.get("contract_id")
 
         # ----------------------------------------------------
         # Read SERVER TP/SL price levels
@@ -1506,6 +1575,15 @@ def on_message(socket, message):
                 current_trade = state.get("current_trade")
 
                 if current_trade is not None:
+                    local_id = current_trade.get("contract_id")
+                    if (
+                        contract_id_from_stream is not None
+                        and local_id is not None
+                        and int(contract_id_from_stream) != int(local_id)
+                    ):
+                        return
+                    state["last_contract_seen"] = time.time()
+
                     # The open-contract stream is authoritative for state.
                     # Never leave an active contract displayed as IDLE.
                     state["trade_state"] = "OPEN"
@@ -1575,6 +1653,18 @@ def on_message(socket, message):
         # CONTRACT CLOSED
         # ----------------------------------------------------
         with state_lock:
+            trade = state.get("current_trade") or {}
+            local_id = trade.get("contract_id")
+            if (
+                contract_id_from_stream is not None
+                and local_id is not None
+                and int(contract_id_from_stream) != int(local_id)
+            ):
+                add_log(
+                    f"⚠️ Ignoring CLOSED event for unknown contract {contract_id_from_stream}"
+                )
+                return
+
             final_profit = (
                 profit if profit is not None else 0.0
             )
