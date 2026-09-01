@@ -2235,10 +2235,11 @@ th{color:#8991ad}
             <label>Take Profit ($)</label>
             <input id="tpInput"
                    type="number"
-                   value="2"
+                   value="2.00"
                    min="0.01"
                    step="0.01"
-                   onchange="updateTPSL()">
+                   inputmode="decimal"
+                   onkeydown="if(event.key==='Enter') saveTPSLFromDashboard()">
         </div>
 
         <div class="field">
@@ -2248,7 +2249,8 @@ th{color:#8991ad}
                    value="0.10"
                    min="0.01"
                    step="0.01"
-                   onchange="updateTPSL()">
+                   inputmode="decimal"
+                   onkeydown="if(event.key==='Enter') saveTPSLFromDashboard()">
         </div>
 
         <div class="field">
@@ -2259,6 +2261,10 @@ th{color:#8991ad}
                    min="1"
                    max="20"
                    onchange="updateQuickExit()">
+        </div>
+
+        <div class="field" style="display:flex;align-items:end;">
+            <button type="button" class="btn btn-blue" onclick="saveTPSLFromDashboard()" style="width:100%;height:42px;">💾 SAVE TP / SL</button>
         </div>
 
         <div class="field">
@@ -2585,11 +2591,28 @@ async function updateMultiplier(){
     }
 }
 
-async function updateTPSL(){
-    var tp = parseFloat($("tpInput").value) || 2;
-    var sl = parseFloat($("slInput").value) || 0.10;
+async function saveTPSLFromDashboard(){
+    var tpEl = $("tpInput");
+    var slEl = $("slInput");
+
+    var tp = parseFloat(tpEl.value);
+    var sl = parseFloat(slEl.value);
+
+    if(!Number.isFinite(tp) || tp <= 0){
+        setMessage("❌ TP tsy valid. Ampidiro ohatra 0.20", "error");
+        tpEl.focus();
+        return;
+    }
+
+    if(!Number.isFinite(sl) || sl <= 0){
+        setMessage("❌ SL tsy valid. Ampidiro ohatra 0.10", "error");
+        slEl.focus();
+        return;
+    }
 
     try{
+        setMessage("⏳ Saving TP/SL...", "");
+
         var res = await api("/api/update-tpsl",{
             method:"POST",
             headers:{"Content-Type":"application/json"},
@@ -2600,13 +2623,30 @@ async function updateTPSL(){
         });
 
         if(!res.ok){
-            setMessage("❌ " + res.error,"error");
-        }else{
-            updateDashboard();
+            setMessage("❌ " + (res.error || "TP/SL update failed"), "error");
+            return;
         }
+
+        // Keep exactly what the server accepted.
+        tpEl.value = Number(res.take_profit).toFixed(2);
+        slEl.value = Number(res.stop_loss).toFixed(2);
+
+        if(res.server_update_sent){
+            setMessage("✅ TP/SL saved + Deriv server updated", "ok");
+        }else{
+            setMessage("✅ TP/SL saved (server update pending/no open contract)", "ok");
+        }
+
+        // Do NOT immediately call updateDashboard here while the user is editing.
+        // The 1-second dashboard refresh also will not overwrite focused inputs.
     }catch(e){
-        setMessage("❌ " + e.message,"error");
+        setMessage("❌ " + e.message, "error");
     }
+}
+
+// Backward-compatible name for any existing UI code.
+async function updateTPSL(){
+    return saveTPSLFromDashboard();
 }
 
 async function updateQuickExit(){
@@ -2994,11 +3034,16 @@ function updateDashboard(){
         $("multiplierInput").value =
             data.multiplier;
 
-        $("tpInput").value =
-            data.take_profit;
+        // Never overwrite TP/SL while the user is typing.
+        // The old code refreshed every 1 second and reset the fields to 2.00 / 0.10
+        // before onchange/blur could reliably save the new value.
+        var active = document.activeElement;
+        var editingTPSL = active === $("tpInput") || active === $("slInput");
 
-        $("slInput").value =
-            data.stop_loss;
+        if(!editingTPSL){
+            $("tpInput").value = Number(data.take_profit).toFixed(2);
+            $("slInput").value = Number(data.stop_loss).toFixed(2);
+        }
 
         $("quickExitTicks").value =
             data.quick_exit_ticks || 3;
