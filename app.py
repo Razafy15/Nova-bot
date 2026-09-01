@@ -43,6 +43,11 @@ state = {
     # These are MONEY amounts, not price levels.
     "take_profit": 2.00,
     "stop_loss": 0.10,
+    # Quick-exit: after 3 favorable DOWN ticks, close if real P/L is positive.
+    "quick_exit_ticks": 3,
+    "favorable_ticks": 0,
+    "quick_exit_pending": False,
+    "sell_req_id": None,
 
     "duration_unit": "s",
 
@@ -85,15 +90,6 @@ state = {
     "pending_buy": None,
     "pending_buy_req_id": None,
     "pending_buy_start_time": 0,
-
-    # Server-side TP/SL request tracking
-    "pending_tp_sl_req_id": None,
-    "tp_sl_status": "NOT_SET",
-    "tp_sl_error": "",
-    "tp_sl_contract_id": None,
-    "buy_error": "",
-    "last_contract_seen": 0.0,
-    "last_portfolio_req_id": None,
 
     "req_id_counter": 0,
 
@@ -301,6 +297,7 @@ def save_state():
                 "multiplier": state["multiplier"],
                 "take_profit": state["take_profit"],
                 "stop_loss": state["stop_loss"],
+                "quick_exit_ticks": state["quick_exit_ticks"],
                 "duration_unit": state["duration_unit"],
                 "trade_interval": state["trade_interval"],
 
@@ -534,13 +531,9 @@ def recover_active_contract():
         "req_id": get_req_id()
     })
 
-    portfolio_req_id = get_req_id()
-    with state_lock:
-        state["last_portfolio_req_id"] = portfolio_req_id
-
     send_ws({
         "portfolio": 1,
-        "req_id": portfolio_req_id
+        "req_id": get_req_id()
     })
 
 
@@ -645,8 +638,6 @@ def set_server_tp_sl(contract_id, tp_amount, sl_amount):
     if tp_amount is None or sl_amount is None:
         return False
 
-    req_id = get_req_id()
-
     payload = {
         "contract_update": 1,
         "contract_id": int(contract_id),
@@ -654,31 +645,58 @@ def set_server_tp_sl(contract_id, tp_amount, sl_amount):
             "take_profit": tp_amount,
             "stop_loss": sl_amount,
         },
-        "req_id": req_id,
+        "req_id": get_req_id(),
     }
-
-    with state_lock:
-        state["pending_tp_sl_req_id"] = req_id
-        state["tp_sl_contract_id"] = int(contract_id)
-        state["tp_sl_status"] = "PENDING"
-        state["tp_sl_error"] = ""
-        if state.get("current_trade") is not None:
-            state["current_trade"]["tp_sl_status"] = "PENDING"
 
     add_log(
         f"🎯 Setting SERVER TP=${tp_amount:.2f} "
-        f"SL=${sl_amount:.2f} | req_id={req_id}"
+        f"SL=${sl_amount:.2f}"
     )
 
-    ok = send_ws(payload)
-    if not ok:
+    return send_ws(payload)
+
+
+# ============================================================
+# QUICK EXIT / SELL
+# ============================================================
+def sell_current_contract(reason="QUICK_EXIT"):
+    """Close the currently open MULTDOWN contract at market.
+
+    This is an execution-side quick exit. Server TP/SL remains the
+    emergency/protection layer. We only request SELL when Deriv has
+    reported a positive real P/L.
+    """
+    with state_lock:
+        trade = dict(state.get("current_trade") or {})
+        if not trade:
+            return False
+        contract_id = trade.get("contract_id")
+        if not contract_id:
+            return False
+        if state.get("sell_req_id") is not None:
+            return False
+
+        sell_req_id = get_req_id()
+        state["sell_req_id"] = sell_req_id
+        state["trade_state"] = "SELL_PENDING"
+        state["quick_exit_pending"] = True
+
+    payload = {
+        "sell": int(contract_id),
+        "price": 0,
+        "req_id": sell_req_id,
+    }
+
+    if not send_ws(payload):
         with state_lock:
-            state["tp_sl_status"] = "SEND_FAILED"
-            state["tp_sl_error"] = "WebSocket send failed"
-            state["pending_tp_sl_req_id"] = None
-            if state.get("current_trade") is not None:
-                state["current_trade"]["tp_sl_status"] = "SEND_FAILED"
-    return ok
+            state["sell_req_id"] = None
+            state["trade_state"] = "OPEN"
+            state["quick_exit_pending"] = False
+        add_log("❌ QUICK EXIT SELL send failed")
+        return False
+
+    add_log(f"⚡ QUICK EXIT: {reason} | SELL contract {contract_id}")
+    return True
 
 
 # ============================================================
@@ -725,17 +743,15 @@ def trading_loop():
                     - state.get("pending_buy_start_time", 0)
                     > 30
                 ):
-                    add_log("⚠️ Pending BUY timeout; checking portfolio before resetting state")
-                    recover_active_contract()
+                    add_log("⚠️ Pending BUY timeout")
 
-                    # NEVER reset to IDLE while a contract is already known/open.
                     with state_lock:
+                        state["pending_buy"] = None
+                        state["pending_buy_req_id"] = None
                         if state.get("current_trade") is not None:
                             state["trade_state"] = "OPEN"
-                            state["pending_buy"] = None
-                            state["pending_buy_req_id"] = None
                         else:
-                            state["trade_state"] = "RECOVERY_PENDING"
+                            state["trade_state"] = "IDLE"
 
                 time.sleep(0.5)
                 continue
@@ -943,40 +959,18 @@ def trading_loop():
                 time.sleep(0.2)
 
             if not buy_success:
-                # Do NOT immediately declare BUY failed. The BUY response and
-                # portfolio/contract stream can arrive out of order. First
-                # recover the account portfolio and wait briefly for an OPEN
-                # contract. This prevents the old:
-                #   BUY FAILED + CONTRACT OPENED
-                # race condition.
-                add_log("⚠️ BUY response timeout; checking portfolio before declaring failure")
+                with state_lock:
+                    error_text = state.get(
+                        "last_error",
+                        "No contract opened"
+                    )
+                    state["trade_state"] = "IDLE"
+                    state["pending_buy"] = None
+                    state["pending_buy_req_id"] = None
+                    state["last_trade_time"] = time.time()
 
-                recover_active_contract()
-
-                recovery_wait = time.time()
-                recovered = False
-                while time.time() - recovery_wait < 5:
-                    with state_lock:
-                        recovered = state.get("current_trade") is not None
-                    if recovered:
-                        break
-                    time.sleep(0.25)
-
-                if not recovered:
-                    with state_lock:
-                        error_text = state.get(
-                            "last_error",
-                            "No contract opened"
-                        )
-                        state["trade_state"] = "IDLE"
-                        state["pending_buy"] = None
-                        state["pending_buy_req_id"] = None
-                        state["last_trade_time"] = time.time()
-
-                    add_log(f"❌ BUY FAILED AFTER RECOVERY: {error_text}")
-                    continue
-
-                add_log("✅ BUY recovered from portfolio: contract is OPEN")
+                add_log(f"❌ BUY FAILED: {error_text}")
+                continue
 
             with state_lock:
                 state["last_trade_time"] = time.time()
@@ -1070,20 +1064,9 @@ def on_message(socket, message):
                 state["pending_proposal_req_id"] = None
 
             if state.get("pending_buy_req_id") == req_id:
-                # BUY responses/errors can race with portfolio/open-contract messages.
-                # Keep the state guarded until portfolio recovery confirms no contract.
-                state["buy_error"] = f"{code}: {text}"
-                state["trade_state"] = "BUY_PENDING"
-
-            if state.get("pending_tp_sl_req_id") == req_id:
-                # IMPORTANT: TP/SL failure must NOT mark an already-open
-                # contract as IDLE. Keep the trade OPEN and expose the error.
-                state["tp_sl_status"] = "REJECTED"
-                state["tp_sl_error"] = f"{code}: {text}"
-                state["pending_tp_sl_req_id"] = None
-                if state.get("current_trade") is not None:
-                    state["current_trade"]["tp_sl_status"] = "REJECTED"
-                    state["current_trade"]["tp_sl_error"] = f"{code}: {text}"
+                state["trade_state"] = "IDLE"
+                state["pending_buy"] = None
+                state["pending_buy_req_id"] = None
 
         add_log(f"❌ API ERROR: {code} - {text}")
 
@@ -1193,66 +1176,47 @@ def on_message(socket, message):
         portfolio = data.get("portfolio", {}) or {}
         contracts = portfolio.get("contracts", []) or []
 
-        open_contracts = []
+        open_contract = None
+
         for contract in contracts:
             if not contract.get("is_sold", True):
                 cid = contract.get("contract_id")
                 if cid:
-                    open_contracts.append(cid)
+                    open_contract = cid
+                    break
 
-        with state_lock:
-            local_trade = state.get("current_trade")
-            local_id = (local_trade or {}).get("contract_id")
-            recovery_active = state.get("recovering") or state.get("recovery_pending")
-
-        if open_contracts:
-            # There must be only one active contract for this bot.
-            if local_id and int(local_id) not in [int(x) for x in open_contracts]:
-                add_log(
-                    f"🚨 MULTIPLE/UNKNOWN OPEN CONTRACTS: local={local_id}, "
-                    f"portfolio={open_contracts}. Trading paused for safety."
-                )
-                with state_lock:
-                    state["running"] = False
-                    state["trade_state"] = "OPEN"
-                return
-
-            open_contract = local_id or open_contracts[0]
-
+        if open_contract:
             with state_lock:
-                if state.get("current_trade") is None:
-                    state["current_trade"] = {
-                        "contract_id": open_contract,
-                        "symbol": state["symbol"],
-                        "stake": state["stake"],
-                        "multiplier": state["multiplier"],
-                        "take_profit": state["take_profit"],
-                        "stop_loss": state["stop_loss"],
-                        "tp_amount": state["take_profit"],
-                        "sl_amount": state["stop_loss"],
-                        "entry_price": None,
-                        "current_spot": None,
-                        "current_pl": None,
-                        "price_change": None,
-                        "price_change_percent": None,
-                        "tp_sl_status": "UNKNOWN_RECOVERED",
-                        "tp_sl_error": "",
-                        "tp_price": None,
-                        "sl_price": None,
-                        "buy_price": None,
-                        "status": "OPEN",
-                        "start_time": time.time(),
-                        "is_recovered": True,
-                        "limit_order_raw": None,
-                    }
+                state["current_trade"] = {
+                    "contract_id": open_contract,
+                    "symbol": state["symbol"],
+                    "stake": state["stake"],
+                    "multiplier": state["multiplier"],
+                    "take_profit": state["take_profit"],
+                    "stop_loss": state["stop_loss"],
+                    "tp_amount": state["take_profit"],
+                    "sl_amount": state["stop_loss"],
+                    "entry_price": None,
+                    "current_spot": None,
+                    "current_pl": None,
+                    "last_contract_spot": None,
+                    "favorable_ticks": 0,
+                    "sell_price": None,
+                    "tp_price": None,
+                    "sl_price": None,
+                    "buy_price": None,
+                    "status": "OPEN",
+                    "start_time": time.time(),
+                    "is_recovered": True,
+                    "limit_order_raw": None,
+                }
                 state["trade_state"] = "OPEN"
                 state["recovering"] = False
                 state["recovery_pending"] = False
-                state["last_contract_seen"] = time.time()
-                state["pending_buy"] = None
-                state["pending_buy_req_id"] = None
 
-            add_log(f"🔄 Active contract confirmed by portfolio: {open_contract}")
+            add_log(
+                f"🔄 Recovered active contract: {open_contract}"
+            )
 
             send_ws({
                 "proposal_open_contract": 1,
@@ -1260,36 +1224,15 @@ def on_message(socket, message):
                 "subscribe": 1,
                 "req_id": get_req_id(),
             })
-            return
 
-        # IMPORTANT: a stale/empty portfolio response must NEVER erase an
-        # already known open contract. This was the main race causing the bot
-        # to display WAITING/IDLE and open another trade.
-        if local_trade is not None:
-            local_id = local_trade.get("contract_id")
-            add_log(
-                f"⚠️ Portfolio returned NO active contract, but local contract "
-                f"{local_id} is still tracked. Preserving OPEN and rechecking contract."
-            )
-            send_ws({
-                "proposal_open_contract": 1,
-                "contract_id": int(local_id),
-                "subscribe": 1,
-                "req_id": get_req_id(),
-            })
+        else:
             with state_lock:
-                state["trade_state"] = "OPEN"
+                state["current_trade"] = None
+                state["trade_state"] = "IDLE"
                 state["recovering"] = False
                 state["recovery_pending"] = False
-            return
 
-        with state_lock:
-            state["current_trade"] = None
-            state["trade_state"] = "IDLE"
-            state["recovering"] = False
-            state["recovery_pending"] = False
-
-        add_log("✅ No active contract confirmed")
+            add_log("✅ No active contract")
         return
 
     # --------------------------------------------------------
@@ -1380,10 +1323,9 @@ def on_message(socket, message):
                 "buy_price": buy_price,
                 "current_spot": None,
                 "current_pl": None,
-                "price_change": None,
-                "price_change_percent": None,
-                "tp_sl_status": "NOT_SET",
-                "tp_sl_error": "",
+                "last_contract_spot": None,
+                "favorable_ticks": 0,
+                "sell_price": None,
 
                 "limit_order_raw": None,
                 "status": "OPEN",
@@ -1394,11 +1336,6 @@ def on_message(socket, message):
             state["total_trades"] += 1
             state["trades_today"] += 1
             state["trade_state"] = "OPEN"
-            state["tp_sl_status"] = "NOT_SET"
-            state["tp_sl_error"] = ""
-            state["tp_sl_contract_id"] = int(contract_id)
-            state["buy_error"] = ""
-            state["last_contract_seen"] = time.time()
             state["pending_buy"] = None
             state["pending_buy_req_id"] = None
 
@@ -1414,6 +1351,52 @@ def on_message(socket, message):
             "req_id": get_req_id(),
         })
 
+        return
+
+    # --------------------------------------------------------
+    # SELL / QUICK EXIT RESPONSE
+    # --------------------------------------------------------
+    if msg_type == "sell":
+        if "error" in data:
+            error = data.get("error", {}) or {}
+            with state_lock:
+                state["last_error"] = (
+                    f"{error.get('code', 'SELL_ERROR')}: "
+                    f"{error.get('message', 'Sell failed')}"
+                )
+                state["sell_req_id"] = None
+                state["quick_exit_pending"] = False
+                if state.get("current_trade") is not None:
+                    state["trade_state"] = "OPEN"
+            add_log(
+                f"❌ QUICK EXIT SELL ERROR: "
+                f"{error.get('message', 'Unknown')}"
+            )
+            return
+
+        sell = data.get("sell", {}) or {}
+        with state_lock:
+            pending_sell = state.get("sell_req_id")
+
+        if pending_sell != req_id:
+            return
+
+        sold_contract_id = sell.get("contract_id")
+        sell_price = safe_float(sell.get("sold_for"))
+
+        with state_lock:
+            if state.get("current_trade") is not None:
+                state["current_trade"]["sell_price"] = sell_price
+                state["current_trade"]["status"] = "SELLING"
+            state["sell_req_id"] = None
+            state["quick_exit_pending"] = False
+            state["trade_state"] = "OPEN"
+
+        add_log(
+            f"✅ QUICK EXIT SELL CONFIRMED: "
+            f"contract={sold_contract_id or '—'} "
+            f"sold_for={sell_price if sell_price is not None else '—'}"
+        )
         return
 
     # --------------------------------------------------------
@@ -1443,29 +1426,7 @@ def on_message(socket, message):
             )
 
         with state_lock:
-            pending_tp_req = state.get("pending_tp_sl_req_id")
-            expected_contract = state.get("tp_sl_contract_id")
-            update_contract_id = safe_int(
-                (data.get("echo_req") or {}).get("contract_id")
-                or update.get("contract_id")
-            )
-            both_levels = (tp_price is not None and sl_price is not None)
-            matching_contract = (
-                expected_contract is None
-                or update_contract_id is None
-                or int(expected_contract) == int(update_contract_id)
-            )
-
-            if pending_tp_req == req_id and both_levels and matching_contract:
-                state["pending_tp_sl_req_id"] = None
-                state["tp_sl_status"] = "CONFIRMED"
-                state["tp_sl_error"] = ""
-
             if state["current_trade"] is not None:
-
-                if pending_tp_req == req_id and both_levels and matching_contract:
-                    state["current_trade"]["tp_sl_status"] = "CONFIRMED"
-                    state["current_trade"]["tp_sl_error"] = ""
 
                 if tp_price is not None:
                     state["current_trade"]["tp_price"] = tp_price
@@ -1490,21 +1451,6 @@ def on_message(socket, message):
             add_log(
                 f"🔴 SERVER SL PRICE = {sl_price}"
             )
-
-        if tp_price is not None or sl_price is not None:
-            add_log("✅ SERVER TP/SL CONFIRMED by Deriv")
-
-        with state_lock:
-            trade = state.get("current_trade")
-            if trade is not None:
-                entry = trade.get("entry_price")
-                spot = trade.get("current_spot")
-                pl = trade.get("current_pl")
-                if entry is not None and spot is not None:
-                    add_log(
-                        f"📊 CONTRACT | Entry={entry} | Spot={spot} | "
-                        f"Δ={spot-entry:+.5f} | P/L=${pl if pl is not None else 0:.2f}"
-                    )
 
         save_state()
         return
@@ -1531,7 +1477,6 @@ def on_message(socket, message):
 
         is_sold = bool(contract.get("is_sold", False))
         is_expired = bool(contract.get("is_expired", False))
-        contract_id_from_stream = contract.get("contract_id")
 
         # ----------------------------------------------------
         # Read SERVER TP/SL price levels
@@ -1575,33 +1520,12 @@ def on_message(socket, message):
                 current_trade = state.get("current_trade")
 
                 if current_trade is not None:
-                    local_id = current_trade.get("contract_id")
-                    if (
-                        contract_id_from_stream is not None
-                        and local_id is not None
-                        and int(contract_id_from_stream) != int(local_id)
-                    ):
-                        return
-                    state["last_contract_seen"] = time.time()
-
-                    # The open-contract stream is authoritative for state.
-                    # Never leave an active contract displayed as IDLE.
-                    state["trade_state"] = "OPEN"
-                    current_trade["status"] = "OPEN"
 
                     if entry_price is not None:
                         current_trade["entry_price"] = entry_price
 
                     if current_spot is not None:
                         current_trade["current_spot"] = current_spot
-
-                    if (entry_price is not None and current_spot is not None):
-                        change = current_spot - entry_price
-                        current_trade["price_change"] = change
-                        current_trade["price_change_percent"] = (
-                            (change / entry_price) * 100.0
-                            if entry_price != 0 else None
-                        )
 
                     if profit is not None:
                         current_trade["current_pl"] = profit
@@ -1646,6 +1570,48 @@ def on_message(socket, message):
                         if est_sl is not None:
                             current_trade["sl_price_estimate"] = est_sl
 
+            # ------------------------------------------------
+            # QUICK EXIT: 3 favorable DOWN ticks after entry
+            # ------------------------------------------------
+            do_quick_exit = False
+            quick_reason = ""
+            with state_lock:
+                current_trade = state.get("current_trade")
+                if current_trade is not None:
+                    entry = safe_float(current_trade.get("entry_price"))
+                    spot = safe_float(current_trade.get("current_spot"))
+                    pl = safe_float(current_trade.get("current_pl"))
+                    prev_spot = safe_float(current_trade.get("last_contract_spot"))
+
+                    if entry is not None and spot is not None:
+                        # For MULTDOWN, a lower spot is favorable.
+                        if prev_spot is not None and spot < prev_spot:
+                            current_trade["favorable_ticks"] = int(
+                                current_trade.get("favorable_ticks", 0)
+                            ) + 1
+                        elif prev_spot is not None and spot > prev_spot:
+                            current_trade["favorable_ticks"] = 0
+
+                        current_trade["last_contract_spot"] = spot
+
+                    fav_ticks = int(current_trade.get("favorable_ticks", 0))
+                    quick_ticks = int(state.get("quick_exit_ticks", 3))
+
+                    # Never force a loss: quick exit only when real Deriv P/L > 0.
+                    if (
+                        fav_ticks >= quick_ticks
+                        and pl is not None
+                        and pl > 0
+                        and state.get("sell_req_id") is None
+                    ):
+                        do_quick_exit = True
+                        quick_reason = (
+                            f"{fav_ticks} favorable DOWN ticks | P/L=${pl:.2f}"
+                        )
+
+            if do_quick_exit:
+                sell_current_contract(quick_reason)
+
             save_state()
             return
 
@@ -1653,18 +1619,6 @@ def on_message(socket, message):
         # CONTRACT CLOSED
         # ----------------------------------------------------
         with state_lock:
-            trade = state.get("current_trade") or {}
-            local_id = trade.get("contract_id")
-            if (
-                contract_id_from_stream is not None
-                and local_id is not None
-                and int(contract_id_from_stream) != int(local_id)
-            ):
-                add_log(
-                    f"⚠️ Ignoring CLOSED event for unknown contract {contract_id_from_stream}"
-                )
-                return
-
             final_profit = (
                 profit if profit is not None else 0.0
             )
@@ -1737,6 +1691,8 @@ def on_message(socket, message):
             state["pending_buy"] = None
             state["pending_buy_req_id"] = None
             state["contract_subscription_id"] = None
+            state["sell_req_id"] = None
+            state["quick_exit_pending"] = False
 
         add_log(
             f"{result}: {final_profit:+.2f} | "
@@ -1998,7 +1954,7 @@ canvas{
 }
 .entry-display{
     display:grid;
-    grid-template-columns:repeat(6,1fr);
+    grid-template-columns:repeat(4,1fr);
     gap:8px;
     margin-top:10px;
 }
@@ -2020,10 +1976,6 @@ canvas{
 .tp{color:#19c477}
 .sl{color:#ed4665}
 .pl{color:#8da7ff}
-.spot{color:#f3c969}
-.delta{color:#b7c0d9}
-.protection{color:#19c477}
-.protection.bad{color:#ed4665}
 .strategy{
     margin-top:12px;
     padding:10px;
@@ -2237,22 +2189,17 @@ th{color:#8991ad}
 
                 <div class="entry-item">
                     <div class="label">📍 CONTRACT SPOT</div>
-                    <div id="spotDisplay" class="value spot">—</div>
+                    <div id="spotDisplay" class="value">—</div>
                 </div>
 
                 <div class="entry-item">
-                    <div class="label">↕ CHANGE FROM ENTRY</div>
-                    <div id="deltaDisplay" class="value delta">—</div>
+                    <div class="label">📉 FAVORABLE TICKS</div>
+                    <div id="favorableTicksDisplay" class="value">0</div>
                 </div>
 
                 <div class="entry-item">
                     <div class="label">📊 P/L</div>
                     <div id="plDisplay" class="value pl">—</div>
-                </div>
-
-                <div class="entry-item">
-                    <div class="label">🛡️ TP/SL SERVER</div>
-                    <div id="protectionDisplay" class="value protection">—</div>
                 </div>
             </div>
         </div>
@@ -2302,6 +2249,16 @@ th{color:#8991ad}
                    min="0.01"
                    step="0.01"
                    onchange="updateTPSL()">
+        </div>
+
+        <div class="field">
+            <label>Quick Exit Ticks</label>
+            <input id="quickExitTicks"
+                   type="number"
+                   value="3"
+                   min="1"
+                   max="20"
+                   onchange="updateQuickExit()">
         </div>
 
         <div class="field">
@@ -2473,7 +2430,6 @@ th{color:#8991ad}
 <script>
 var priceHistory = [];
 var maxPoints = 80;
-var contractForChart = null;
 
 function $(id){
     return document.getElementById(id);
@@ -2646,6 +2602,27 @@ async function updateTPSL(){
         if(!res.ok){
             setMessage("❌ " + res.error,"error");
         }else{
+            updateDashboard();
+        }
+    }catch(e){
+        setMessage("❌ " + e.message,"error");
+    }
+}
+
+async function updateQuickExit(){
+    var ticks = parseInt($("quickExitTicks").value) || 3;
+
+    try{
+        var res = await api("/api/update-quick-exit",{
+            method:"POST",
+            headers:{"Content-Type":"application/json"},
+            body:JSON.stringify({ticks:ticks})
+        });
+
+        if(!res.ok){
+            setMessage("❌ " + res.error,"error");
+        }else{
+            setMessage("⚡ Quick exit = " + ticks + " ticks","ok");
             updateDashboard();
         }
     }catch(e){
@@ -2907,85 +2884,39 @@ function drawChart(){
     var w = canvas.width;
     var h = canvas.height;
 
-    var values = priceHistory.slice();
+    var min =
+        Math.min.apply(null,priceHistory);
 
-    // Include contract levels so Entry/TP/SL are visible on the same chart.
-    if(contractForChart){
-        [
-            contractForChart.entry_price,
-            contractForChart.current_spot,
-            contractForChart.tp_price,
-            contractForChart.sl_price
-        ].forEach(function(v){
-            if(v !== null && v !== undefined && Number.isFinite(Number(v)))
-                values.push(Number(v));
-        });
-    }
-
-    var min = Math.min.apply(null,values);
-    var max = Math.max.apply(null,values);
+    var max =
+        Math.max.apply(null,priceHistory);
 
     if(max === min){
         max += 1;
         min -= 1;
     }
 
-    function yFor(v){
-        return h-pad-((Number(v)-min)/(max-min))*(h-pad*2);
-    }
-
     ctx.beginPath();
 
     priceHistory.forEach(function(v,i){
-        var x = pad + (i/(priceHistory.length-1))*(w-pad*2);
-        var y = yFor(v);
+        var x =
+            pad +
+            (i/(priceHistory.length-1)) *
+            (w-pad*2);
 
-        if(i === 0) ctx.moveTo(x,y);
-        else ctx.lineTo(x,y);
+        var y =
+            h-pad -
+            ((v-min)/(max-min)) *
+            (h-pad*2);
+
+        if(i === 0)
+            ctx.moveTo(x,y);
+        else
+            ctx.lineTo(x,y);
     });
 
     ctx.strokeStyle = "#7c6cff";
     ctx.lineWidth = 2 * devicePixelRatio;
     ctx.stroke();
-
-    // Draw contract reference levels.
-    if(contractForChart){
-        var levels = [
-            {key:"entry_price", label:"ENTRY", color:"#dbe1f4"},
-            {key:"tp_price", label:"TP", color:"#19c477"},
-            {key:"sl_price", label:"SL", color:"#ed4665"}
-        ];
-
-        levels.forEach(function(item){
-            var v = contractForChart[item.key];
-            if(v === null || v === undefined || !Number.isFinite(Number(v))) return;
-
-            var y = yFor(v);
-            if(y < pad || y > h-pad) return;
-
-            ctx.beginPath();
-            ctx.setLineDash([5,4]);
-            ctx.moveTo(pad,y);
-            ctx.lineTo(w-pad,y);
-            ctx.strokeStyle = item.color;
-            ctx.lineWidth = 1 * devicePixelRatio;
-            ctx.stroke();
-            ctx.setLineDash([]);
-
-            ctx.font = (10 * devicePixelRatio) + "px sans-serif";
-            ctx.fillStyle = item.color;
-            ctx.fillText(item.label + " " + price(v), pad+4, Math.max(12,y-4));
-        });
-
-        var spot = contractForChart.current_spot;
-        if(spot !== null && spot !== undefined && Number.isFinite(Number(spot))){
-            var sy = yFor(spot);
-            ctx.beginPath();
-            ctx.arc(w-pad,sy,4*devicePixelRatio,0,Math.PI*2);
-            ctx.fillStyle = "#f3c969";
-            ctx.fill();
-        }
-    }
 }
 
 function updateDashboard(){
@@ -3069,6 +3000,9 @@ function updateDashboard(){
         $("slInput").value =
             data.stop_loss;
 
+        $("quickExitTicks").value =
+            data.quick_exit_ticks || 3;
+
         $("tradeInterval").value =
             data.trade_interval;
 
@@ -3082,7 +3016,9 @@ function updateDashboard(){
             "x</b> | TP $" +
             Number(data.take_profit).toFixed(2) +
             " | SL $" +
-            Number(data.stop_loss).toFixed(2);
+            Number(data.stop_loss).toFixed(2) +
+            " | ⚡ Exit " +
+            (data.quick_exit_ticks || 3) + " down ticks";
 
         updateSymbols(data.boom_symbols);
         updateContractInfo(data.available_contracts);
@@ -3126,45 +3062,24 @@ function updateDashboard(){
                 ? price(trade.current_spot)
                 : "—";
 
-            var delta = trade.price_change;
-            if(delta !== null && delta !== undefined && Number.isFinite(Number(delta))){
-                var d = Number(delta);
-                $("deltaDisplay").textContent =
-                    (d >= 0 ? "+" : "") + price(d);
-                $("deltaDisplay").className =
-                    "value delta " + (d <= 0 ? "protection" : "sl");
-            }else{
-                $("deltaDisplay").textContent = "—";
-                $("deltaDisplay").className = "value delta";
-            }
+            $("favorableTicksDisplay").textContent =
+                (trade.favorable_ticks || 0) +
+                " / " + (data.quick_exit_ticks || 3);
 
             $("plDisplay").textContent =
                 trade.current_pl !== null &&
                 trade.current_pl !== undefined
                 ? money(trade.current_pl)
                 : "—";
-
-            var protection = trade.tp_sl_status || "UNKNOWN";
-            $("protectionDisplay").textContent = protection;
-            $("protectionDisplay").className =
-                "value protection " +
-                ((protection === "CONFIRMED") ? "" : "bad");
-
-            contractForChart = trade;
-            drawChart();
         }else{
-            contractForChart = null;
-            $("spotDisplay").textContent = "—";
-            $("deltaDisplay").textContent = "—";
-            $("plDisplay").textContent = "—";
-            $("protectionDisplay").textContent = "—";
-            $("protectionDisplay").className = "value protection";
             $("tradeStake").textContent = "—";
             $("contractId").textContent = "—";
             $("tradeStatus").textContent = "WAITING";
             $("entryDisplay").textContent = "—";
             $("tpDisplay").textContent = "—";
             $("slDisplay").textContent = "—";
+            $("spotDisplay").textContent = "—";
+            $("favorableTicksDisplay").textContent = "0";
             $("plDisplay").textContent = "—";
         }
     })
@@ -3403,17 +3318,55 @@ def api_update_tpsl():
             "error": "Invalid stop loss"
         }), 400
 
+    contract_id = None
     with state_lock:
         state["take_profit"] = tp
         state["stop_loss"] = sl
+        trade = state.get("current_trade")
+        if isinstance(trade, dict):
+            contract_id = trade.get("contract_id")
+            # Keep the new money targets visible immediately.
+            trade["tp_amount"] = tp
+            trade["sl_amount"] = sl
+
+    # If a contract is already OPEN, update the real server-side TP/SL too.
+    server_update_sent = False
+    if contract_id:
+        server_update_sent = set_server_tp_sl(contract_id, tp, sl)
+        if server_update_sent:
+            add_log(
+                f"🎯 Dashboard TP/SL update sent for contract {contract_id}: "
+                f"TP=${tp:.2f} SL=${sl:.2f}"
+            )
+        else:
+            add_log("⚠️ Dashboard TP/SL changed locally, but server update could not be sent")
 
     save_state()
 
     return jsonify({
         "ok": True,
         "take_profit": tp,
-        "stop_loss": sl
+        "stop_loss": sl,
+        "server_update_sent": server_update_sent
     })
+
+
+@app.route("/api/update-quick-exit", methods=["POST"])
+def api_update_quick_exit():
+    payload = request.get_json(silent=True) or {}
+    ticks = safe_int(payload.get("ticks"))
+
+    if ticks is None or ticks < 1 or ticks > 20:
+        return jsonify({
+            "ok": False,
+            "error": "Quick exit ticks must be 1-20"
+        }), 400
+
+    with state_lock:
+        state["quick_exit_ticks"] = ticks
+
+    save_state()
+    return jsonify({"ok": True, "quick_exit_ticks": ticks})
 
 
 @app.route("/api/update-interval", methods=["POST"])
@@ -3600,6 +3553,7 @@ def api_status():
             "multiplier": state["multiplier"],
             "take_profit": state["take_profit"],
             "stop_loss": state["stop_loss"],
+            "quick_exit_ticks": state["quick_exit_ticks"],
 
             "total_trades": total,
             "wins": wins,
@@ -3630,8 +3584,6 @@ def api_status():
 
             "last_error": state["last_error"],
             "trade_state": state["trade_state"],
-            "tp_sl_status": state["tp_sl_status"],
-            "tp_sl_error": state["tp_sl_error"],
         })
 
 
